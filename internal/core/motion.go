@@ -48,7 +48,7 @@ func (e *Editor) moveLines(n int) {
 	goal, line, row := e.goal, e.line(), e.DiffRow()
 	last := e.Buf.Text.LineCount() - 1
 	for ; n > 0; n-- {
-		if row < e.addedBelow(line) {
+		if row < e.diffBelow(line) {
 			row++
 		} else if line < last {
 			line, row = line+1, 0
@@ -59,22 +59,22 @@ func (e *Editor) moveLines(n int) {
 			row--
 		} else if line > 0 {
 			line--
-			row = e.addedBelow(line)
+			row = e.diffBelow(line)
 		}
 	}
 	e.setHead(e.offsetAt(line, goal))
 	e.goal, e.row, e.rowSet = goal, row, true
 }
 
-// DiffRow returns n>0 when the cursor is on the n-th proposed line drawn
-// below its hunk, or 0 when it is on the buffer line.
-func (e *Editor) DiffRow() int { return min(e.row, e.addedBelow(e.line())) }
+// DiffRow returns n>0 when the cursor is on the n-th diff line drawn below its
+// hunk (proposed, or old for a tweaked hunk), or 0 when it is on the buffer line.
+func (e *Editor) DiffRow() int { return min(e.row, e.diffBelow(e.line())) }
 
-// addedBelow returns how many proposed lines are drawn below line.
-func (e *Editor) addedBelow(line int) int {
+// diffBelow returns how many diff lines are drawn below line.
+func (e *Editor) diffBelow(line int) int {
 	for _, h := range e.Hunks() {
 		if h.Last == line {
-			return len(h.Added)
+			return h.Below()
 		}
 	}
 	return 0

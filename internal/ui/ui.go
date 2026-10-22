@@ -135,8 +135,11 @@ func Draw(s Screen, ed *core.Editor) {
 				hunk = &hunks[i]
 			}
 		}
-		if hunk != nil && hunk.Removes {
+		switch {
+		case hunk != nil && hunk.Removes:
 			base, mark = styleRemoved, "-"
+		case hunk != nil && hunk.Tweaked:
+			base, mark = styleAdded, "+"
 		}
 		if skip == 0 {
 			s.Put(0, row, mark, base)
@@ -158,24 +161,28 @@ func Draw(s Screen, ed *core.Editor) {
 			row++
 		}
 		if hunk != nil && line == hunk.Last {
-			for i, a := range hunk.Added {
+			below, belowStyle, belowMark := hunk.Added, styleAdded, "+"
+			if hunk.Tweaked {
+				below, belowStyle, belowMark = hunk.Removed, styleRemoved, "-"
+			}
+			for i, a := range below {
 				if i+1 < skip {
 					continue
 				}
 				if row >= h-2 {
 					break
 				}
-				st := styleAdded
+				st := belowStyle
 				if line == curLine && i+1 == diffRow {
-					st = styleAdded.Reverse(true)
+					st = belowStyle.Reverse(true)
 				}
 				fill(s, 0, row, w, st)
-				s.Put(0, row, "+", st)
+				s.Put(0, row, belowMark, st)
 				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return st })
 				row++
 			}
 			for i, n := range hunk.Notes {
-				if len(hunk.Added)+1+i < skip {
+				if hunk.Below()+1+i < skip {
 					continue
 				}
 				if row >= h-2 {
@@ -253,7 +260,11 @@ func Draw(s Screen, ed *core.Editor) {
 			if hk.P.Rationale != "" {
 				info += ": " + hk.P.Rationale
 			}
-			putString(s, 0, h-1, info+"  (+ accept, - reject, # comment)", styleDim)
+			keys := "  (+ accept, - reject, # comment)"
+			if hk.Tweaked {
+				keys = "  (editing: + accept as edited, - restore and reject)"
+			}
+			putString(s, 0, h-1, info+keys, styleDim)
 		}
 	}
 	if t := ed.ActiveToast(); t != nil {

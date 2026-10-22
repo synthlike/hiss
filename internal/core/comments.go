@@ -60,12 +60,17 @@ func (e *Editor) comment(text string) {
 		e.Msg = fmt.Sprintf("commented on step %d; %s will see it", s.N, e.trail.Agent)
 	default:
 		c := Comment{Author: You.Author, Text: text}
-		if r := e.DiffRow(); r > 0 {
+		line := e.line()
+		lineText := string(e.Buf.Text.Slice(e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)))
+		switch r := e.DiffRow(); {
+		case r > 0 && h.Tweaked: // an old line, which was buffer line First+r
+			c.At, c.Line = fmt.Sprintf("-%d", h.First+r), "- "+h.Removed[r-1]
+		case r > 0:
 			c.At, c.Line = fmt.Sprintf("+%d", r), "+ "+h.Added[r-1]
-		} else if h.Removes {
-			line := e.line()
-			c.At = fmt.Sprintf("-%d", line+1)
-			c.Line = "- " + string(e.Buf.Text.Slice(e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)))
+		case h.Tweaked:
+			c.At, c.Line = fmt.Sprintf("+%d", line-h.First+1), "+ "+lineText
+		case h.Removes:
+			c.At, c.Line = fmt.Sprintf("-%d", line+1), "- "+lineText
 		}
 		h.P.Thread = append(h.P.Thread, c)
 		e.Msg = fmt.Sprintf("commented on #%d; %s will see it", h.P.ID, h.P.Agent)
@@ -161,6 +166,8 @@ func (e *Editor) Withdraw(agent string, id int) (undo func(), err error) {
 		return nil, fmt.Errorf("no proposal #%d of yours", id)
 	case p.Status != Pending:
 		return nil, fmt.Errorf("proposal #%d is %s; only pending proposals can be superseded", id, p.Status)
+	case p.Tweaked:
+		return nil, fmt.Errorf("the user is editing proposal #%d; wait for their review", id)
 	}
 	b := p.Buf
 	i := slices.Index(b.pending, p)

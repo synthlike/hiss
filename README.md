@@ -62,7 +62,13 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | `:accept-all` / `:reject-all [reason]` | accept or reject every pending hunk |
 | `:clear-trail` | stop showing the trail |
 
-Editing the text of a pending hunk makes it stale; the agent is told to re-read.
+To adjust a proposal before accepting it, edit its `+` lines (`i`, `c`, `d`, `o`,
+`p`, `x` …): the proposed text moves into the buffer, with the old lines shown
+below it, and `+` accepts it as you left it. The agent is told about your edits and
+given the saved text; `-` restores the old text, and undoing past the first edit
+turns it back into a plain proposal. Editing the old (`-`) lines of a pending hunk
+instead makes it stale; the agent is told to re-read.
+
 Comments reach Claude while it waits for your review, or wake it after its turn
 ends (via the `hiss hook watch` Stop hook that `hiss setup` adds).
 

@@ -116,7 +116,7 @@ func (e *Editor) HandleKey(k string) {
 	case e.Mode == Command:
 		e.commandKey(k)
 	default:
-		if f, ok := normalKeys[k]; ok {
+		if f, ok := normalKeys[k]; ok && e.beforeKey(k) {
 			f(e)
 		}
 	}
@@ -418,6 +418,7 @@ func (e *Editor) undoOnce() {
 	}
 	b.redo = append(b.redo, snapshot{b.Text, e.Sel})
 	e.restore(&b.undo)
+	e.untweakUndone()
 }
 
 func (e *Editor) redoOnce() {

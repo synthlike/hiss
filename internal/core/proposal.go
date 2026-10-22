@@ -20,7 +20,8 @@ const (
 )
 
 // Proposal is an agent's suggested replacement of a region of a buffer. While
-// pending, Start and End track the region as the buffer is edited.
+// pending, Start and End track the region as the buffer is edited. Once the
+// user tweaks it, the region holds the proposed text as the user edits it.
 type Proposal struct {
 	ID        int
 	Agent     string
@@ -34,6 +35,16 @@ type Proposal struct {
 	Status    Status
 	Reason    string    // why it was rejected or went stale
 	Thread    []Comment // review discussion between the user and the agent
+	Tweaked   bool      // the proposed text is in the buffer for the user to edit
+	Edited    bool      // accepted after the user changed the proposed text
+	Final     string    // the accepted text, when Edited
+
+	old       []oldSpan // the text a tweak replaced
+	tweakUndo int       // undo depth just after the tweak's checkpoint
+}
+
+func (p *Proposal) origin() text.Origin {
+	return text.Origin{Author: p.Agent, Session: p.Session, Turn: p.Turn, Proposal: p.ID}
 }
 
 // ProposeEdit proposes replacing old with new in the file at path, using the
@@ -165,17 +176,23 @@ func (e *Editor) PendingCount() int {
 
 // Hunk is how a pending proposal is drawn: buffer lines First..Last are the old
 // text (marked removed when the proposal replaces any), followed by Added lines
-// and the review thread's Notes.
+// and the review thread's Notes. A tweaked hunk is the other way round: lines
+// First..Last are the proposal, followed by the Removed old lines.
 type Hunk struct {
 	P           *Proposal
 	First, Last int
 	Removes     bool
+	Tweaked     bool
 	Added       []string
+	Removed     []string
 	Notes       []NoteLine
 }
 
+// Below returns the number of diff lines drawn after the hunk's last line.
+func (h Hunk) Below() int { return len(h.Added) + len(h.Removed) }
+
 // Rows returns the number of rows drawn after the hunk's last line.
-func (h Hunk) Rows() int { return len(h.Added) + len(h.Notes) }
+func (h Hunk) Rows() int { return h.Below() + len(h.Notes) }
 
 // Hunks returns the pending hunks of the visible buffer in order.
 func (e *Editor) Hunks() []Hunk {
@@ -187,25 +204,37 @@ func (e *Editor) Hunks() []Hunk {
 }
 
 func (e *Editor) hunk(p *Proposal) Hunk {
-	b := p.Buf
-	t := b.Text
+	t := p.Buf.Text
 	first := t.LineOf(p.Start)
 	last := t.LineOf(max(p.End-1, p.Start))
+	h := Hunk{P: p, First: first, Last: last,
+		Notes: append(rationaleLines(p, e.Width-2), threadLines(p.Thread, e.Width-2)...)}
+	if p.Tweaked {
+		h.Tweaked, h.Removed = true, diffLines(p, first, last, p.oldText())
+	} else {
+		h.Removes, h.Added = p.End > p.Start, diffLines(p, first, last, p.New)
+	}
+	return h
+}
+
+// diffLines returns buffer lines first..last with p's region replaced by s.
+func diffLines(p *Proposal, first, last int, s string) []string {
+	b := p.Buf
+	t := b.Text
 	lastEnd := b.LineEnd(last)
-	res := string(t.Slice(t.LineStart(first), p.Start)) + p.New
+	res := string(t.Slice(t.LineStart(first), p.Start)) + s
 	trim := p.End > lastEnd || p.End == t.Len() // the region ends a line, so a final "\n" isn't a new line
 	if p.End <= lastEnd {
 		res += string(t.Slice(p.End, lastEnd))
 	}
-	var added []string
-	if res != "" {
-		added = strings.Split(res, "\n")
-		if trim && len(added) > 1 && added[len(added)-1] == "" {
-			added = added[:len(added)-1]
-		}
+	if res == "" {
+		return nil
 	}
-	return Hunk{P: p, First: first, Last: last, Removes: p.End > p.Start, Added: added,
-		Notes: append(rationaleLines(p, e.Width-2), threadLines(p.Thread, e.Width-2)...)}
+	lines := strings.Split(res, "\n")
+	if trim && len(lines) > 1 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
 }
 
 // HunkAtCursor returns the pending hunk on the cursor's line, or nil.
@@ -244,21 +273,34 @@ func (e *Editor) resolve(p *Proposal, accept bool, reason string) string {
 	b.pending = slices.DeleteFunc(b.pending, func(q *Proposal) bool { return q == p })
 	if !accept {
 		p.Status, p.Reason = Rejected, reason
+		if p.Tweaked {
+			e.untweak(p)
+		}
 		return fmt.Sprintf("rejected #%d", p.ID)
 	}
-	sel := b.sel
-	if b == e.Buf {
-		sel = e.Sel
+	if p.Tweaked {
+		if final := string(b.Text.Slice(p.Start, p.End)); final != p.New {
+			p.Edited, p.Final = true, final
+		}
+	} else {
+		e.checkpointBuf(b)
+		b.Replace(p.Start, p.End, []byte(p.New), p.origin())
 	}
-	b.undo, b.redo = append(b.undo, snapshot{b.Text, sel}), nil
-	b.Replace(p.Start, p.End, []byte(p.New),
-		text.Origin{Author: p.Agent, Session: p.Session, Turn: p.Turn, Proposal: p.ID})
 	p.Status = Accepted
 	if err := b.Save(); err != nil {
 		p.Reason = "accepted in the editor, but saving failed: " + err.Error()
 		return fmt.Sprintf("accepted #%d but saving failed: %v", p.ID, err)
 	}
 	return fmt.Sprintf("accepted #%d, wrote %s", p.ID, b.Name)
+}
+
+// checkpointBuf records b's state for undo, whether or not it is on screen.
+func (e *Editor) checkpointBuf(b *Buffer) {
+	sel := b.sel
+	if b == e.Buf {
+		sel = e.Sel
+	}
+	b.undo, b.redo = append(b.undo, snapshot{b.Text, sel}), nil
 }
 
 // reviewAll accepts or rejects every pending hunk in every buffer.

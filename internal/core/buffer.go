@@ -58,7 +58,7 @@ func (b *Buffer) PendingCount() int { return len(b.pending) }
 func (b *Buffer) Dirty() bool { return b.Version != b.saved }
 
 // Replace edits the buffer and returns the edit for mapping positions.
-// Pending proposals whose text the edit touches become stale.
+// Pending proposals whose text the edit touches become stale, unless tweaked.
 func (b *Buffer) Replace(start, end int, s []byte, o text.Origin) text.Edit {
 	e := text.Edit{Start: start, End: end, Len: len(s)}
 	if start == end && len(s) == 0 {
@@ -109,8 +109,10 @@ func (b *Buffer) record(e text.Edit) {
 	keep := b.pending[:0]
 	for _, p := range b.pending {
 		switch {
+		case p.Tweaked && e.Start <= p.End && e.End >= p.Start: // the user is editing the proposal itself
+			p.Start, p.End = min(p.Start, e.Start), max(p.End, e.End)+e.Len-(e.End-e.Start)
 		case overlaps(e.Start, e.End, p.Start, p.End):
-			p.Status, p.Reason = Stale, "the user edited this text before reviewing it"
+			p.Status, p.Reason = Stale, userEdited
 			continue
 		case e.End <= p.Start:
 			d := e.Len - (e.End - e.Start)

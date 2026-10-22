@@ -48,6 +48,8 @@ type ProposalInfo struct {
 	Status    string `json:"status" jsonschema:"pending, accepted, rejected or stale"`
 	Reason    string `json:"reason,omitempty" jsonschema:"why it was rejected or went stale"`
 	Rationale string `json:"rationale,omitempty"`
+	Edited    bool   `json:"edited,omitempty" jsonschema:"the user changed your text before accepting it"`
+	FinalText string `json:"final_text,omitempty" jsonschema:"the text as accepted, when edited; build on this rather than your proposal"`
 }
 
 type GetProposalsIn struct {
@@ -66,6 +68,9 @@ func (o ProposalsOut) Text() string {
 		fmt.Fprintf(&sb, "#%d %s: %s", p.ID, p.Path, p.Status)
 		if p.Reason != "" {
 			fmt.Fprintf(&sb, " (%s)", p.Reason)
+		}
+		if p.Edited {
+			fmt.Fprintf(&sb, " with the user's edits; the text as saved:\n%s", strings.TrimSuffix(p.FinalText, "\n"))
 		}
 		sb.WriteString("\n")
 	}
@@ -141,6 +146,7 @@ func proposalInfo(p *core.Proposal) ProposalInfo {
 	return ProposalInfo{
 		ID: p.ID, Path: p.Buf.Path, Session: p.Session, Turn: p.Turn,
 		Status: string(p.Status), Reason: p.Reason, Rationale: p.Rationale,
+		Edited: p.Edited, FinalText: p.Final,
 	}
 }
 
