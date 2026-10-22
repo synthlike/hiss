@@ -140,6 +140,7 @@ func (e *Editor) jumpToProposal(p *Proposal) {
 		return
 	}
 	line := p.Buf.Text.LineOf(p.Start)
+	e.pushJump()
 	e.SwitchTo(p.Buf)
 	e.setHead(p.Buf.Text.LineStart(line))
 	e.Top, e.TopSub = max(line-2, 0), 0

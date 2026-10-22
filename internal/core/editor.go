@@ -77,6 +77,7 @@ type Editor struct {
 	notices   []Toast          // raised since the UI last took them
 	trail     *Trail           // the trail an agent shared, if any
 	search    searchState
+	jumps     jumpList
 }
 
 func New(b *Buffer) *Editor {
@@ -142,6 +143,8 @@ var normalKeys = map[string]func(*Editor){
 	"n":   func(e *Editor) { e.searchNext(1) },
 	"N":   func(e *Editor) { e.searchNext(-1) },
 	"*":   (*Editor).searchSelection,
+	"C-o": (*Editor).jumpBack,
+	"C-i": (*Editor).jumpForward, "tab": (*Editor).jumpForward, // terminals often send C-i as tab
 
 	"d": func(e *Editor) { e.checkpoint(); e.deleteSelection() },
 	"c": func(e *Editor) { e.checkpoint(); e.deleteSelection(); e.Mode = Insert },
@@ -167,8 +170,8 @@ var normalKeys = map[string]func(*Editor){
 }
 
 var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
-	{"g", "file start", func(e *Editor) { e.setHead(0) }},
-	{"e", "file end", func(e *Editor) { e.setHead(e.Buf.Text.LineStart(e.Buf.Text.LineCount() - 1)) }},
+	{"g", "file start", func(e *Editor) { e.pushJump(); e.setHead(0) }},
+	{"e", "file end", func(e *Editor) { e.pushJump(); e.setHead(e.Buf.Text.LineStart(e.Buf.Text.LineCount() - 1)) }},
 	{"h", "line start", func(e *Editor) { e.setHead(e.Buf.Text.LineStart(e.line())) }},
 	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.LineEnd(e.line())) }},
 }}
@@ -281,6 +284,7 @@ func (e *Editor) openFile(path string) {
 		return
 	}
 	old := e.Buf
+	e.pushJump()
 	e.SwitchTo(b)
 	if old != b && old.Path == "" && !old.Dirty() && old.Text.Len() == 0 {
 		for i, x := range e.Bufs {

@@ -58,8 +58,14 @@ func TestTrail(t *testing.T) {
 	}
 
 	e.execute("trail-clear")
-	if e.trail != nil || len(f.anchors) != 0 {
-		t.Errorf("clear: trail=%v anchors=%d", e.trail, len(f.anchors))
+	jumps := 0 // anchors the jump list keeps in f
+	for _, p := range e.jumps.list {
+		if p.buf == f {
+			jumps++
+		}
+	}
+	if e.trail != nil || len(f.anchors) != jumps {
+		t.Errorf("clear: trail=%v anchors=%d, %d of them jumps", e.trail, len(f.anchors), jumps)
 	}
 	e.execute("comment anyone?")
 	if !strings.HasPrefix(e.Msg, "nothing to comment on") {

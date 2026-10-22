@@ -73,7 +73,7 @@ func (e *Editor) openBufferPicker() {
 			detail = append(detail, fmt.Sprintf("%d pending", n))
 		}
 		p.Items = append(p.Items, PickItem{Label: b.Name, Detail: strings.Join(detail, " "),
-			Run: func(e *Editor) { e.SwitchTo(b) }})
+			Run: func(e *Editor) { e.pushJump(); e.SwitchTo(b) }})
 	}
 	e.Picker = p
 }

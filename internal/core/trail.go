@@ -127,6 +127,7 @@ func (e *Editor) goToStep(i int) {
 	t := e.trail
 	t.current = i
 	s := t.Steps[i]
+	e.pushJump()
 	e.SwitchTo(s.Buf)
 	line := s.Line()
 	e.setHead(s.Buf.Text.LineStart(line))

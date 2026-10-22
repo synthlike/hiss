@@ -10,7 +10,8 @@ an agent's change while keeping your own.
 Editing is selection-first and keyboard-driven, in the style of Helix. `/` searches
 as you type (Go regular expressions, case-insensitive unless the pattern has a
 capital), `n` / `N` repeat it, `*` searches for the selection, and `:<line>` jumps
-to a line.
+to a line. `C-o` / `C-i` (or `tab`) go back and forward through the places you
+jumped from: searches, `gg` / `ge`, `:<line>`, hunks, trail steps and pickers.
 
 ## Status
 

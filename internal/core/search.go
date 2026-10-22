@@ -67,6 +67,7 @@ func (e *Editor) searchKey(k string) {
 		switch {
 		case e.Cmd != "": // search again, for the match count the key cleared
 			e.Sel = s.from
+			e.pushJump()
 			e.findMatch(1, s.mode)
 		case s.prev != nil: // like Vim, an empty search repeats the last one
 			s.re, s.pattern = s.prev, s.prevPattern
@@ -96,6 +97,7 @@ func (e *Editor) searchNext(dir int) {
 		return
 	}
 	e.search.shown = true
+	e.pushJump()
 	e.findMatch(dir, e.Mode)
 }
 
@@ -185,6 +187,7 @@ func (e *Editor) matches(from, to int) [][2]int {
 // gotoLine moves to the start of 1-based line n, clamped to the buffer.
 func (e *Editor) gotoLine(n int) {
 	line := min(max(n-1, 0), max(e.Buf.Lines()-1, 0))
+	e.pushJump()
 	e.setHead(e.Buf.Text.LineStart(line))
 	e.revealLine(line)
 }
