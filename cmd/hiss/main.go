@@ -34,6 +34,8 @@ func main() {
 		err = runMCP()
 	case len(args) == 1 && args[0] == "hook":
 		runHook(os.Stdin)
+	case len(args) == 2 && args[0] == "hook" && args[1] == "watch":
+		os.Exit(runWatch(os.Stdin, os.Stderr))
 	case len(args) == 1 && args[0] == "setup":
 		err = runSetup(os.Stdout)
 	case len(args) == 0:
@@ -200,8 +202,12 @@ func runSetup(w io.Writer) error {
 			"PreToolUse":   group("mcp__hiss__.*", false),
 			"PostToolUse":  group("", true),
 			"Notification": group("", true),
-			"Stop":         group("", true),
-			"SessionEnd":   group("", true),
+			// The second Stop handler waits in the background for comments and
+			// wakes Claude to answer them (exit 2 with asyncRewake).
+			"Stop": []map[string]any{{"hooks": append(handler(true), map[string]any{
+				"type": "command", "command": exe + " hook watch", "asyncRewake": true, "timeout": 3600,
+			})}},
+			"SessionEnd": group("", true),
 		},
 	}
 	enc := json.NewEncoder(w)

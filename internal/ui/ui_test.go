@@ -92,10 +92,13 @@ func TestDrawHunk(t *testing.T) {
 	if _, err := ed.ProposeEdit("claude", b.Path, "two\n", "2\nTWO\n", false, nil, "spell it out"); err != nil {
 		t.Fatal(err)
 	}
-	ed.HandleKey("j")
+	if err := ed.Reply("claude", 1, "spelled out"); err != nil {
+		t.Fatal(err)
+	}
+	ed.HandleKey("j") // also clears the "replied" message
 	g := newGrid(30, 8)
 	Draw(g, ed)
-	want := []string{"  one", "- two", "+ 2", "+ TWO", "  three", "  "}
+	want := []string{"  one", "- two", "+ 2", "+ TWO", "┆ claude: spelled out", "  three"}
 	for y, w := range want {
 		if got := g.row(y); got != strings.TrimRight(w, " ") {
 			t.Errorf("row %d = %q, want %q", y, got, w)

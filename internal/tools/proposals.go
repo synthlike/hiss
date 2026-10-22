@@ -19,6 +19,7 @@ type ProposeEditIn struct {
 	ReplaceAll  bool   `json:"replace_all,omitempty" jsonschema:"propose replacing every occurrence"`
 	BaseVersion *int   `json:"base_version,omitempty" jsonschema:"buffer version you read; the edit is refused if the user changed this text since"`
 	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change"`
+	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over"`
 }
 
 type WriteFileIn struct {
@@ -26,6 +27,7 @@ type WriteFileIn struct {
 	Content     string `json:"content" jsonschema:"the complete new file content"`
 	BaseVersion *int   `json:"base_version,omitempty" jsonschema:"buffer version you read, for an existing file"`
 	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change"`
+	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over"`
 }
 
 type ProposeOut struct {
@@ -54,6 +56,7 @@ type GetProposalsIn struct {
 
 type ProposalsOut struct {
 	Proposals []ProposalInfo `json:"proposals"`
+	Comments  []CommentInfo  `json:"new_comments,omitempty" jsonschema:"comments the user made since you last checked"`
 	TimedOut  bool           `json:"timed_out,omitempty"`
 }
 
@@ -69,6 +72,8 @@ func (o ProposalsOut) Text() string {
 	switch {
 	case len(o.Proposals) == 0:
 		sb.WriteString("no proposals\n")
+	case len(o.Comments) > 0:
+		sb.WriteString(CommentsText(o.Comments))
 	case o.TimedOut:
 		sb.WriteString("Still waiting for the user; call await_review again or continue with other work.\n")
 	}
@@ -76,23 +81,41 @@ func (o ProposalsOut) Text() string {
 }
 
 func proposeEdit(ed *core.Editor, agent string, in ProposeEditIn) (ProposeOut, error) {
-	ps, err := ed.ProposeEdit(agent, resolve(ed, in.Path), in.OldString, in.NewString, in.ReplaceAll, in.BaseVersion, in.Rationale)
+	return superseding(ed, agent, in.Supersedes, func() ([]*core.Proposal, error) {
+		return ed.ProposeEdit(agent, resolve(ed, in.Path), in.OldString, in.NewString, in.ReplaceAll, in.BaseVersion, in.Rationale)
+	})
+}
+
+func writeFile(ed *core.Editor, agent string, in WriteFileIn) (ProposeOut, error) {
+	return superseding(ed, agent, in.Supersedes, func() ([]*core.Proposal, error) {
+		p, err := ed.WriteFile(agent, resolve(ed, in.Path), in.Content, in.BaseVersion, in.Rationale)
+		return []*core.Proposal{p}, err
+	})
+}
+
+// superseding runs propose, first withdrawing the proposal it revises (if any)
+// so the revision may overlap it, and restoring that proposal if propose fails.
+func superseding(ed *core.Editor, agent string, old int, propose func() ([]*core.Proposal, error)) (ProposeOut, error) {
+	undo := func() {}
+	if old != 0 {
+		var err error
+		if undo, err = ed.Withdraw(agent, old); err != nil {
+			return ProposeOut{}, err
+		}
+	}
+	ps, err := propose()
 	if err != nil {
+		undo()
 		return ProposeOut{}, err
+	}
+	if old != 0 {
+		ed.Supersede(ed.Proposal(old), ps[0])
 	}
 	out := ProposeOut{Path: ps[0].Buf.Path}
 	for _, p := range ps {
 		out.IDs = append(out.IDs, p.ID)
 	}
 	return out, nil
-}
-
-func writeFile(ed *core.Editor, agent string, in WriteFileIn) (ProposeOut, error) {
-	p, err := ed.WriteFile(agent, resolve(ed, in.Path), in.Content, in.BaseVersion, in.Rationale)
-	if err != nil {
-		return ProposeOut{}, err
-	}
-	return ProposeOut{IDs: []int{p.ID}, Path: p.Buf.Path}, nil
 }
 
 func getProposals(ed *core.Editor, agent string, in GetProposalsIn) (ProposalsOut, error) {
@@ -107,7 +130,7 @@ func getProposals(ed *core.Editor, agent string, in GetProposalsIn) (ProposalsOu
 		}
 		ps = append(ps, p)
 	}
-	out := ProposalsOut{Proposals: []ProposalInfo{}}
+	out := ProposalsOut{Proposals: []ProposalInfo{}, Comments: commentInfos(ed.TakeComments(ps))}
 	for _, p := range ps {
 		out.Proposals = append(out.Proposals, ProposalInfo{
 			ID: p.ID, Path: p.Buf.Path, Session: p.Session, Turn: p.Turn,
@@ -150,8 +173,8 @@ var awaitReview = tool{
 					return nil, out, err
 				}
 				waiting := slices.ContainsFunc(out.Proposals, func(p ProposalInfo) bool { return p.Status == string(core.Pending) })
-				if !waiting || time.Now().After(deadline) {
-					out.TimedOut = waiting
+				if !waiting || len(out.Comments) > 0 || time.Now().After(deadline) {
+					out.TimedOut = waiting && len(out.Comments) == 0
 					return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out.Text()}}}, out, nil
 				}
 				select {

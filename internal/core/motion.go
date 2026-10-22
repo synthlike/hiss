@@ -200,7 +200,7 @@ func (e *Editor) scroll() {
 	}
 	added := map[int]int{} // rows drawn after a line for pending hunks
 	for _, h := range e.Hunks() {
-		added[h.Last] += len(h.Added)
+		added[h.Last] += h.Rows()
 	}
 	for e.Top < line {
 		rows := line - e.Top + 1

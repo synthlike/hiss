@@ -62,6 +62,10 @@ func TestSetupIsValidSettings(t *testing.T) {
 		!strings.HasSuffix(pre[0].Hooks[0].Command, " hook") {
 		t.Errorf("PreToolUse = %+v", pre)
 	}
+	if stop := s.Hooks["Stop"]; len(stop) != 1 || len(stop[0].Hooks) != 2 ||
+		!strings.HasSuffix(stop[0].Hooks[1].Command, " hook watch") {
+		t.Errorf("Stop = %+v", stop)
+	}
 	if len(s.Hooks) != 7 || len(s.Permissions.Deny) != 4 {
 		t.Errorf("hooks=%d deny=%v", len(s.Hooks), s.Permissions.Deny)
 	}

@@ -32,7 +32,8 @@ type Proposal struct {
 	End       int
 	New       string
 	Status    Status
-	Reason    string // why it was rejected or went stale
+	Reason    string    // why it was rejected or went stale
+	Thread    []Comment // review discussion between the user and the agent
 }
 
 // ProposeEdit proposes replacing old with new in the file at path, using the
@@ -163,13 +164,18 @@ func (e *Editor) PendingCount() int {
 }
 
 // Hunk is how a pending proposal is drawn: buffer lines First..Last are the old
-// text (marked removed when the proposal replaces any), followed by Added lines.
+// text (marked removed when the proposal replaces any), followed by Added lines
+// and the review thread's Notes.
 type Hunk struct {
 	P           *Proposal
 	First, Last int
 	Removes     bool
 	Added       []string
+	Notes       []NoteLine
 }
+
+// Rows returns the number of rows drawn after the hunk's last line.
+func (h Hunk) Rows() int { return len(h.Added) + len(h.Notes) }
 
 // Hunks returns the pending hunks of the visible buffer in order.
 func (e *Editor) Hunks() []Hunk {
@@ -198,7 +204,8 @@ func (e *Editor) hunk(p *Proposal) Hunk {
 			added = added[:len(added)-1]
 		}
 	}
-	return Hunk{P: p, First: first, Last: last, Removes: p.End > p.Start, Added: added}
+	return Hunk{P: p, First: first, Last: last, Removes: p.End > p.Start, Added: added,
+		Notes: threadLines(p.Thread, e.Width-2)}
 }
 
 // HunkAtCursor returns the pending hunk on the cursor's line, or nil.

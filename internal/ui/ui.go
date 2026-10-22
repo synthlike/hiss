@@ -21,15 +21,17 @@ type Screen interface {
 }
 
 var (
-	styleText    = tcell.StyleDefault
-	styleCursor  = tcell.StyleDefault.Reverse(true)
-	styleStatus  = tcell.StyleDefault.Reverse(true)
-	styleDim     = tcell.StyleDefault.Dim(true)
-	styleSel     = tcell.StyleDefault.Background(tcell.ColorNavy)
-	styleMenu    = tcell.StyleDefault.Background(tcell.ColorDarkSlateGray)
-	styleMenuKey = styleMenu.Bold(true).Foreground(tcell.ColorYellow)
-	styleRemoved = tcell.StyleDefault.Foreground(tcell.ColorRed)
-	styleAdded   = tcell.StyleDefault.Foreground(tcell.ColorGreen)
+	styleText      = tcell.StyleDefault
+	styleCursor    = tcell.StyleDefault.Reverse(true)
+	styleStatus    = tcell.StyleDefault.Reverse(true)
+	styleDim       = tcell.StyleDefault.Dim(true)
+	styleSel       = tcell.StyleDefault.Background(tcell.ColorNavy)
+	styleMenu      = tcell.StyleDefault.Background(tcell.ColorDarkSlateGray)
+	styleMenuKey   = styleMenu.Bold(true).Foreground(tcell.ColorYellow)
+	styleRemoved   = tcell.StyleDefault.Foreground(tcell.ColorRed)
+	styleAdded     = tcell.StyleDefault.Foreground(tcell.ColorGreen)
+	styleYourNote  = tcell.StyleDefault.Foreground(tcell.ColorYellow)
+	styleAgentNote = tcell.StyleDefault.Foreground(tcell.ColorTeal)
 )
 
 // Run draws and handles events until the editor quits. Work sent on reqs runs on
@@ -141,6 +143,18 @@ func Draw(s Screen, ed *core.Editor) {
 				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return styleAdded })
 				row++
 			}
+			for _, n := range hunk.Notes {
+				if row >= h-2 {
+					break
+				}
+				style := styleAgentNote
+				if n.Mine {
+					style = styleYourNote
+				}
+				s.Put(0, row, "┆", styleDim)
+				putString(s, gutter, row, n.Text, style)
+				row++
+			}
 		}
 		line++
 	}
@@ -180,7 +194,7 @@ func Draw(s Screen, ed *core.Editor) {
 			if hk.P.Rationale != "" {
 				info += ": " + hk.P.Rationale
 			}
-			putString(s, 0, h-1, info+"  (space a accept, space r reject)", styleDim)
+			putString(s, 0, h-1, info+"  (space a accept, space r reject, space c comment)", styleDim)
 		}
 	}
 	if ed.Menu != nil {

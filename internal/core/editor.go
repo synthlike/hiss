@@ -53,6 +53,7 @@ type Editor struct {
 	Sel    Selection
 	Mode   Mode
 	Top    int    // first visible line
+	Width  int    // columns, for wrapping review threads
 	Height int    // rows available for text
 	Cmd    string // command line contents in Command mode
 	Msg    string // one-line message for the user
@@ -76,6 +77,7 @@ func New(b *Buffer) *Editor {
 
 // Resize records the text area height and keeps the cursor visible.
 func (e *Editor) Resize(width, height int) {
+	e.Width = width
 	e.Height = max(height-2, 1) // status line and message line
 	e.scroll()
 }
@@ -154,6 +156,7 @@ var prevMenu = Menu{Title: "previous", Items: []MenuItem{
 var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"a", "accept hunk", func(e *Editor) { e.reviewHunk(true, "") }},
 	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
+	{"c", "comment on hunk", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
 	{"b", "buffers", func(e *Editor) { e.Menu = e.bufferMenu() }},
 	{"w", "write", func(e *Editor) { e.save() }},
 	{"q", "quit", func(e *Editor) { e.execute("q") }},
@@ -240,6 +243,10 @@ func (e *Editor) execute(cmd string) {
 	case "":
 	default:
 		c := strings.TrimSpace(cmd)
+		if text, ok := strings.CutPrefix(c, "comment"); ok {
+			e.commentOnHunk(strings.TrimSpace(text))
+			return
+		}
 		if reason, ok := strings.CutPrefix(c, "reject "); ok {
 			e.reviewHunk(false, strings.TrimSpace(reason))
 			return

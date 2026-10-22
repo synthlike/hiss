@@ -220,6 +220,54 @@ func TestAwaitReviewTimesOut(t *testing.T) {
 	}
 }
 
+func TestCommentEndsAwaitAndRevisionSupersedes(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	cs, reqs := setup(t, "a := 1\n")
+	res := call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "1", "new_string": "2"})
+	id := structured[ProposeOut](t, res).IDs[0]
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		onEditor(reqs, func(ed *core.Editor) {
+			ed.HandleKey("]")
+			ed.HandleKey("h")
+			ed.HandleKey(":")
+			for _, k := range "comment make it 3" {
+				if k == ' ' {
+					ed.HandleKey("space")
+				} else {
+					ed.HandleKey(string(k))
+				}
+			}
+			ed.HandleKey("enter")
+		})
+	}()
+	res = call(t, cs, "await_review", map[string]any{"ids": []int{id}, "timeout_seconds": 5})
+	out := structured[ProposalsOut](t, res)
+	if len(out.Comments) != 1 || out.Comments[0].Text != "make it 3" || out.TimedOut {
+		t.Fatalf("await_review = %+v", out)
+	}
+
+	if res = call(t, cs, "reply", map[string]any{"id": id, "text": "sure"}); res.IsError {
+		t.Fatalf("reply: %s", text(res))
+	}
+	res = call(t, cs, "propose_edit", map[string]any{
+		"path": "main.go", "old_string": "a := 1", "new_string": "a := 3", "supersedes": id,
+	})
+	if res.IsError {
+		t.Fatalf("revision: %s", text(res))
+	}
+	rev := structured[ProposeOut](t, res).IDs[0]
+	res = call(t, cs, "get_proposals", map[string]any{"ids": []int{id, rev}})
+	if got := text(res); !strings.Contains(got, "superseded (revised as #") || !strings.Contains(got, "pending") {
+		t.Errorf("after revision: %s", got)
+	}
+	onEditor(reqs, func(ed *core.Editor) {
+		if p := ed.Proposal(rev); len(p.Thread) != 2 {
+			t.Errorf("revision thread = %+v", p.Thread)
+		}
+	})
+}
+
 func TestStaleBaseVersionReachesAgent(t *testing.T) {
 	cs, reqs := setup(t, "a := 1\n")
 	onEditor(reqs, func(ed *core.Editor) {

@@ -28,6 +28,9 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
   await_review before depending on a change (running tests, building on it).
   Accepted changes are saved to disk; for rejected ones, read the reason and
   adjust. A stale proposal means the user edited that text: re-read and retry.
+- The user may comment on a pending proposal. Comments arrive through
+  await_review or get_proposals, or wake you after your turn ends. Answer with
+  reply; to change the proposal, propose a revision with supersedes set to its id.
 - Use get_selection to see what the user is pointing at.`
 
 // Forward sends a tool call to the editor and returns its JSON result.
@@ -108,6 +111,8 @@ var all = []tool{
 	}, getProposals),
 	awaitReview,
 	awaitPoll,
+	replyTool,
+	watchComments,
 	hook,
 	define(&mcp.Tool{
 		Name:        "get_selection",

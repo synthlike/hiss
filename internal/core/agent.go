@@ -22,6 +22,7 @@ type Session struct {
 	Note     string    // what the agent is waiting for, from its notification
 	Seen     time.Time // last hook
 	awaiting time.Time // last await_review poll
+	watcher  string    // background comment watcher started when the session stopped
 }
 
 // Awaiting reports whether the session is blocked in await_review.
@@ -55,6 +56,7 @@ func (e *Editor) Hook(ev HookEvent) {
 	case "UserPromptSubmit":
 		s.Turn++
 		s.State, s.Note = Working, ""
+		s.watcher = "" // the session is busy again; its watcher stands down
 	case "PreToolUse":
 		s.State, s.Note = Working, ""
 		if strings.HasPrefix(ev.ToolName, "mcp__hiss__") {
