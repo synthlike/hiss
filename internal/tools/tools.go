@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,9 +17,18 @@ import (
 )
 
 // Instructions are sent to MCP clients when they connect.
-const Instructions = `hiss is the user's text editor. Buffers open in hiss may contain unsaved
-changes, so read them with read_buffer rather than from disk. Use get_selection
-to see what the user is pointing at.`
+const Instructions = `hiss is the user's text editor, and the user reviews every change you make in it.
+
+- Do not change files with Edit, Write or shell commands. Propose changes with
+  propose_edit (same rules as Edit: old_string must match exactly once) or, for
+  new files and full rewrites, write_file.
+- Read files with read_buffer: open buffers may have unsaved changes. Pass the
+  version it returns as base_version when proposing.
+- Each proposal is pending until the user accepts or rejects it. Call
+  await_review before depending on a change (running tests, building on it).
+  Accepted changes are saved to disk; for rejected ones, read the reason and
+  adjust. A stale proposal means the user edited that text: re-read and retry.
+- Use get_selection to see what the user is pointing at.`
 
 // Forward sends a tool call to the editor and returns its JSON result.
 type Forward func(ctx context.Context, agent, tool string, args any) (json.RawMessage, error)
@@ -75,13 +85,28 @@ func agentName(req *mcp.CallToolRequest) string {
 var all = []tool{
 	define(&mcp.Tool{
 		Name:        "list_buffers",
-		Description: "List files open in the user's editor, with their versions and whether they have unsaved changes.",
+		Description: "List files open in the user's editor, with their versions, unsaved changes and pending proposals.",
 	}, listBuffers),
 	define(&mcp.Tool{
 		Name: "read_buffer",
-		Description: "Read a file open in the editor, including unsaved changes. Lines are numbered " +
-			"like cat -n; the number and tab are not part of the text. Returns the buffer version.",
+		Description: "Read a file as the editor has it, including unsaved changes (files that aren't open are read " +
+			"from disk). Lines are numbered like cat -n; the number and tab are not part of the text. " +
+			"Returns the version to pass as base_version.",
 	}, readBuffer),
+	define(&mcp.Tool{
+		Name: "propose_edit",
+		Description: "Propose replacing old_string with new_string in a file, for the user to review in the editor. " +
+			"Same matching rules as the Edit tool. Returns proposal ids.",
+	}, proposeEdit),
+	define(&mcp.Tool{
+		Name:        "write_file",
+		Description: "Propose creating a file or replacing its whole content, for the user to review.",
+	}, writeFile),
+	define(&mcp.Tool{
+		Name:        "get_proposals",
+		Description: "Report the status of your proposals without waiting.",
+	}, getProposals),
+	awaitReview,
 	define(&mcp.Tool{
 		Name:        "get_selection",
 		Description: "Get the user's cursor and selected text.",
@@ -120,6 +145,7 @@ type BufferInfo struct {
 	Lines   int    `json:"lines"`
 	Dirty   bool   `json:"dirty" jsonschema:"has unsaved changes"`
 	Active  bool   `json:"active" jsonschema:"is the buffer the user is looking at"`
+	Pending int    `json:"pending,omitempty" jsonschema:"pending proposals in this buffer"`
 }
 
 type ListBuffersOut struct {
@@ -128,10 +154,14 @@ type ListBuffersOut struct {
 }
 
 func listBuffers(ed *core.Editor, _ string, _ struct{}) (ListBuffersOut, error) {
-	b := ed.Buf
-	return ListBuffersOut{Root: ed.Root, Buffers: []BufferInfo{{
-		Path: b.Path, Version: b.Version, Lines: b.Lines(), Dirty: b.Dirty(), Active: true,
-	}}}, nil
+	out := ListBuffersOut{Root: ed.Root, Buffers: []BufferInfo{}}
+	for _, b := range ed.Bufs {
+		out.Buffers = append(out.Buffers, BufferInfo{
+			Path: b.Path, Version: b.Version, Lines: b.Lines(), Dirty: b.Dirty(),
+			Active: b == ed.Buf, Pending: b.PendingCount(),
+		})
+	}
+	return out, nil
 }
 
 type ReadBufferIn struct {
@@ -153,9 +183,18 @@ func (r ReadBufferOut) Text() string {
 }
 
 func readBuffer(ed *core.Editor, _ string, in ReadBufferIn) (ReadBufferOut, error) {
-	b, err := findBuffer(ed, in.Path)
-	if err != nil {
-		return ReadBufferOut{}, err
+	path := resolve(ed, in.Path)
+	b := ed.Find(path)
+	if b == nil {
+		var err error
+		if b, err = core.Open(path); err != nil {
+			return ReadBufferOut{}, err
+		}
+		if b.Text.Len() == 0 {
+			if _, err := os.Stat(path); err != nil {
+				return ReadBufferOut{}, fmt.Errorf("%s does not exist", path)
+			}
+		}
 	}
 	t := b.Text
 	first := max(in.Offset, 1) - 1
@@ -202,12 +241,10 @@ func getSelection(ed *core.Editor, _ string, _ struct{}) (SelectionOut, error) {
 	}, nil
 }
 
-func findBuffer(ed *core.Editor, path string) (*core.Buffer, error) {
+// resolve makes an agent's path absolute, relative to the project root.
+func resolve(ed *core.Editor, path string) string {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(ed.Root, path)
 	}
-	if filepath.Clean(path) == ed.Buf.Path {
-		return ed.Buf, nil
-	}
-	return nil, fmt.Errorf("%s is not open in hiss; read it from disk instead", path)
+	return filepath.Clean(path)
 }

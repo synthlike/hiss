@@ -46,13 +46,13 @@ func TestDraw(t *testing.T) {
 	g := newGrid(20, 6)
 	Draw(g, ed)
 
-	want := []string{"a   b", "xy", "", "~"}
+	want := []string{"  a   b", "  xy", "", "~"}
 	for y, w := range want {
 		if got := g.row(y); got != w {
 			t.Errorf("row %d = %q, want %q", y, got, w)
 		}
 	}
-	if !g.styles[1][1].HasReverse() || g.styles[1][0].HasReverse() {
+	if !g.styles[1][3].HasReverse() || g.styles[1][2].HasReverse() {
 		t.Error("cursor not drawn on 'y'")
 	}
 	if got := g.row(4); !strings.HasPrefix(got, " NOR  a.go") || !strings.HasSuffix(got, "2:2") {
@@ -76,5 +76,35 @@ func TestKeyName(t *testing.T) {
 		if got := KeyName(c.ev); got != c.want {
 			t.Errorf("KeyName(%s) = %q, want %q", c.ev.Name(), got, c.want)
 		}
+	}
+}
+
+func TestDrawHunk(t *testing.T) {
+	dir := t.TempDir()
+	b, err := core.Open(dir + "/f.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Text = text.New([]byte("one\ntwo\nthree\n"), text.Origin{})
+	ed := core.New(b)
+	ed.Root = dir
+	ed.Resize(30, 8)
+	if _, err := ed.ProposeEdit("claude", b.Path, "two\n", "2\nTWO\n", false, nil, "spell it out"); err != nil {
+		t.Fatal(err)
+	}
+	ed.HandleKey("j")
+	g := newGrid(30, 8)
+	Draw(g, ed)
+	want := []string{"  one", "- two", "+ 2", "+ TWO", "  three", "  "}
+	for y, w := range want {
+		if got := g.row(y); got != strings.TrimRight(w, " ") {
+			t.Errorf("row %d = %q, want %q", y, got, w)
+		}
+	}
+	if !strings.Contains(g.row(6), "1 pending") {
+		t.Errorf("status = %q", g.row(6))
+	}
+	if got := g.row(7); !strings.HasPrefix(got, "#1 claude: spell it out") {
+		t.Errorf("info = %q", got)
 	}
 }

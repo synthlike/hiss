@@ -193,7 +193,23 @@ func (e *Editor) scroll() {
 	line := e.line()
 	if line < e.Top {
 		e.Top = line
-	} else if line >= e.Top+e.Height {
+		return
+	}
+	if line >= e.Top+e.Height {
 		e.Top = line - e.Height + 1
+	}
+	added := map[int]int{} // rows drawn after a line for pending hunks
+	for _, h := range e.Hunks() {
+		added[h.Last] += len(h.Added)
+	}
+	for e.Top < line {
+		rows := line - e.Top + 1
+		for l := e.Top; l < line; l++ {
+			rows += added[l]
+		}
+		if rows <= e.Height {
+			break
+		}
+		e.Top++
 	}
 }

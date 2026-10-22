@@ -8,7 +8,10 @@ import (
 	"github.com/synthlike/hiss/internal/core"
 )
 
-const tabWidth = 4
+const (
+	tabWidth = 4
+	gutter   = 2 // columns before the text: a hunk mark and a space
+)
 
 // Screen is the part of tcell.Screen that drawing needs; tests fake it.
 type Screen interface {
@@ -24,6 +27,8 @@ var (
 	styleSel     = tcell.StyleDefault.Background(tcell.ColorNavy)
 	styleMenu    = tcell.StyleDefault.Background(tcell.ColorDarkSlateGray)
 	styleMenuKey = styleMenu.Bold(true).Foreground(tcell.ColorYellow)
+	styleRemoved = tcell.StyleDefault.Foreground(tcell.ColorRed)
+	styleAdded   = tcell.StyleDefault.Foreground(tcell.ColorGreen)
 )
 
 // Run draws and handles events until the editor quits. Work sent on reqs runs on
@@ -87,14 +92,53 @@ var keyNames = map[tcell.Key]string{
 func Draw(s Screen, ed *core.Editor) {
 	w, h := s.Size()
 	t := ed.Buf.Text
-	for row := 0; row < h-2; row++ {
-		line := ed.Top + row
+	hunks := ed.Hunks()
+	cursor := ed.Sel.Head
+	from, to := ed.SelRange()
+	row, line := 0, ed.Top
+	for row < h-2 {
 		if line >= t.LineCount() {
 			s.Put(0, row, "~", styleDim)
+			row, line = row+1, line+1
 			continue
 		}
+		base, mark := styleText, " "
+		var hunk *core.Hunk
+		for i := range hunks {
+			if line >= hunks[i].First && line <= hunks[i].Last {
+				hunk = &hunks[i]
+			}
+		}
+		if hunk != nil && hunk.Removes {
+			base, mark = styleRemoved, "-"
+		}
+		s.Put(0, row, mark, base)
 		start, end := t.LineStart(line), ed.Buf.LineEnd(line)
-		drawLine(s, row, w, string(t.Slice(start, end)), start, ed)
+		x := drawText(s, gutter, row, w, string(t.Slice(start, end)), start, func(off int) tcell.Style {
+			switch {
+			case off == cursor:
+				return styleCursor
+			case off >= from && off < to:
+				return styleSel
+			}
+			return base
+		})
+		if end == cursor && x < w { // cursor on the newline or end of file
+			s.Put(x, row, " ", styleCursor)
+		}
+		row++
+		if hunk != nil && line == hunk.Last {
+			for _, a := range hunk.Added {
+				if row >= h-2 {
+					break
+				}
+				fill(s, 0, row, w, styleAdded)
+				s.Put(0, row, "+", styleAdded)
+				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return styleAdded })
+				row++
+			}
+		}
+		line++
 	}
 
 	dirty := ""
@@ -104,14 +148,26 @@ func Draw(s Screen, ed *core.Editor) {
 	left := fmt.Sprintf(" %s  %s%s", ed.Mode, ed.Buf.Name, dirty)
 	line, col := ed.Cursor()
 	right := fmt.Sprintf("%d:%d ", line+1, col+1)
+	if n := ed.PendingCount(); n > 0 {
+		right = fmt.Sprintf("%d pending  ", n) + right
+	}
 	fill(s, 0, h-2, w, styleStatus)
 	putString(s, 0, h-2, left, styleStatus)
 	putString(s, w-len(right), h-2, right, styleStatus)
 
-	if ed.Mode == core.Command {
+	switch {
+	case ed.Mode == core.Command:
 		putString(s, 0, h-1, ":"+ed.Cmd, styleText)
-	} else {
+	case ed.Msg != "":
 		putString(s, 0, h-1, ed.Msg, styleText)
+	default:
+		if hk := ed.HunkAtCursor(); hk != nil {
+			info := fmt.Sprintf("#%d %s", hk.P.ID, hk.P.Agent)
+			if hk.P.Rationale != "" {
+				info += ": " + hk.P.Rationale
+			}
+			putString(s, 0, h-1, info+"  (space a accept, space r reject)", styleDim)
+		}
 	}
 	if ed.Menu != nil {
 		drawMenu(s, w, h-2, ed.Menu)
@@ -134,22 +190,16 @@ func drawMenu(s Screen, w, bottom int, m *core.Menu) {
 	}
 }
 
-// drawLine draws one line of text that starts at byte offset off.
-func drawLine(s Screen, row, width int, str string, off int, ed *core.Editor) {
-	cursor := ed.Sel.Head
-	from, to := ed.SelRange()
-	x := 0
+// drawText draws str from column x until width, styling each character by its
+// byte offset (str starts at off). It returns the column after the text.
+func drawText(s Screen, x, row, width int, str string, off int, styleAt func(int) tcell.Style) int {
+	col := 0 // column within the text, for tab stops
 	for str != "" && x < width {
-		style := styleText
-		if off == cursor {
-			style = styleCursor
-		} else if off >= from && off < to {
-			style = styleSel
-		}
+		style := styleAt(off)
 		if str[0] == '\t' {
-			n := tabWidth - x%tabWidth
-			fill(s, x, row, n, style)
-			str, off, x = str[1:], off+1, x+n
+			n := tabWidth - col%tabWidth
+			fill(s, x, row, min(n, width-x), style)
+			str, off, x, col = str[1:], off+1, x+n, col+n
 			continue
 		}
 		rest, cw := s.Put(x, row, str, style)
@@ -157,11 +207,9 @@ func drawLine(s Screen, row, width int, str string, off int, ed *core.Editor) {
 			rest = str[1:]
 		}
 		off += len(str) - len(rest)
-		str, x = rest, x+cw
+		str, x, col = rest, x+cw, col+cw
 	}
-	if off == cursor && x < width { // cursor on the newline or end of file
-		s.Put(x, row, " ", styleCursor)
-	}
+	return x
 }
 
 func fill(s Screen, x, y, n int, style tcell.Style) {

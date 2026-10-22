@@ -4,6 +4,7 @@ package core
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -45,8 +46,9 @@ type snapshot struct {
 }
 
 type Editor struct {
-	Root   string // project root; agents' relative paths resolve against it
-	Buf    *Buffer
+	Root   string    // project root; agents' relative paths resolve against it
+	Bufs   []*Buffer // open buffers, including ones agents opened
+	Buf    *Buffer   // the buffer on screen
 	Sel    Selection
 	Mode   Mode
 	Top    int    // first visible line
@@ -56,12 +58,15 @@ type Editor struct {
 	Menu   *Menu  // open prefix menu, if any
 	Quit   bool
 
-	goal       int // preferred column for vertical moves, -1 if none
-	undo, redo []snapshot
-	register   string
+	goal      int // preferred column for vertical moves, -1 if none
+	register  string
+	proposals map[int]*Proposal
+	nextID    int
 }
 
-func New(b *Buffer) *Editor { return &Editor{Buf: b, goal: -1} }
+func New(b *Buffer) *Editor {
+	return &Editor{Bufs: []*Buffer{b}, Buf: b, goal: -1, proposals: map[int]*Proposal{}}
+}
 
 // Resize records the text area height and keeps the cursor visible.
 func (e *Editor) Resize(width, height int) {
@@ -119,6 +124,8 @@ var normalKeys = map[string]func(*Editor){
 	"U": (*Editor).redoOnce,
 
 	"g":     func(e *Editor) { e.Menu = &gotoMenu },
+	"]":     func(e *Editor) { e.Menu = &nextMenu },
+	"[":     func(e *Editor) { e.Menu = &prevMenu },
 	"space": func(e *Editor) { e.Menu = &spaceMenu },
 	":":     func(e *Editor) { e.Mode, e.Cmd = Command, "" },
 }
@@ -130,7 +137,18 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.LineEnd(e.line())) }},
 }}
 
+var nextMenu = Menu{Title: "next", Items: []MenuItem{
+	{"h", "pending hunk", func(e *Editor) { e.jumpHunk(1) }},
+}}
+
+var prevMenu = Menu{Title: "previous", Items: []MenuItem{
+	{"h", "pending hunk", func(e *Editor) { e.jumpHunk(-1) }},
+}}
+
 var spaceMenu = Menu{Title: "space", Items: []MenuItem{
+	{"a", "accept hunk", func(e *Editor) { e.reviewHunk(true, "") }},
+	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
+	{"b", "buffers", func(e *Editor) { e.Menu = e.bufferMenu() }},
 	{"w", "write", func(e *Editor) { e.save() }},
 	{"q", "quit", func(e *Editor) { e.execute("q") }},
 }}
@@ -200,9 +218,11 @@ func (e *Editor) execute(cmd string) {
 	case "w", "write":
 		e.save()
 	case "q", "quit":
-		if e.Buf.Dirty() {
-			e.Msg = "unsaved changes (:q! to discard, :wq to save)"
-			return
+		for _, b := range e.Bufs {
+			if b.Dirty() {
+				e.Msg = fmt.Sprintf("unsaved changes in %s (:q! to discard)", b.Name)
+				return
+			}
 		}
 		e.Quit = true
 	case "q!", "quit!":
@@ -213,6 +233,10 @@ func (e *Editor) execute(cmd string) {
 		}
 	case "":
 	default:
+		if reason, ok := strings.CutPrefix(strings.TrimSpace(cmd), "reject "); ok {
+			e.reviewHunk(false, strings.TrimSpace(reason))
+			return
+		}
 		e.Msg = fmt.Sprintf("unknown command: %s", cmd)
 	}
 }
@@ -291,32 +315,82 @@ func (e *Editor) indent(line int) string {
 
 // checkpoint records the state before a change for undo.
 func (e *Editor) checkpoint() {
-	e.undo = append(e.undo, snapshot{e.Buf.Text, e.Sel})
-	e.redo = nil
+	b := e.Buf
+	b.undo = append(b.undo, snapshot{b.Text, e.Sel})
+	b.redo = nil
 }
 
 func (e *Editor) undoOnce() {
-	if len(e.undo) == 0 {
+	b := e.Buf
+	if len(b.undo) == 0 {
 		e.Msg = "nothing to undo"
 		return
 	}
-	e.redo = append(e.redo, snapshot{e.Buf.Text, e.Sel})
-	e.restore(&e.undo)
+	b.redo = append(b.redo, snapshot{b.Text, e.Sel})
+	e.restore(&b.undo)
 }
 
 func (e *Editor) redoOnce() {
-	if len(e.redo) == 0 {
+	b := e.Buf
+	if len(b.redo) == 0 {
 		e.Msg = "nothing to redo"
 		return
 	}
-	e.undo = append(e.undo, snapshot{e.Buf.Text, e.Sel})
-	e.restore(&e.redo)
+	b.undo = append(b.undo, snapshot{b.Text, e.Sel})
+	e.restore(&b.redo)
 }
 
 func (e *Editor) restore(stack *[]snapshot) {
 	s := (*stack)[len(*stack)-1]
 	*stack = (*stack)[:len(*stack)-1]
-	e.Buf.Text = s.text
-	e.Buf.Version++
+	e.Buf.Restore(s.text)
 	e.Sel = s.sel
+}
+
+// SwitchTo shows b, saving the current buffer's view.
+func (e *Editor) SwitchTo(b *Buffer) {
+	if b == e.Buf {
+		return
+	}
+	e.Buf.sel, e.Buf.top = e.Sel, e.Top
+	e.Buf, e.Sel, e.Top = b, b.sel, b.top
+	e.Mode, e.goal = Normal, -1
+}
+
+// Find returns the open buffer for an absolute path, or nil.
+func (e *Editor) Find(path string) *Buffer {
+	for _, b := range e.Bufs {
+		if b.Path == path {
+			return b
+		}
+	}
+	return nil
+}
+
+// OpenBuffer returns the buffer for path, opening it in the background if needed.
+func (e *Editor) OpenBuffer(path string) (*Buffer, error) {
+	if b := e.Find(path); b != nil {
+		return b, nil
+	}
+	b, err := Open(path)
+	if err != nil {
+		return nil, err
+	}
+	if rel, err := filepath.Rel(e.Root, path); err == nil && !strings.HasPrefix(rel, "..") {
+		b.Name = rel
+	}
+	e.Bufs = append(e.Bufs, b)
+	return b, nil
+}
+
+func (e *Editor) bufferMenu() *Menu {
+	m := &Menu{Title: "buffers"}
+	for i, b := range e.Bufs[:min(len(e.Bufs), 9)] {
+		desc := b.Name
+		if n := len(b.pending); n > 0 {
+			desc += fmt.Sprintf(" (%d pending)", n)
+		}
+		m.Items = append(m.Items, MenuItem{fmt.Sprint(i + 1), desc, func(e *Editor) { e.SwitchTo(b) }})
+	}
+	return m
 }

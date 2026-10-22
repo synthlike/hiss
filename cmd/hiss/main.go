@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/gdamore/tcell/v3"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -77,19 +78,26 @@ func runEditor(path string) error {
 	return nil
 }
 
-// onLoop runs f on the editor goroutine and returns its result.
+// onLoop runs f on the editor goroutine and returns its result. It gives up
+// if the loop is stuck, for example while hiss is suspended.
 func onLoop(reqs chan<- func(*core.Editor), done <-chan struct{}, f func(*core.Editor) rpc.Response) rpc.Response {
+	busy := rpc.Response{Error: "hiss is busy or suspended; ask the user to check the editor"}
+	timeout := time.After(10 * time.Second)
 	reply := make(chan rpc.Response, 1)
 	select {
 	case reqs <- func(ed *core.Editor) { reply <- f(ed) }:
 	case <-done:
 		return rpc.Response{Error: "hiss is shutting down"}
+	case <-timeout:
+		return busy
 	}
 	select {
 	case r := <-reply:
 		return r
 	case <-done:
 		return rpc.Response{Error: "hiss is shutting down"}
+	case <-timeout:
+		return busy
 	}
 }
 

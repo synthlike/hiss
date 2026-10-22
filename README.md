@@ -36,8 +36,26 @@ Run `hiss <file>` in your project and start Claude Code in the same project.
 `.git`), so Claude can start before or after the editor. Set `HISS_SOCKET` to
 override the socket path.
 
-Agents can currently list buffers, read them (including unsaved changes) and
-see your selection.
+Agents read buffers (including unsaved changes) and your selection, and propose
+edits with the same `old_string` / `new_string` rules as Claude Code's Edit tool.
+Proposals appear inline as pending hunks; agents wait for your decision with
+`await_review`. To keep Claude from editing files directly, deny its built-in
+editing tools in `.claude/settings.json`:
+
+```json
+{ "permissions": { "deny": ["Edit", "Write", "MultiEdit", "NotebookEdit"] } }
+```
+
+## Reviewing
+
+| Keys | Action |
+| --- | --- |
+| `]h` / `[h` | next / previous pending hunk (across buffers) |
+| `space a` | accept the hunk under the cursor (applies and saves) |
+| `space r` | reject it; `:reject <reason>` tells the agent why |
+| `space b` | switch buffer |
+
+Editing the text of a pending hunk makes it stale; the agent is told to re-read.
 
 ## License
 

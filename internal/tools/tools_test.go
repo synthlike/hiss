@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/synthlike/hiss/internal/core"
@@ -146,7 +147,90 @@ func TestListBuffersAndSelection(t *testing.T) {
 func TestErrorsReachTheAgent(t *testing.T) {
 	cs, _ := setup(t, "x\n")
 	res := call(t, cs, "read_buffer", map[string]any{"path": "other.go"})
-	if !res.IsError || !strings.Contains(text(res), "not open in hiss") {
+	if !res.IsError || !strings.Contains(text(res), "does not exist") {
 		t.Errorf("IsError=%v text=%q", res.IsError, text(res))
+	}
+}
+
+// onEditor runs f on the editor loop and waits for it.
+func onEditor(reqs chan<- func(*core.Editor), f func(*core.Editor)) {
+	done := make(chan bool)
+	reqs <- func(ed *core.Editor) { f(ed); done <- true }
+	<-done
+}
+
+func structured[T any](t *testing.T, res *mcp.CallToolResult) T {
+	t.Helper()
+	var out T
+	raw, _ := json.Marshal(res.StructuredContent)
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("%s: %v", raw, err)
+	}
+	return out
+}
+
+func TestProposeReviewAwait(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	cs, reqs := setup(t, "package main\n\nfunc main() {}\n")
+
+	res := call(t, cs, "read_buffer", map[string]any{"path": "main.go"})
+	version := structured[ReadBufferOut](t, res).Version
+	res = call(t, cs, "propose_edit", map[string]any{
+		"path": "main.go", "old_string": "func main() {}", "new_string": "func main() { run() }",
+		"base_version": version, "rationale": "call run",
+	})
+	if res.IsError {
+		t.Fatalf("propose_edit: %s", text(res))
+	}
+	id := structured[ProposeOut](t, res).IDs[0]
+
+	res = call(t, cs, "get_proposals", map[string]any{})
+	if got := text(res); !strings.Contains(got, "pending") {
+		t.Fatalf("get_proposals before review: %s", got)
+	}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		onEditor(reqs, func(ed *core.Editor) {
+			for _, k := range []string{"]", "h", "space", "a"} {
+				ed.HandleKey(k)
+			}
+		})
+	}()
+	res = call(t, cs, "await_review", map[string]any{"ids": []int{id}, "timeout_seconds": 5})
+	if got := text(res); !strings.Contains(got, "accepted") {
+		t.Fatalf("await_review: %s", got)
+	}
+	disk, _ := os.ReadFile(structured[ProposalsOut](t, res).Proposals[0].Path)
+	if !strings.Contains(string(disk), "func main() { run() }") {
+		t.Errorf("accepted edit not saved: %q", disk)
+	}
+}
+
+func TestAwaitReviewTimesOut(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	cs, _ := setup(t, "x\n")
+	res := call(t, cs, "write_file", map[string]any{"path": "new.txt", "content": "hello\n"})
+	id := structured[ProposeOut](t, res).IDs[0]
+	start := time.Now()
+	res = call(t, cs, "await_review", map[string]any{"ids": []int{id}, "timeout_seconds": 1})
+	out := structured[ProposalsOut](t, res)
+	if !out.TimedOut || out.Proposals[0].Status != "pending" || time.Since(start) < time.Second {
+		t.Errorf("out = %+v after %v", out, time.Since(start))
+	}
+}
+
+func TestStaleBaseVersionReachesAgent(t *testing.T) {
+	cs, reqs := setup(t, "a := 1\n")
+	onEditor(reqs, func(ed *core.Editor) {
+		for _, k := range []string{"l", "l", "i", "x", "esc"} { // edit inside "a := 1"
+			ed.HandleKey(k)
+		}
+	})
+	res := call(t, cs, "propose_edit", map[string]any{
+		"path": "main.go", "old_string": "a x:= 1", "new_string": "a := 2", "base_version": 0,
+	})
+	if !res.IsError || !strings.Contains(text(res), "changed this text") {
+		t.Errorf("IsError=%v %s", res.IsError, text(res))
 	}
 }
