@@ -41,6 +41,8 @@ func (o ProposeOut) Text() string {
 type ProposalInfo struct {
 	ID        int    `json:"id"`
 	Path      string `json:"path"`
+	Session   string `json:"session,omitempty"`
+	Turn      int    `json:"turn,omitempty"`
 	Status    string `json:"status" jsonschema:"pending, accepted, rejected or stale"`
 	Reason    string `json:"reason,omitempty" jsonschema:"why it was rejected or went stale"`
 	Rationale string `json:"rationale,omitempty"`
@@ -108,7 +110,8 @@ func getProposals(ed *core.Editor, agent string, in GetProposalsIn) (ProposalsOu
 	out := ProposalsOut{Proposals: []ProposalInfo{}}
 	for _, p := range ps {
 		out.Proposals = append(out.Proposals, ProposalInfo{
-			ID: p.ID, Path: p.Buf.Path, Status: string(p.Status), Reason: p.Reason, Rationale: p.Rationale,
+			ID: p.ID, Path: p.Buf.Path, Session: p.Session, Turn: p.Turn,
+			Status: string(p.Status), Reason: p.Reason, Rationale: p.Rationale,
 		})
 	}
 	return out, nil
@@ -139,7 +142,7 @@ var awaitReview = tool{
 			deadline := time.Now().Add(timeout)
 			for {
 				var out ProposalsOut
-				raw, err := fwd(ctx, agentName(req), "get_proposals", GetProposalsIn{IDs: in.IDs})
+				raw, err := fwd(ctx, agentName(req), "await_poll", GetProposalsIn{IDs: in.IDs})
 				if err == nil {
 					err = json.Unmarshal(raw, &out)
 				}
@@ -158,5 +161,19 @@ var awaitReview = tool{
 				}
 			}
 		})
+	},
+}
+
+// awaitPoll is get_proposals for await_review: it also marks the calling
+// session as waiting for the user. Agents can't call it directly.
+var awaitPoll = tool{
+	name: "await_poll",
+	exec: func(ed *core.Editor, agent string, args json.RawMessage) (any, error) {
+		var in GetProposalsIn
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, err
+		}
+		ed.MarkAwaiting()
+		return getProposals(ed, agent, in)
 	},
 }

@@ -107,23 +107,40 @@ var all = []tool{
 		Description: "Report the status of your proposals without waiting.",
 	}, getProposals),
 	awaitReview,
+	awaitPoll,
+	hook,
 	define(&mcp.Tool{
 		Name:        "get_selection",
 		Description: "Get the user's cursor and selected text.",
 	}, getSelection),
 }
 
+// hook carries Claude Code hook events from `hiss hook`; agents can't call it.
+var hook = tool{
+	name: "hook",
+	exec: func(ed *core.Editor, _ string, args json.RawMessage) (any, error) {
+		var ev core.HookEvent
+		if err := json.Unmarshal(args, &ev); err != nil {
+			return nil, err
+		}
+		ed.Hook(ev)
+		return struct{}{}, nil
+	},
+}
+
 // Register adds every tool to s, forwarding calls with fwd.
 func Register(s *mcp.Server, fwd Forward) {
 	for _, t := range all {
-		t.register(s, fwd)
+		if t.register != nil {
+			t.register(s, fwd)
+		}
 	}
 }
 
 // Exec runs a forwarded call. It must run on the editor's goroutine.
 func Exec(ed *core.Editor, req rpc.Request) rpc.Response {
 	for _, t := range all {
-		if t.name != req.Tool {
+		if t.name != req.Tool || t.exec == nil {
 			continue
 		}
 		out, err := t.exec(ed, req.Agent, req.Args)

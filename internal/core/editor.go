@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/synthlike/hiss/internal/text"
@@ -62,10 +63,14 @@ type Editor struct {
 	register  string
 	proposals map[int]*Proposal
 	nextID    int
+	sessions  map[string]*Session
+	caller    string           // session ID of the latest hiss tool call
+	now       func() time.Time // replaced in tests
 }
 
 func New(b *Buffer) *Editor {
-	return &Editor{Bufs: []*Buffer{b}, Buf: b, goal: -1, proposals: map[int]*Proposal{}}
+	return &Editor{Bufs: []*Buffer{b}, Buf: b, goal: -1, proposals: map[int]*Proposal{},
+		sessions: map[string]*Session{}, now: time.Now}
 }
 
 // Resize records the text area height and keeps the cursor visible.

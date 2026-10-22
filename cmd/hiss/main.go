@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v3"
@@ -21,13 +23,19 @@ const version = "0.1.0-dev"
 
 const usage = `usage:
   hiss <file>   edit a file
-  hiss mcp      serve MCP on stdio for the hiss running in this project`
+  hiss mcp      serve MCP on stdio for the hiss running in this project
+  hiss hook     forward a Claude Code hook event (JSON on stdin) to hiss
+  hiss setup    print Claude Code settings that route edits through hiss`
 
 func main() {
 	var err error
 	switch args := os.Args[1:]; {
 	case len(args) == 1 && args[0] == "mcp":
 		err = runMCP()
+	case len(args) == 1 && args[0] == "hook":
+		runHook(os.Stdin)
+	case len(args) == 1 && args[0] == "setup":
+		err = runSetup(os.Stdout)
 	case len(args) == 1 && args[0] != "-h" && args[0] != "--help":
 		err = runEditor(args[0])
 	default:
@@ -122,4 +130,77 @@ func runMCP() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	return s.Run(ctx, &mcp.StdioTransport{})
+}
+
+// runHook forwards a hook event to the editor. It never fails: hooks must not
+// get in Claude Code's way, and hiss may simply not be running.
+func runHook(stdin io.Reader) {
+	data, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
+	if err != nil {
+		return
+	}
+	var in struct {
+		Cwd string `json:"cwd"`
+	}
+	if json.Unmarshal(data, &in) != nil {
+		return
+	}
+	if in.Cwd == "" {
+		in.Cwd, _ = os.Getwd()
+	}
+	sock, err := rpc.SocketPath(rpc.Root(in.Cwd))
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	rpc.Call(ctx, sock, rpc.Request{Tool: "hook", Args: data})
+}
+
+// runSetup prints project settings for Claude Code: hooks that report agent
+// state to hiss, permission for hiss's tools, and a ban on direct file edits.
+func runSetup(w io.Writer) error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if strings.ContainsAny(exe, " '\"\\$") {
+		exe = "'" + strings.ReplaceAll(exe, "'", `'\''`) + "'"
+	}
+	command := exe + " hook"
+	handler := func(async bool) []map[string]any {
+		h := map[string]any{"type": "command", "command": command, "timeout": 5}
+		if async {
+			h["async"] = true
+		}
+		return []map[string]any{h}
+	}
+	group := func(matcher string, async bool) []map[string]any {
+		g := map[string]any{"hooks": handler(async)}
+		if matcher != "" {
+			g["matcher"] = matcher
+		}
+		return []map[string]any{g}
+	}
+	settings := map[string]any{
+		"permissions": map[string]any{
+			"allow": []string{"mcp__hiss"},
+			"deny":  []string{"Edit", "Write", "MultiEdit", "NotebookEdit"},
+		},
+		"hooks": map[string]any{
+			"SessionStart":     group("", true),
+			"UserPromptSubmit": group("", true),
+			// Synchronous, so hiss knows which session is calling before the call arrives.
+			"PreToolUse":   group("mcp__hiss__.*", false),
+			"PostToolUse":  group("", true),
+			"Notification": group("", true),
+			"Stop":         group("", true),
+			"SessionEnd":   group("", true),
+		},
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	fmt.Fprintf(os.Stderr, "# Merge into .claude/settings.json in your project, and register the MCP bridge:\n"+
+		"#   claude mcp add --scope user hiss -- %s mcp\n", exe)
+	return enc.Encode(settings)
 }

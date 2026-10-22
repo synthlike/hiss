@@ -3,6 +3,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gdamore/tcell/v3"
 	"github.com/synthlike/hiss/internal/core"
@@ -34,11 +35,14 @@ var (
 // Run draws and handles events until the editor quits. Work sent on reqs runs on
 // this goroutine, which owns the editor.
 func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
+	tick := time.NewTicker(time.Second) // redraw time-based state such as agent status
+	defer tick.Stop()
 	for !ed.Quit {
 		scr.Clear()
 		Draw(scr, ed)
 		scr.Show()
 		select {
+		case <-tick.C:
 		case ev := <-scr.EventQ():
 			switch ev := ev.(type) {
 			case *tcell.EventResize:
@@ -151,6 +155,9 @@ func Draw(s Screen, ed *core.Editor) {
 	if n := ed.PendingCount(); n > 0 {
 		right = fmt.Sprintf("%d pending  ", n) + right
 	}
+	if a := agentStatus(ed); a != "" {
+		right = a + "  " + right
+	}
 	fill(s, 0, h-2, w, styleStatus)
 	putString(s, 0, h-2, left, styleStatus)
 	putString(s, w-len(right), h-2, right, styleStatus)
@@ -161,7 +168,11 @@ func Draw(s Screen, ed *core.Editor) {
 	case ed.Msg != "":
 		putString(s, 0, h-1, ed.Msg, styleText)
 	default:
+		if ss := ed.Sessions(); len(ss) > 0 && ss[0].State == core.Waiting && ss[0].Note != "" {
+			putString(s, 0, h-1, "claude: "+ss[0].Note, styleDim)
+		}
 		if hk := ed.HunkAtCursor(); hk != nil {
+			fill(s, 0, h-1, w, styleText)
 			info := fmt.Sprintf("#%d %s", hk.P.ID, hk.P.Agent)
 			if hk.P.Rationale != "" {
 				info += ": " + hk.P.Rationale
@@ -172,6 +183,24 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Menu != nil {
 		drawMenu(s, w, h-2, ed.Menu)
 	}
+}
+
+// agentStatus describes the most recently active agent session.
+func agentStatus(ed *core.Editor) string {
+	ss := ed.Sessions()
+	if len(ss) == 0 {
+		return ""
+	}
+	s := ss[0]
+	state := string(s.State)
+	if s.Awaiting(ed.Now()) {
+		state = "awaiting your review"
+	}
+	out := fmt.Sprintf("claude %s · turn %d", state, s.Turn)
+	if len(ss) > 1 {
+		out += fmt.Sprintf(" (+%d)", len(ss)-1)
+	}
+	return out
 }
 
 // drawMenu draws a menu's key hints in a box ending just above row bottom.

@@ -108,3 +108,19 @@ func TestDrawHunk(t *testing.T) {
 		t.Errorf("info = %q", got)
 	}
 }
+
+func TestAgentStatus(t *testing.T) {
+	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go", Text: text.New([]byte("x\n"), text.Origin{})})
+	ed.Resize(60, 4)
+	ed.Hook(core.HookEvent{SessionID: "s1", Event: "UserPromptSubmit"})
+	ed.Hook(core.HookEvent{SessionID: "s1", Event: "Notification", NotificationType: "permission_prompt",
+		Message: "Claude needs your permission to use Bash"})
+	g := newGrid(60, 4)
+	Draw(g, ed)
+	if got := g.row(2); !strings.Contains(got, "claude waiting on you · turn 1") {
+		t.Errorf("status = %q", got)
+	}
+	if got := g.row(3); got != "claude: Claude needs your permission to use Bash" {
+		t.Errorf("message = %q", got)
+	}
+}

@@ -24,6 +24,8 @@ const (
 type Proposal struct {
 	ID        int
 	Agent     string
+	Session   string // agent session that proposed it, if known from hooks
+	Turn      int    // the session's turn at the time
 	Rationale string
 	Buf       *Buffer
 	Start     int
@@ -119,6 +121,9 @@ func (e *Editor) addProposal(agent, rationale string, b *Buffer, start, end int,
 	e.nextID++
 	p := &Proposal{ID: e.nextID, Agent: agent, Rationale: rationale, Buf: b,
 		Start: start, End: end, New: new, Status: Pending}
+	if s := e.Caller(); s != nil {
+		p.Session, p.Turn = s.ID, s.Turn
+	}
 	e.proposals[p.ID] = p
 	i, _ := slices.BinarySearchFunc(b.pending, start, func(q *Proposal, s int) int { return q.Start - s })
 	b.pending = slices.Insert(b.pending, i, p)
@@ -217,7 +222,8 @@ func (e *Editor) reviewHunk(accept bool, reason string) {
 	p.Buf.pending = slices.DeleteFunc(p.Buf.pending, func(q *Proposal) bool { return q == p })
 	if accept {
 		e.checkpoint()
-		p.Buf.Replace(p.Start, p.End, []byte(p.New), text.Origin{Author: p.Agent, Proposal: p.ID})
+		p.Buf.Replace(p.Start, p.End, []byte(p.New),
+			text.Origin{Author: p.Agent, Session: p.Session, Turn: p.Turn, Proposal: p.ID})
 		p.Status = Accepted
 		e.Sel = Selection{p.Start, p.Start}
 		if err := p.Buf.Save(); err != nil {

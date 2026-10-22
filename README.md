@@ -24,12 +24,19 @@ go build -o hiss ./cmd/hiss
 
 ## Use with Claude Code
 
-Install hiss and register its MCP bridge once for all projects:
+Install hiss, register its MCP bridge, and print the Claude Code settings it needs:
 
 ```sh
 go install ./cmd/hiss
 claude mcp add --scope user hiss -- hiss mcp
+hiss setup   # merge the output into .claude/settings.json in your project
 ```
+
+The settings deny Claude's built-in Edit and Write tools, allow hiss's tools, and
+add hooks (`hiss hook`) that tell hiss which turn each proposal came from and
+whether Claude is working, idle, waiting on you, or awaiting your review; the
+status line shows this. Shell commands can still write files, so this routes
+edits through hiss by convention rather than enforcement.
 
 Run `hiss <file>` in your project and start Claude Code in the same project.
 `hiss mcp` finds the editor by project root (the nearest directory containing
@@ -39,12 +46,7 @@ override the socket path.
 Agents read buffers (including unsaved changes) and your selection, and propose
 edits with the same `old_string` / `new_string` rules as Claude Code's Edit tool.
 Proposals appear inline as pending hunks; agents wait for your decision with
-`await_review`. To keep Claude from editing files directly, deny its built-in
-editing tools in `.claude/settings.json`:
-
-```json
-{ "permissions": { "deny": ["Edit", "Write", "MultiEdit", "NotebookEdit"] } }
-```
+`await_review`.
 
 ## Reviewing
 
