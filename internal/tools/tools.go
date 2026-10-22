@@ -31,7 +31,8 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
 - If you end your turn with proposals still pending, you are woken when the
   user has reviewed them all; continue the task then.
 - The user may comment on a pending proposal. Comments arrive through
-  await_review or get_proposals, or wake you after your turn ends. Answer with
+  await_review or get_proposals, right after your other tool calls, or wake
+  you after your turn ends. Answer them promptly with
   reply; to change the proposal, propose a revision with supersedes set to its id.
 - To point the user at code (call sites, affected places, a walk through a
   flow), use show_locations rather than listing file:line in chat.
@@ -134,8 +135,18 @@ var hook = tool{
 			return nil, err
 		}
 		ed.Hook(ev)
-		return struct{}{}, nil
+		var out HookOut
+		if ev.Event == "PostToolUse" || ev.Event == "UserPromptSubmit" {
+			out.Comments = commentInfos(ed.SessionComments(ev.SessionID))
+		}
+		return out, nil
 	},
+}
+
+// HookOut is the editor's answer to a hook event: new comments the hook
+// should hand to the agent right away.
+type HookOut struct {
+	Comments []CommentInfo `json:"comments,omitempty"`
 }
 
 // Register adds every tool to s, forwarding calls with fwd.

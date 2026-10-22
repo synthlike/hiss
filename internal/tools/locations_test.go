@@ -1,11 +1,50 @@
 package tools
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/synthlike/hiss/internal/core"
+	"github.com/synthlike/hiss/internal/rpc"
 )
+
+func TestHookDeliversSessionComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.go")
+	if err := os.WriteFile(path, []byte("x := 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b, err := core.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ed := core.New(b)
+	hook := func(ev string, extra string) rpc.Response {
+		return Exec(ed, rpc.Request{Tool: "hook", Args: json.RawMessage(
+			`{"session_id":"s1","hook_event_name":"` + ev + `"` + extra + `}`)})
+	}
+	hook("PreToolUse", `,"tool_name":"mcp__hiss__propose_edit"`)
+	if _, err := ed.ProposeEdit("claude", path, "1", "2", false, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"]", "h", ":"} {
+		ed.HandleKey(k)
+	}
+	ed.Cmd = "comment why"
+	ed.HandleKey("enter")
+
+	if r := hook("Notification", ""); strings.Contains(string(r.Result), "why") {
+		t.Errorf("Notification should not take comments: %s", r.Result)
+	}
+	if r := hook("PostToolUse", ""); !strings.Contains(string(r.Result), `"text":"why"`) {
+		t.Errorf("PostToolUse result = %s (%s)", r.Result, r.Error)
+	}
+	if r := hook("UserPromptSubmit", ""); strings.Contains(string(r.Result), "why") {
+		t.Errorf("comment delivered twice: %s", r.Result)
+	}
+}
 
 func TestShowLocations(t *testing.T) {
 	cs, reqs := setup(t, "package main\n\nfunc main() {}\n")

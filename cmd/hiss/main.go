@@ -33,7 +33,7 @@ func main() {
 	case len(args) == 1 && args[0] == "mcp":
 		err = runMCP()
 	case len(args) == 1 && args[0] == "hook":
-		runHook(os.Stdin)
+		runHook(os.Stdin, os.Stdout)
 	case len(args) == 2 && args[0] == "hook" && args[1] == "watch":
 		os.Exit(runWatch(os.Stdin, os.Stderr))
 	case len(args) == 1 && args[0] == "setup":
@@ -140,15 +140,18 @@ func runMCP() error {
 	return s.Run(ctx, &mcp.StdioTransport{})
 }
 
-// runHook forwards a hook event to the editor. It never fails: hooks must not
-// get in Claude Code's way, and hiss may simply not be running.
-func runHook(stdin io.Reader) {
+// runHook forwards a hook event to the editor. If the user has commented on
+// the session's proposals, it prints them as context for Claude Code to show
+// the agent right away. It never fails: hooks must not get in Claude Code's
+// way, and hiss may simply not be running.
+func runHook(stdin io.Reader, stdout io.Writer) {
 	data, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
 	if err != nil {
 		return
 	}
 	var in struct {
-		Cwd string `json:"cwd"`
+		Cwd   string `json:"cwd"`
+		Event string `json:"hook_event_name"`
 	}
 	if json.Unmarshal(data, &in) != nil {
 		return
@@ -162,7 +165,15 @@ func runHook(stdin io.Reader) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	rpc.Call(ctx, sock, rpc.Request{Tool: "hook", Args: data})
+	raw, err := rpc.Call(ctx, sock, rpc.Request{Tool: "hook", Args: data})
+	var out tools.HookOut
+	if err != nil || json.Unmarshal(raw, &out) != nil || len(out.Comments) == 0 {
+		return
+	}
+	json.NewEncoder(stdout).Encode(map[string]any{"hookSpecificOutput": map[string]any{
+		"hookEventName":     in.Event,
+		"additionalContext": tools.CommentsText(out.Comments),
+	}})
 }
 
 // runSetup prints project settings for Claude Code: hooks that report agent
@@ -196,11 +207,13 @@ func runSetup(w io.Writer) error {
 			"deny":  []string{"Edit", "Write", "MultiEdit", "NotebookEdit"},
 		},
 		"hooks": map[string]any{
-			"SessionStart":     group("", true),
-			"UserPromptSubmit": group("", true),
+			"SessionStart": group("", true),
+			// Synchronous so new comments reach Claude with the prompt and right
+			// after each tool call, not a turn later.
+			"UserPromptSubmit": group("", false),
 			// Synchronous, so hiss knows which session is calling before the call arrives.
 			"PreToolUse":   group("mcp__hiss__.*", false),
-			"PostToolUse":  group("", true),
+			"PostToolUse":  group("", false),
 			"Notification": group("", true),
 			// The second Stop handler waits in the background for comments and
 			// wakes Claude to answer them (exit 2 with asyncRewake).

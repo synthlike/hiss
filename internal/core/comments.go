@@ -90,13 +90,7 @@ func (e *Editor) WatchComments(session, watcher string, register bool) WatchResu
 	if s == nil {
 		return WatchResult{Superseded: true}
 	}
-	var ps []*Proposal
-	for _, p := range e.proposals {
-		if p.Session == session {
-			ps = append(ps, p)
-		}
-	}
-	slices.SortFunc(ps, func(a, b *Proposal) int { return a.ID - b.ID })
+	ps := e.sessionProposals(session)
 	if register {
 		s.watcher, s.watched = watcher, nil
 		for _, p := range ps {
@@ -113,6 +107,23 @@ func (e *Editor) WatchComments(session, watcher string, register bool) WatchResu
 		r.Reviewed, s.watched = s.watched, nil
 	}
 	return r
+}
+
+// SessionComments returns the user's new comments on a session's proposals,
+// for hooks that pass them to the agent mid-turn.
+func (e *Editor) SessionComments(session string) []Delivery {
+	return e.TakeComments(e.sessionProposals(session))
+}
+
+func (e *Editor) sessionProposals(session string) []*Proposal {
+	var ps []*Proposal
+	for _, p := range e.proposals {
+		if p.Session == session {
+			ps = append(ps, p)
+		}
+	}
+	slices.SortFunc(ps, func(a, b *Proposal) int { return a.ID - b.ID })
+	return ps
 }
 
 // WatchResult answers a watcher's poll.
