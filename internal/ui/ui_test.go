@@ -7,6 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v3"
 	"github.com/synthlike/hiss/internal/core"
+	"github.com/synthlike/hiss/internal/syntax"
 	"github.com/synthlike/hiss/internal/text"
 )
 
@@ -139,6 +140,33 @@ func TestDrawCursorInTallHunk(t *testing.T) {
 	}
 	if !g.styles[2][0].HasReverse() || g.styles[1][0].HasReverse() {
 		t.Error("cursor row should be the highlighted + line")
+	}
+}
+
+func TestDrawHighlightsGo(t *testing.T) {
+	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go",
+		Text: text.New([]byte("x := `raw\nstill raw` // c\nreturn 1\n"), text.Origin{})})
+	ed.Resize(40, 6)
+	ed.HandleKey("j") // keep the cursor off the cells checked below
+	ed.HandleKey("j")
+	ed.HandleKey("l")
+	g := newGrid(40, 6)
+	Draw(g, ed)
+	cases := []struct {
+		x, y int
+		want tcell.Style
+	}{
+		{2, 0, styleText},                     // x
+		{7, 0, syntaxStyles[syntax.String]},   // `raw
+		{2, 1, syntaxStyles[syntax.String]},   // still raw` (string continues)
+		{14, 1, syntaxStyles[syntax.Comment]}, // // c
+		{4, 2, syntaxStyles[syntax.Keyword]},  // return (the cursor is on its "e")
+		{9, 2, syntaxStyles[syntax.Number]},   // 1
+	}
+	for _, c := range cases {
+		if got := g.styles[c.y][c.x]; got != c.want {
+			t.Errorf("(%d,%d) %q: style %v, want %v", c.x, c.y, g.cells[c.y][c.x], got, c.want)
+		}
 	}
 }
 

@@ -109,6 +109,7 @@ func Draw(s Screen, ed *core.Editor) {
 	t := ed.Buf.Text
 	hunks := ed.Hunks()
 	locNotes := ed.LocationNotes()
+	syn := highlight(ed.Buf.Path, t, ed.Top, h)
 	cursor := ed.Sel.Head
 	curLine, _ := ed.Cursor()
 	diffRow := ed.DiffRow()
@@ -146,6 +147,8 @@ func Draw(s Screen, ed *core.Editor) {
 					return styleCursor
 				case off >= from && off < to:
 					return styleSel
+				case base == styleText:
+					return syn(off) // plain lines get syntax colours; diff lines keep theirs
 				}
 				return base
 			})

@@ -13,7 +13,8 @@ user reviews them inline. Aim for 80/20: small, pleasant and useful beats comple
 - `internal/rpc`: the per-project unix socket between the editor and `hiss mcp`/`hiss hook`.
 - `internal/tools`: MCP tools, each defined once and run on the editor's loop.
 - `internal/ui`: tcell drawing and key names.
-- `internal/syntax`, `internal/lsp`: added as the build order reaches them.
+- `internal/syntax`: a tiny lexer (comments, strings, numbers, keywords) for light highlighting.
+- `internal/lsp`: added when the build order reaches it.
 
 ## Rules
 
