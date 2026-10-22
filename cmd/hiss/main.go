@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"time"
 
 	"github.com/gdamore/tcell/v3"
@@ -18,14 +19,22 @@ import (
 	"github.com/synthlike/hiss/internal/ui"
 )
 
-const version = "0.1.0-dev"
+// version is the module version hiss was built at: the tag for go install
+// …@v0.1.0, a pseudo-version for a build in a checkout, or "dev".
+func version() string {
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return "dev"
+}
 
 const usage = `usage:
   hiss [file]           edit a file, or start with an empty buffer
   hiss setup [--write]  print Claude Code settings that route edits through hiss,
                         or merge them into .claude/settings.json in this project
   hiss mcp              serve MCP on stdio for the hiss running in this project
-  hiss hook             forward a Claude Code hook event (JSON on stdin) to hiss`
+  hiss hook             forward a Claude Code hook event (JSON on stdin) to hiss
+  hiss version          print the version`
 
 func main() {
 	var err error
@@ -43,6 +52,8 @@ func main() {
 		if cwd, err = os.Getwd(); err == nil {
 			err = runSetupWrite(rpc.Root(cwd), os.Stdout)
 		}
+	case len(args) == 1 && (args[0] == "version" || args[0] == "--version"):
+		fmt.Println("hiss", version())
 	case len(args) == 0:
 		err = runEditor("")
 	case len(args) == 1 && args[0] != "-h" && args[0] != "--help":
@@ -134,7 +145,7 @@ func runMCP() error {
 	if err != nil {
 		return err
 	}
-	s := mcp.NewServer(&mcp.Implementation{Name: "hiss", Version: version},
+	s := mcp.NewServer(&mcp.Implementation{Name: "hiss", Version: version()},
 		&mcp.ServerOptions{Instructions: tools.Instructions})
 	tools.Register(s, func(ctx context.Context, agent, tool string, args any) (json.RawMessage, error) {
 		raw, err := json.Marshal(args)

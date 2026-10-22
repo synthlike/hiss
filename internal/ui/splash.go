@@ -43,12 +43,12 @@ func RandomQuote() string { return quotes[rand.IntN(len(quotes))] }
 
 // drawSplash centres the name and a quote in the text area of height h.
 func drawSplash(s Screen, w, h int, quote string) {
-	lines := append([]string{"hiss", ""}, strings.Split(quote, "\n")...)
+	lines := append([]string{"  hiss  ", ""}, strings.Split(quote, "\n")...)
 	top := max((h-len(lines))/2, 0)
 	for i, l := range lines {
 		style := styleDim
 		if i == 0 {
-			style = styleText.Bold(true)
+			style = styleMenu.Bold(true) // the name on a box background, like box titles
 		}
 		putString(s, max((w-utf8.RuneCountInString(l))/2, 0), top+i, l, style)
 	}
