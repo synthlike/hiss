@@ -124,3 +124,28 @@ func TestAgentStatus(t *testing.T) {
 		t.Errorf("message = %q", got)
 	}
 }
+
+func TestSplash(t *testing.T) {
+	ed := core.New(core.Scratch())
+	ed.Splash = "Trust, but diff.\n— a reviewer"
+	ed.Resize(40, 10)
+	g := newGrid(40, 10)
+	Draw(g, ed)
+	var all string
+	for y := range 8 {
+		all += g.row(y) + "\n"
+	}
+	if !strings.Contains(all, "hiss") || !strings.Contains(all, "Trust, but diff.") {
+		t.Errorf("no splash:\n%s", all)
+	}
+	ed.HandleKey("i")
+	ed.HandleKey("x")
+	g = newGrid(40, 10)
+	Draw(g, ed)
+	if strings.Contains(g.row(4), "Trust") {
+		t.Error("splash should disappear once the buffer has text")
+	}
+	if !strings.Contains(g.row(8), "[scratch]") {
+		t.Errorf("status = %q", g.row(8))
+	}
+}

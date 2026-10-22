@@ -19,7 +19,7 @@ Requires Go 1.27 or later.
 
 ```sh
 go build -o hiss ./cmd/hiss
-./hiss path/to/file
+./hiss path/to/file   # or just ./hiss, then :e <path> to open a file
 ```
 
 ## Use with Claude Code

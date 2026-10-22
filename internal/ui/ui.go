@@ -144,6 +144,9 @@ func Draw(s Screen, ed *core.Editor) {
 		}
 		line++
 	}
+	if ed.Splash != "" && ed.Buf.Path == "" && t.Len() == 0 {
+		drawSplash(s, w, h-2, ed.Splash)
+	}
 
 	dirty := ""
 	if ed.Buf.Dirty() {

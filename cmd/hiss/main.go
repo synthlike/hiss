@@ -22,7 +22,7 @@ import (
 const version = "0.1.0-dev"
 
 const usage = `usage:
-  hiss <file>   edit a file
+  hiss [file]   edit a file, or start with an empty buffer
   hiss mcp      serve MCP on stdio for the hiss running in this project
   hiss hook     forward a Claude Code hook event (JSON on stdin) to hiss
   hiss setup    print Claude Code settings that route edits through hiss`
@@ -36,6 +36,8 @@ func main() {
 		runHook(os.Stdin)
 	case len(args) == 1 && args[0] == "setup":
 		err = runSetup(os.Stdout)
+	case len(args) == 0:
+		err = runEditor("")
 	case len(args) == 1 && args[0] != "-h" && args[0] != "--help":
 		err = runEditor(args[0])
 	default:
@@ -49,9 +51,12 @@ func main() {
 }
 
 func runEditor(path string) error {
-	buf, err := core.Open(path)
-	if err != nil {
-		return err
+	buf := core.Scratch()
+	if path != "" {
+		var err error
+		if buf, err = core.Open(path); err != nil {
+			return err
+		}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -59,6 +64,7 @@ func runEditor(path string) error {
 	}
 	ed := core.New(buf)
 	ed.Root = rpc.Root(cwd)
+	ed.Splash = ui.RandomQuote()
 
 	reqs := make(chan func(*core.Editor))
 	done := make(chan struct{})

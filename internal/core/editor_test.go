@@ -193,3 +193,29 @@ func TestMenus(t *testing.T) {
 		t.Errorf("space w: dirty=%v msg=%q", e.Buf.Dirty(), e.Msg)
 	}
 }
+
+func TestScratch(t *testing.T) {
+	e := New(Scratch())
+	e.Resize(80, 10)
+	keys(e, "i h i esc space w")
+	if !strings.Contains(e.Msg, "no file name") {
+		t.Errorf("save without name: %q", e.Msg)
+	}
+	path := filepath.Join(t.TempDir(), "named.txt")
+	e.execute("w " + path)
+	if got, _ := os.ReadFile(path); string(got) != "hi" || e.Buf.Dirty() {
+		t.Errorf("file = %q dirty=%v msg=%q", got, e.Buf.Dirty(), e.Msg)
+	}
+}
+
+func TestOpenFileClosesUntouchedScratch(t *testing.T) {
+	e := New(Scratch())
+	path := filepath.Join(t.TempDir(), "a.txt")
+	if err := os.WriteFile(path, []byte("a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.execute("e " + path)
+	if e.Buf.Path != path || len(e.Bufs) != 1 {
+		t.Errorf("buf=%q bufs=%d msg=%q", e.Buf.Path, len(e.Bufs), e.Msg)
+	}
+}

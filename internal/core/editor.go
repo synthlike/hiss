@@ -57,6 +57,7 @@ type Editor struct {
 	Cmd    string // command line contents in Command mode
 	Msg    string // one-line message for the user
 	Menu   *Menu  // open prefix menu, if any
+	Splash string // shown on an empty scratch buffer
 	Quit   bool
 
 	goal      int // preferred column for vertical moves, -1 if none
@@ -238,11 +239,60 @@ func (e *Editor) execute(cmd string) {
 		}
 	case "":
 	default:
-		if reason, ok := strings.CutPrefix(strings.TrimSpace(cmd), "reject "); ok {
+		c := strings.TrimSpace(cmd)
+		if reason, ok := strings.CutPrefix(c, "reject "); ok {
 			e.reviewHunk(false, strings.TrimSpace(reason))
 			return
 		}
+		if path, ok := strings.CutPrefix(c, "w "); ok {
+			e.saveAs(strings.TrimSpace(path))
+			return
+		}
+		if path, ok := strings.CutPrefix(c, "e "); ok {
+			e.openFile(strings.TrimSpace(path))
+			return
+		}
 		e.Msg = fmt.Sprintf("unknown command: %s", cmd)
+	}
+}
+
+// saveAs gives the buffer a file name and writes it.
+func (e *Editor) saveAs(path string) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	if b := e.Find(abs); b != nil && b != e.Buf {
+		e.Msg = path + " is already open"
+		return
+	}
+	e.Buf.Path, e.Buf.Name = abs, path
+	e.save()
+}
+
+// openFile shows the file at path, opening it if needed. An untouched
+// scratch buffer is closed rather than kept around.
+func (e *Editor) openFile(path string) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	b, err := e.OpenBuffer(abs)
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	old := e.Buf
+	e.SwitchTo(b)
+	if old != b && old.Path == "" && !old.Dirty() && old.Text.Len() == 0 {
+		for i, x := range e.Bufs {
+			if x == old {
+				e.Bufs = append(e.Bufs[:i], e.Bufs[i+1:]...)
+				break
+			}
+		}
 	}
 }
 

@@ -31,6 +31,11 @@ type logged struct {
 	edit    text.Edit
 }
 
+// Scratch returns an empty buffer without a file; :w <path> gives it one.
+func Scratch() *Buffer {
+	return &Buffer{Name: "[scratch]", Text: text.New(nil, text.Origin{})}
+}
+
 // Open reads path into a buffer. A missing file gives an empty buffer.
 func Open(path string) (*Buffer, error) {
 	abs, err := filepath.Abs(path)
@@ -133,6 +138,9 @@ func overlaps(a, b, s, e int) bool {
 
 // Save writes the buffer atomically, keeping the file's permissions.
 func (b *Buffer) Save() error {
+	if b.Path == "" {
+		return errors.New("no file name; use :w <path>")
+	}
 	mode := fs.FileMode(0o644)
 	if fi, err := os.Stat(b.Path); err == nil {
 		mode = fi.Mode().Perm()
