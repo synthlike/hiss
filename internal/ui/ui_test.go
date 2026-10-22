@@ -100,7 +100,7 @@ func TestDrawHunk(t *testing.T) {
 	ed.HandleKey("j")
 	g := newGrid(30, 9)
 	Draw(g, ed)
-	want := []string{"  one", "- two", "+ 2", "+ TWO", "▸ #1 claude: spell it out", "┆ claude: spelled out", "  three"}
+	want := []string{"  one", "▸ #1 claude: spell it out", "- two", "+ 2", "+ TWO", "┆ claude: spelled out", "  three"}
 	for y, w := range want {
 		if got := g.row(y); got != strings.TrimRight(w, " ") {
 			t.Errorf("row %d = %q, want %q", y, got, w)

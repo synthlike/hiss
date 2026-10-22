@@ -221,28 +221,34 @@ func (e *Editor) scroll() {
 	if e.Height <= 0 {
 		return
 	}
+	above := map[int]int{} // rows drawn above a line: hunk rationales
 	extra := map[int]int{} // rows drawn below a line for pending hunks
 	for _, h := range e.Hunks() {
+		above[h.First] += len(h.Above)
 		extra[h.Last] += h.Rows()
 	}
 	for l, rows := range e.TrailRows() {
 		extra[l] += len(rows)
 	}
-	line, sub := e.line(), e.DiffRow()
-	e.TopSub = min(e.TopSub, extra[e.Top])
-	if line < e.Top || line == e.Top && sub < e.TopSub {
+	block := func(l int) int { return above[l] + 1 + extra[l] } // rows drawn for line l
+	line := e.line()
+	sub := above[line] + e.DiffRow() // the cursor's row within its line's block
+	e.TopSub = min(e.TopSub, block(e.Top)-1)
+	if line < e.Top || line == e.Top && sub <= e.TopSub {
 		e.Top, e.TopSub = line, sub
-		return
+		if sub == above[line] {
+			e.TopSub = 0 // on the line itself: show what is drawn above it too
+		}
 	}
 	if line >= e.Top+e.Height {
 		e.Top, e.TopSub = line-e.Height+1, 0
 	}
 	rows := sub + 1 - e.TopSub // rows from the top of the screen to the cursor
 	for l := e.Top; l < line; l++ {
-		rows += 1 + extra[l]
+		rows += block(l)
 	}
 	for ; rows > e.Height; rows-- { // scroll one row at a time
-		if e.TopSub < extra[e.Top] {
+		if e.TopSub < block(e.Top)-1 {
 			e.TopSub++
 		} else {
 			e.Top, e.TopSub = e.Top+1, 0

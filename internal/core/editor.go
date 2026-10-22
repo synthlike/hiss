@@ -53,7 +53,7 @@ type Editor struct {
 	Sel    Selection
 	Mode   Mode
 	Top    int    // first visible line
-	TopSub int    // rows of the Top line's diff already scrolled past
+	TopSub int    // rows of the Top line's block (notes above it, the line, its diff) scrolled past
 	Width  int    // columns, for wrapping review threads
 	Height int    // rows available for text
 	Cmd    string // command line contents in Command mode

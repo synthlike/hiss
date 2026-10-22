@@ -124,9 +124,25 @@ func Draw(s Screen, ed *core.Editor) {
 			row, line = row+1, line+1
 			continue
 		}
-		skip := 0 // rows of this line's block scrolled past: the line, then its diff
+		skip := 0 // rows of this line's block scrolled past: notes above it, the line, then its diff
 		if line == ed.Top {
 			skip = ed.TopSub
+		}
+		k := 0 // rows of this line's block so far
+		// visible reports whether to draw the block's next row.
+		visible := func() bool {
+			k++
+			return k > skip && row < h-2
+		}
+		for _, hk := range hunks {
+			if hk.First == line {
+				for _, n := range hk.Above {
+					if visible() {
+						drawHunkNote(s, row, n)
+						row++
+					}
+				}
+			}
 		}
 		base, mark := styleText, " "
 		var hunk *core.Hunk
@@ -141,7 +157,7 @@ func Draw(s Screen, ed *core.Editor) {
 		case hunk != nil && hunk.Tweaked:
 			base, mark = styleAdded, "+"
 		}
-		if skip == 0 {
+		if visible() {
 			s.Put(0, row, mark, base)
 			start, end := t.LineStart(line), ed.Buf.LineEnd(line)
 			x := drawText(s, gutter, row, w, string(t.Slice(start, end)), start, func(off int) tcell.Style {
@@ -166,11 +182,8 @@ func Draw(s Screen, ed *core.Editor) {
 				below, belowStyle, belowMark = hunk.Removed, styleRemoved, "-"
 			}
 			for i, a := range below {
-				if i+1 < skip {
+				if !visible() {
 					continue
-				}
-				if row >= h-2 {
-					break
 				}
 				st := belowStyle
 				if line == curLine && i+1 == diffRow {
@@ -181,35 +194,16 @@ func Draw(s Screen, ed *core.Editor) {
 				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return st })
 				row++
 			}
-			for i, n := range hunk.Notes {
-				if hunk.Below()+1+i < skip {
-					continue
+			for _, n := range hunk.Notes {
+				if visible() {
+					drawHunkNote(s, row, n)
+					row++
 				}
-				if row >= h-2 {
-					break
-				}
-				mark, style := "┆", styleAgentNote
-				switch {
-				case n.Note:
-					mark = "▸" // the proposal's rationale
-				case n.Mine:
-					style = styleYourNote
-				}
-				s.Put(0, row, mark, styleDim)
-				putString(s, gutter, row, n.Text, style)
-				row++
 			}
 		}
-		sub := 1 // rows of this line's block drawn before its location notes
-		if hunk != nil && line == hunk.Last {
-			sub += hunk.Rows()
-		}
-		for i, n := range trailRows[line] {
-			if sub+i < skip {
+		for _, n := range trailRows[line] {
+			if !visible() {
 				continue
-			}
-			if row >= h-2 {
-				break
 			}
 			mark, st := "┆", styleAgentNote
 			switch {
@@ -276,6 +270,19 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Picker != nil {
 		drawPicker(s, w, h, ed.Picker)
 	}
+}
+
+// drawHunkNote draws a hunk's rationale or a comment in its review thread.
+func drawHunkNote(s Screen, row int, n core.NoteLine) {
+	mark, style := "┆", styleAgentNote
+	switch {
+	case n.Note:
+		mark = "▸" // the proposal's rationale
+	case n.Mine:
+		style = styleYourNote
+	}
+	s.Put(0, row, mark, styleDim)
+	putString(s, gutter, row, n.Text, style)
 }
 
 // agentStatus describes the most recently active agent session.

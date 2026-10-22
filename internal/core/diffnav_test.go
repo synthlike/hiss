@@ -65,3 +65,26 @@ func TestScrollIntoTallHunk(t *testing.T) {
 		t.Errorf("after gg: Top=%d TopSub=%d row=%d", e.Top, e.TopSub, e.DiffRow())
 	}
 }
+
+func TestScrollKeepsRationaleAboveHunk(t *testing.T) {
+	e := newEditor(t, "a\nb\nc\nd\n")
+	e.Resize(80, 4) // two text rows
+	if _, err := e.ProposeEdit("claude", e.Buf.Path, "b", "B", false, nil, "why"); err != nil {
+		t.Fatal(err)
+	}
+	type view struct{ top, sub int }
+	steps := []struct {
+		key  string
+		want view
+	}{
+		{"j", view{1, 0}}, // "▸ why", "- b"
+		{"j", view{1, 1}}, // "- b", "+ B"
+		{"k", view{1, 0}}, // back on "- b": the rationale shows again
+	}
+	for i, s := range steps {
+		keys(e, s.key)
+		if got := (view{e.Top, e.TopSub}); got != s.want {
+			t.Errorf("step %d (%s): view %v, want %v", i, s.key, got, s.want)
+		}
+	}
+}
