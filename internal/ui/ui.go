@@ -108,6 +108,7 @@ func Draw(s Screen, ed *core.Editor) {
 	w, h := s.Size()
 	t := ed.Buf.Text
 	hunks := ed.Hunks()
+	locNotes := ed.LocationNotes()
 	cursor := ed.Sel.Head
 	curLine, _ := ed.Cursor()
 	diffRow := ed.DiffRow()
@@ -185,6 +186,21 @@ func Draw(s Screen, ed *core.Editor) {
 				putString(s, gutter, row, n.Text, style)
 				row++
 			}
+		}
+		sub := 1 // rows of this line's block drawn before its location notes
+		if hunk != nil && line == hunk.Last {
+			sub += hunk.Rows()
+		}
+		for i, n := range locNotes[line] {
+			if sub+i < skip {
+				continue
+			}
+			if row >= h-2 {
+				break
+			}
+			s.Put(0, row, "▸", styleAgentNote)
+			drawText(s, gutter, row, w, n, 0, style(styleAgentNote))
+			row++
 		}
 		line++
 	}

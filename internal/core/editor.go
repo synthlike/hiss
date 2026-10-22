@@ -175,6 +175,7 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"c", "comment on hunk", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
 	{"h", "pick a hunk", (*Editor).openHunkPicker},
 	{"l", "agent's locations", (*Editor).openLocationPicker},
+	{"L", "clear agent's locations", (*Editor).clearLocations},
 	{"f", "open file", (*Editor).openFilePicker},
 	{"b", "buffers", (*Editor).openBufferPicker},
 	{"w", "write", func(e *Editor) { e.save() }},

@@ -225,6 +225,9 @@ func (e *Editor) scroll() {
 	for _, h := range e.Hunks() {
 		extra[h.Last] += h.Rows()
 	}
+	for l, notes := range e.LocationNotes() {
+		extra[l] += len(notes)
+	}
 	line, sub := e.line(), e.DiffRow()
 	e.TopSub = min(e.TopSub, extra[e.Top])
 	if line < e.Top || line == e.Top && sub < e.TopSub {

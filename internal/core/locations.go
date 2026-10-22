@@ -25,6 +25,31 @@ func (e *Editor) ShowLocations(agent, title string, items []Location) {
 	e.notify(agent, fmt.Sprintf("shared %d locations: %s (space l)", len(items), title))
 }
 
+// LocationNotes returns the shared list's notes for the visible buffer, by
+// 0-based line, for drawing under the code they describe.
+func (e *Editor) LocationNotes() map[int][]string {
+	if e.locations == nil {
+		return nil
+	}
+	var notes map[int][]string
+	for _, loc := range e.locations.Items {
+		if loc.Path != e.Buf.Path || loc.Note == "" {
+			continue
+		}
+		if notes == nil {
+			notes = map[int][]string{}
+		}
+		line := min(max(loc.Line-1, 0), e.Buf.Text.LineCount()-1)
+		notes[line] = append(notes[line], loc.Note)
+	}
+	return notes
+}
+
+func (e *Editor) clearLocations() {
+	e.locations = nil
+	e.Msg = "cleared the agent's locations"
+}
+
 // openLocationPicker shows the shared list in its original order.
 func (e *Editor) openLocationPicker() {
 	l := e.locations
