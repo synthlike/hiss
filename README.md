@@ -55,8 +55,11 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | `]h` / `[h` | next / previous pending hunk (across buffers) |
 | `space a` | accept the hunk under the cursor (applies and saves) |
 | `space r` | reject it; `:reject <reason>` tells the agent why |
-| `space c` | comment on it; the agent replies under the hunk or revises it |
-| `space b` | switch buffer |
+| `space c` | comment on it, or on the `+`/`-` line under the cursor; the agent replies or revises |
+| `j` / `k` | move through the proposed `+` lines too |
+| `space h` | pick a pending hunk |
+| `space l` | pick from locations the agent shared (`show_locations`) |
+| `space f` / `space b` | pick a file / an open buffer |
 
 Editing the text of a pending hunk makes it stale; the agent is told to re-read.
 Comments reach Claude while it waits for your review, or wake it after its turn

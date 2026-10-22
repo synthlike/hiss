@@ -74,6 +74,7 @@ type Editor struct {
 	caller    string           // session ID of the latest hiss tool call
 	now       func() time.Time // replaced in tests
 	notices   []Toast          // raised since the UI last took them
+	locations *LocationList    // last list an agent shared
 }
 
 func New(b *Buffer) *Editor {
@@ -173,6 +174,7 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
 	{"c", "comment on hunk", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
 	{"h", "pick a hunk", (*Editor).openHunkPicker},
+	{"l", "agent's locations", (*Editor).openLocationPicker},
 	{"f", "open file", (*Editor).openFilePicker},
 	{"b", "buffers", (*Editor).openBufferPicker},
 	{"w", "write", func(e *Editor) { e.save() }},

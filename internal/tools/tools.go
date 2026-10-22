@@ -33,6 +33,8 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
 - The user may comment on a pending proposal. Comments arrive through
   await_review or get_proposals, or wake you after your turn ends. Answer with
   reply; to change the proposal, propose a revision with supersedes set to its id.
+- To point the user at code (call sites, affected places, a walk through a
+  flow), use show_locations rather than listing file:line in chat.
 - Use get_selection to see what the user is pointing at.`
 
 // Forward sends a tool call to the editor and returns its JSON result.
@@ -114,6 +116,7 @@ var all = []tool{
 	awaitReview,
 	awaitPoll,
 	replyTool,
+	showLocationsTool,
 	watchComments,
 	hook,
 	define(&mcp.Tool{
