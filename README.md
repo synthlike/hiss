@@ -21,6 +21,10 @@ Early and in progress.
 
 Requires Go 1.27 or later.
 
+hiss asks the terminal for its background colour at startup and uses lighter
+colours on a light background; set `HISS_THEME=light` or `HISS_THEME=dark` to
+choose yourself.
+
 ```sh
 go build -o hiss ./cmd/hiss
 ./hiss path/to/file   # or just ./hiss, then :e <path> to open a file

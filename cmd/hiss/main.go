@@ -82,6 +82,9 @@ func runEditor(path string) error {
 		})
 	}
 
+	if ui.LightBackground() { // before the screen takes over the terminal
+		ui.UseLightTheme()
+	}
 	scr, err := tcell.NewScreen()
 	if err != nil {
 		return err

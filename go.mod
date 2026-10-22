@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/gdamore/tcell/v3 v3.6.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	golang.org/x/term v0.46.0
 )
 
 require (
@@ -19,7 +20,6 @@ require (
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
