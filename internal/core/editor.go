@@ -173,7 +173,8 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
 	{"c", "comment on hunk", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
 	{"h", "pick a hunk", (*Editor).openHunkPicker},
-	{"b", "buffers", func(e *Editor) { e.Menu = e.bufferMenu() }},
+	{"f", "open file", (*Editor).openFilePicker},
+	{"b", "buffers", (*Editor).openBufferPicker},
 	{"w", "write", func(e *Editor) { e.save() }},
 	{"q", "quit", func(e *Editor) { e.execute("q") }},
 }}
@@ -459,16 +460,4 @@ func (e *Editor) OpenBuffer(path string) (*Buffer, error) {
 	}
 	e.Bufs = append(e.Bufs, b)
 	return b, nil
-}
-
-func (e *Editor) bufferMenu() *Menu {
-	m := &Menu{Title: "buffers"}
-	for i, b := range e.Bufs[:min(len(e.Bufs), 9)] {
-		desc := b.Name
-		if n := len(b.pending); n > 0 {
-			desc += fmt.Sprintf(" (%d pending)", n)
-		}
-		m.Items = append(m.Items, MenuItem{fmt.Sprint(i + 1), desc, func(e *Editor) { e.SwitchTo(b) }})
-	}
-	return m
 }

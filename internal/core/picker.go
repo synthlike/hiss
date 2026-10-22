@@ -21,10 +21,22 @@ type Picker struct {
 	Items    []PickItem
 	Query    string
 	Selected int // index into Matches()
+
+	matched  bool // matches holds the result for matchedQ
+	matchedQ string
+	matches  []PickItem
 }
 
 // Matches returns the items matching the query, best first.
 func (p *Picker) Matches() []PickItem {
+	if p.matched && p.matchedQ == p.Query {
+		return p.matches
+	}
+	p.matched, p.matchedQ, p.matches = true, p.Query, p.match()
+	return p.matches
+}
+
+func (p *Picker) match() []PickItem {
 	type match struct {
 		it    PickItem
 		score int
