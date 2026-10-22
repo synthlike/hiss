@@ -1,0 +1,80 @@
+package ui
+
+import (
+	"strings"
+	"testing"
+	"unicode/utf8"
+
+	"github.com/gdamore/tcell/v3"
+	"github.com/synthlike/hiss/internal/core"
+	"github.com/synthlike/hiss/internal/text"
+)
+
+// grid is a fake Screen holding one rune per cell.
+type grid struct {
+	w, h   int
+	cells  [][]rune
+	styles [][]tcell.Style
+}
+
+func newGrid(w, h int) *grid {
+	g := &grid{w: w, h: h}
+	for range h {
+		g.cells = append(g.cells, []rune(strings.Repeat(" ", w)))
+		g.styles = append(g.styles, make([]tcell.Style, w))
+	}
+	return g
+}
+
+func (g *grid) Size() (int, int) { return g.w, g.h }
+
+func (g *grid) Put(x, y int, str string, style tcell.Style) (string, int) {
+	r, n := utf8.DecodeRuneInString(str)
+	if x >= 0 && x < g.w && y >= 0 && y < g.h {
+		g.cells[y][x], g.styles[y][x] = r, style
+	}
+	return str[n:], 1
+}
+
+func (g *grid) row(y int) string { return strings.TrimRight(string(g.cells[y]), " ") }
+
+func TestDraw(t *testing.T) {
+	ed := core.New(&core.Buffer{Path: "a.go", Text: text.New([]byte("a\tb\nxy\n"), text.Origin{})})
+	ed.Resize(20, 6)
+	ed.HandleKey("j")
+	ed.HandleKey("l")
+	g := newGrid(20, 6)
+	Draw(g, ed)
+
+	want := []string{"a   b", "xy", "", "~"}
+	for y, w := range want {
+		if got := g.row(y); got != w {
+			t.Errorf("row %d = %q, want %q", y, got, w)
+		}
+	}
+	if !g.styles[1][1].HasReverse() || g.styles[1][0].HasReverse() {
+		t.Error("cursor not drawn on 'y'")
+	}
+	if got := g.row(4); !strings.HasPrefix(got, " NOR  a.go") || !strings.HasSuffix(got, "2:2") {
+		t.Errorf("status = %q", got)
+	}
+}
+
+func TestKeyName(t *testing.T) {
+	cases := []struct {
+		ev   *tcell.EventKey
+		want string
+	}{
+		{tcell.NewEventKey(tcell.KeyRune, "j", tcell.ModNone), "j"},
+		{tcell.NewEventKey(tcell.KeyRune, "x", tcell.ModAlt), "A-x"},
+		{tcell.NewEventKey(tcell.KeyRune, "d", tcell.ModCtrl), "C-d"},
+		{tcell.NewEventKey(tcell.KeyEsc, "", tcell.ModNone), "esc"},
+		{tcell.NewEventKey(tcell.KeyBackspace2, "", tcell.ModNone), "backspace"},
+		{tcell.NewEventKey(tcell.KeyLeft, "", tcell.ModNone), "left"},
+	}
+	for _, c := range cases {
+		if got := KeyName(c.ev); got != c.want {
+			t.Errorf("KeyName(%s) = %q, want %q", c.ev.Name(), got, c.want)
+		}
+	}
+}

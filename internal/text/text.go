@@ -190,12 +190,11 @@ func (t Text) LineStart(line int) int {
 	pos, seen := 0, 0
 	for _, p := range t.pieces {
 		if seen+p.lines >= line {
-			b := t.bytesOf(p)
-			for j, c := range b {
-				if c == '\n' {
-					if seen++; seen == line {
-						return pos + j + 1
-					}
+			b, j := t.bytesOf(p), 0
+			for {
+				j += bytes.IndexByte(b[j:], '\n') + 1
+				if seen++; seen == line {
+					return pos + j
 				}
 			}
 		}
