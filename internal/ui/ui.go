@@ -212,6 +212,9 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Menu != nil {
 		drawMenu(s, w, h-2, ed.Menu)
 	}
+	if ed.Picker != nil {
+		drawPicker(s, w, h, ed.Picker)
+	}
 }
 
 // agentStatus describes the most recently active agent session.

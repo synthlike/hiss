@@ -61,6 +61,7 @@ type Editor struct {
 	Splash string // shown on an empty scratch buffer
 	Toast  Toast  // notice in the top-right corner
 	Quit   bool
+	Picker *Picker // open fuzzy picker, if any
 
 	goal      int // preferred column for vertical moves, -1 if none
 	register  string
@@ -88,6 +89,8 @@ func (e *Editor) Resize(width, height int) {
 func (e *Editor) HandleKey(k string) {
 	e.Msg = ""
 	switch {
+	case e.Picker != nil:
+		e.pickerKey(k)
 	case e.Menu != nil:
 		m := e.Menu
 		e.Menu = nil
@@ -159,6 +162,7 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"a", "accept hunk", func(e *Editor) { e.reviewHunk(true, "") }},
 	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
 	{"c", "comment on hunk", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
+	{"h", "pick a hunk", (*Editor).openHunkPicker},
 	{"b", "buffers", func(e *Editor) { e.Menu = e.bufferMenu() }},
 	{"w", "write", func(e *Editor) { e.save() }},
 	{"q", "quit", func(e *Editor) { e.execute("q") }},
