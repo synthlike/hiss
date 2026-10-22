@@ -34,13 +34,25 @@ type Delivery struct {
 	Line     string // diff line the comment is on, if any
 }
 
+const nothingToComment = "nothing to comment on here: move to a pending hunk or a trail step"
+
+// startComment opens the command line on ":comment " if there is something
+// under the cursor to comment on.
+func (e *Editor) startComment() {
+	if e.HunkAtCursor() == nil && e.stepAtCursor() == nil {
+		e.Msg = nothingToComment
+		return
+	}
+	e.Mode, e.Cmd = Command, "comment "
+}
+
 // comment adds the user's comment to the pending hunk under the cursor or,
 // failing that, to the trail step on the cursor's line.
 func (e *Editor) comment(text string) {
 	h, s := e.HunkAtCursor(), e.stepAtCursor()
 	switch {
 	case h == nil && s == nil:
-		e.Msg = "nothing to comment on here: move to a pending hunk or a trail step"
+		e.Msg = nothingToComment
 	case text == "":
 		e.Msg = "empty comment"
 	case h == nil:

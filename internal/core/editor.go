@@ -147,6 +147,10 @@ var normalKeys = map[string]func(*Editor){
 	"u": (*Editor).undoOnce,
 	"U": (*Editor).redoOnce,
 
+	"+": func(e *Editor) { e.reviewHunk(true, "") },
+	"-": func(e *Editor) { e.reviewHunk(false, "") },
+	"#": (*Editor).startComment,
+
 	"g":     func(e *Editor) { e.Menu = &gotoMenu },
 	"]":     func(e *Editor) { e.Menu = &nextMenu },
 	"[":     func(e *Editor) { e.Menu = &prevMenu },
@@ -162,26 +166,20 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 }}
 
 var nextMenu = Menu{Title: "next", Items: []MenuItem{
-	{"h", "pending hunk", func(e *Editor) { e.jumpHunk(1) }},
-	{"t", "trail step", func(e *Editor) { e.stepTrail(1) }},
+	{"h", "hunk", func(e *Editor) { e.jumpHunk(1) }},
+	{"t", "step", func(e *Editor) { e.stepTrail(1) }},
 }}
 
 var prevMenu = Menu{Title: "previous", Items: []MenuItem{
-	{"h", "pending hunk", func(e *Editor) { e.jumpHunk(-1) }},
-	{"t", "trail step", func(e *Editor) { e.stepTrail(-1) }},
+	{"h", "hunk", func(e *Editor) { e.jumpHunk(-1) }},
+	{"t", "step", func(e *Editor) { e.stepTrail(-1) }},
 }}
 
 var spaceMenu = Menu{Title: "space", Items: []MenuItem{
-	{"a", "accept hunk", func(e *Editor) { e.reviewHunk(true, "") }},
-	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
-	{"c", "comment (hunk or trail step)", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
-	{"h", "pick a hunk", (*Editor).openHunkPicker},
-	{"t", "pick a trail step", (*Editor).openTrailPicker},
-	{"T", "clear the trail", (*Editor).clearTrail},
-	{"f", "open file", (*Editor).openFilePicker},
+	{"f", "files", (*Editor).openFilePicker},
 	{"b", "buffers", (*Editor).openBufferPicker},
-	{"w", "write", func(e *Editor) { e.save() }},
-	{"q", "quit", func(e *Editor) { e.execute("q") }},
+	{"h", "hunks", (*Editor).openHunkPicker},
+	{"t", "steps", (*Editor).openTrailPicker},
 }}
 
 func (e *Editor) toggleSelect() {
@@ -262,11 +260,19 @@ func (e *Editor) execute(cmd string) {
 		if e.save() {
 			e.Quit = true
 		}
+	case "accept-all":
+		e.reviewAll(true, "")
+	case "clear-trail":
+		e.clearTrail()
 	case "":
 	default:
 		c := strings.TrimSpace(cmd)
 		if text, ok := strings.CutPrefix(c, "comment"); ok {
 			e.comment(strings.TrimSpace(text))
+			return
+		}
+		if reason, ok := strings.CutPrefix(c, "reject-all"); ok {
+			e.reviewAll(false, strings.TrimSpace(reason))
 			return
 		}
 		if reason, ok := strings.CutPrefix(c, "reject "); ok {

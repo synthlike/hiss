@@ -56,7 +56,7 @@ func TestProposalRecordsCallerTurn(t *testing.T) {
 	if p.Session != "s1" || p.Turn != 1 {
 		t.Fatalf("proposal session=%q turn=%d", p.Session, p.Turn)
 	}
-	keys(e, "] h space a")
+	keys(e, "] h +")
 	o := e.Buf.Text.Spans(0, 1)[0].Origin
 	if o.Session != "s1" || o.Turn != 1 || o.Proposal != p.ID {
 		t.Errorf("origin = %+v", o)

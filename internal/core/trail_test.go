@@ -57,7 +57,7 @@ func TestTrail(t *testing.T) {
 		t.Errorf("rows = %+v", rows)
 	}
 
-	keys(e, "space T")
+	e.execute("clear-trail")
 	if e.trail != nil || len(f.anchors) != 0 {
 		t.Errorf("clear: trail=%v anchors=%d", e.trail, len(f.anchors))
 	}

@@ -37,11 +37,12 @@ func TestDrawTrail(t *testing.T) {
 		}
 	}
 
-	ed.HandleKey("space")
-	ed.HandleKey("T")
+	for _, k := range strings.Fields(": c l e a r - t r a i l enter") {
+		ed.HandleKey(k)
+	}
 	g = newGrid(40, 8)
 	Draw(g, ed)
 	if strings.Contains(g.row(2), "middle") {
-		t.Error("trail still drawn after space T")
+		t.Error("trail still drawn after :clear-trail")
 	}
 }

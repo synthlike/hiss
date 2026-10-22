@@ -253,7 +253,7 @@ func Draw(s Screen, ed *core.Editor) {
 			if hk.P.Rationale != "" {
 				info += ": " + hk.P.Rationale
 			}
-			putString(s, 0, h-1, info+"  (space a accept, space r reject, space c comment)", styleDim)
+			putString(s, 0, h-1, info+"  (+ accept, - reject, # comment)", styleDim)
 		}
 	}
 	if t := ed.ActiveToast(); t != nil {

@@ -62,7 +62,7 @@ func TestWatchReportsFinishedReview(t *testing.T) {
 	if r := e.WatchComments("s1", "w1", true); len(r.Reviewed) != 0 {
 		t.Fatal("reported before any review")
 	}
-	keys(e, "] h space a") // accept the first
+	keys(e, "] h +") // accept the first
 	if r := e.WatchComments("s1", "w1", false); len(r.Reviewed) != 0 {
 		t.Fatal("reported with a proposal still pending")
 	}

@@ -203,16 +203,12 @@ func TestMenus(t *testing.T) {
 	if e.Menu != nil {
 		t.Error("unknown key should close the menu")
 	}
-	keys(e, "i y esc space w")
-	if e.Buf.Dirty() || !strings.HasPrefix(e.Msg, "wrote") {
-		t.Errorf("space w: dirty=%v msg=%q", e.Buf.Dirty(), e.Msg)
-	}
 }
 
 func TestScratch(t *testing.T) {
 	e := New(Scratch())
 	e.Resize(80, 10)
-	keys(e, "i h i esc space w")
+	keys(e, "i h i esc : w enter")
 	if !strings.Contains(e.Msg, "no file name") {
 		t.Errorf("save without name: %q", e.Msg)
 	}

@@ -226,27 +226,67 @@ func (e *Editor) reviewHunk(accept bool, reason string) {
 		return
 	}
 	p := h.P
-	p.Buf.pending = slices.DeleteFunc(p.Buf.pending, func(q *Proposal) bool { return q == p })
+	e.Msg = e.resolve(p, accept, reason)
 	if accept {
-		e.checkpoint()
-		p.Buf.Replace(p.Start, p.End, []byte(p.New),
-			text.Origin{Author: p.Agent, Session: p.Session, Turn: p.Turn, Proposal: p.ID})
-		p.Status = Accepted
 		e.Sel = Selection{p.Start, p.Start}
-		if err := p.Buf.Save(); err != nil {
-			e.Msg = fmt.Sprintf("accepted #%d but saving failed: %v", p.ID, err)
-			p.Reason = "accepted in the editor, but saving failed: " + err.Error()
-		} else {
-			e.Msg = fmt.Sprintf("accepted #%d, wrote %s", p.ID, p.Buf.Name)
-		}
-	} else {
-		p.Status, p.Reason = Rejected, reason
-		e.Msg = fmt.Sprintf("rejected #%d", p.ID)
 	}
 	if e.PendingCount() > 0 {
 		msg := e.Msg
 		e.jumpHunk(1)
 		e.Msg = msg
+	}
+}
+
+// resolve accepts p, applying it and saving its buffer, or rejects it with
+// reason. It returns a message saying what happened.
+func (e *Editor) resolve(p *Proposal, accept bool, reason string) string {
+	b := p.Buf
+	b.pending = slices.DeleteFunc(b.pending, func(q *Proposal) bool { return q == p })
+	if !accept {
+		p.Status, p.Reason = Rejected, reason
+		return fmt.Sprintf("rejected #%d", p.ID)
+	}
+	sel := b.sel
+	if b == e.Buf {
+		sel = e.Sel
+	}
+	b.undo, b.redo = append(b.undo, snapshot{b.Text, sel}), nil
+	b.Replace(p.Start, p.End, []byte(p.New),
+		text.Origin{Author: p.Agent, Session: p.Session, Turn: p.Turn, Proposal: p.ID})
+	p.Status = Accepted
+	if err := b.Save(); err != nil {
+		p.Reason = "accepted in the editor, but saving failed: " + err.Error()
+		return fmt.Sprintf("accepted #%d but saving failed: %v", p.ID, err)
+	}
+	return fmt.Sprintf("accepted #%d, wrote %s", p.ID, b.Name)
+}
+
+// reviewAll accepts or rejects every pending hunk in every buffer.
+func (e *Editor) reviewAll(accept bool, reason string) {
+	n, failed := 0, 0
+	for _, b := range e.Bufs {
+		for _, p := range slices.Clone(b.pending) {
+			e.resolve(p, accept, reason)
+			n++
+			if accept && p.Reason != "" {
+				failed++
+			}
+		}
+	}
+	if n == 0 {
+		e.Msg = "no pending hunks"
+		return
+	}
+	verb, noun := "rejected", "hunks"
+	if accept {
+		verb = "accepted"
+	}
+	if n == 1 {
+		noun = "hunk"
+	}
+	e.Msg = fmt.Sprintf("%s %d %s", verb, n, noun)
+	if failed > 0 {
+		e.Msg += fmt.Sprintf("; saving failed for %d", failed)
 	}
 }
 

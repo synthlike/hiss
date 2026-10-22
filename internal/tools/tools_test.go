@@ -195,7 +195,7 @@ func TestProposeReviewAwait(t *testing.T) {
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		onEditor(reqs, func(ed *core.Editor) {
-			for _, k := range []string{"]", "h", "space", "a"} {
+			for _, k := range []string{"]", "h", "+"} {
 				ed.HandleKey(k)
 			}
 		})

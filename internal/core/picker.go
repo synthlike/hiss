@@ -113,7 +113,7 @@ func (e *Editor) pickerKey(k string) {
 
 // openHunkPicker lists pending hunks in all buffers; enter jumps to one.
 func (e *Editor) openHunkPicker() {
-	p := &Picker{Title: "pending hunks"}
+	p := &Picker{Title: "hunks"}
 	for _, b := range e.Bufs {
 		for _, q := range b.pending {
 			detail := fmt.Sprintf("#%d %s", q.ID, q.Agent)

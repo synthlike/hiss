@@ -53,14 +53,14 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | Keys | Action |
 | --- | --- |
 | `]h` / `[h` | next / previous pending hunk (across buffers) |
-| `space a` | accept the hunk under the cursor (applies and saves) |
-| `space r` | reject it; `:reject <reason>` tells the agent why |
-| `space c` | comment on it, on the `+`/`-` line under the cursor, or on a trail step; the agent replies or revises |
+| `+` | accept the hunk under the cursor (applies and saves) |
+| `-` | reject it; `:reject <reason>` tells the agent why |
+| `#` | comment on it, on the `+`/`-` line under the cursor, or on a trail step; the agent replies or revises |
 | `j` / `k` | move through the proposed `+` lines too |
-| `space h` | pick a pending hunk |
 | `]t` / `[t` | next / previous step of the trail the agent shared (`show_trail`) |
-| `space t` / `space T` | pick a trail step / clear the trail |
-| `space f` / `space b` | pick a file / an open buffer |
+| `space f` / `b` / `h` / `t` | pick a file / buffer / pending hunk / trail step |
+| `:accept-all` / `:reject-all [reason]` | accept or reject every pending hunk |
+| `:clear-trail` | stop showing the trail |
 
 Editing the text of a pending hunk makes it stale; the agent is told to re-read.
 Comments reach Claude while it waits for your review, or wake it after its turn

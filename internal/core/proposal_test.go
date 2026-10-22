@@ -24,7 +24,7 @@ func TestAcceptAppliesSavesAndAttributes(t *testing.T) {
 	if e.Buf.Text.String() != "func a() {}\nfunc b() {}\n" {
 		t.Fatal("a pending proposal must not change the buffer")
 	}
-	keys(e, "] h space a")
+	keys(e, "] h +")
 	if p.Status != Accepted || e.PendingCount() != 0 {
 		t.Fatalf("status=%s pending=%d msg=%q", p.Status, e.PendingCount(), e.Msg)
 	}
@@ -45,6 +45,44 @@ func TestRejectWithReason(t *testing.T) {
 	keys(e, ": r e j e c t space n o enter")
 	if p.Status != Rejected || p.Reason != "no" || e.Buf.Text.String() != "x := 1\n" {
 		t.Errorf("status=%s reason=%q text=%q", p.Status, p.Reason, e.Buf.Text.String())
+	}
+}
+
+func TestReviewKeys(t *testing.T) {
+	e := newEditor(t, "one\ntwo\n")
+	p := propose(t, e, "one", "1")
+	keys(e, "j j #") // past the hunk's + line to plain text
+	if e.Mode == Command || e.Msg != nothingToComment {
+		t.Fatalf("# off a hunk: mode=%s msg=%q", e.Mode, e.Msg)
+	}
+	keys(e, "g g #")
+	if e.Mode != Command || e.Cmd != "comment " {
+		t.Fatalf("# on a hunk: mode=%s cmd=%q", e.Mode, e.Cmd)
+	}
+	keys(e, "esc -")
+	if p.Status != Rejected {
+		t.Errorf("- on a hunk: status=%s msg=%q", p.Status, e.Msg)
+	}
+}
+
+func TestReviewAll(t *testing.T) {
+	e := newEditor(t, "a\nb\n")
+	first, second := propose(t, e, "a", "A"), propose(t, e, "b", "B")
+	e.execute("accept-all")
+	if first.Status != Accepted || second.Status != Accepted || e.Msg != "accepted 2 hunks" {
+		t.Fatalf("statuses %s %s, msg=%q", first.Status, second.Status, e.Msg)
+	}
+	if got, _ := os.ReadFile(e.Buf.Path); string(got) != "A\nB\n" {
+		t.Errorf("file = %q", got)
+	}
+	third := propose(t, e, "A", "x")
+	e.execute("reject-all too much")
+	if third.Status != Rejected || third.Reason != "too much" || e.Msg != "rejected 1 hunk" {
+		t.Errorf("status=%s reason=%q msg=%q", third.Status, third.Reason, e.Msg)
+	}
+	e.execute("accept-all")
+	if e.Msg != "no pending hunks" {
+		t.Errorf("msg = %q", e.Msg)
 	}
 }
 
@@ -133,7 +171,7 @@ func TestWriteFileAndJumpAcrossBuffers(t *testing.T) {
 	if e.Buf.Path != newPath || e.Buf.Name != "new.go" {
 		t.Fatalf("jumped to %s", e.Buf.Path)
 	}
-	keys(e, "space a")
+	keys(e, "+")
 	got, _ := os.ReadFile(newPath)
 	if string(got) != "package x\n\nfunc X() {}\n" {
 		t.Errorf("new file = %q", got)
@@ -162,6 +200,6 @@ func TestHunkLines(t *testing.T) {
 		if strings.Join(h.Added, "|") != c.added || h.First != c.first || h.Last != c.last {
 			t.Errorf("%q→%q: added=%q lines %d-%d", c.old, c.new, h.Added, h.First, h.Last)
 		}
-		keys(e, "] h space r")
+		keys(e, "] h -")
 	}
 }
