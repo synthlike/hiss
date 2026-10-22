@@ -159,7 +159,7 @@ var normalKeys = map[string]func(*Editor){
 	"U": (*Editor).redoOnce,
 
 	"+": func(e *Editor) { e.reviewHunk(true, "") },
-	"-": func(e *Editor) { e.reviewHunk(false, "") },
+	"-": (*Editor).startReject,
 	"#": (*Editor).startComment,
 
 	"g":     func(e *Editor) { e.Menu = &gotoMenu },

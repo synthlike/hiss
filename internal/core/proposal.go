@@ -271,6 +271,16 @@ func (e *Editor) reviewHunk(accept bool, reason string) {
 	}
 }
 
+// startReject opens the command line on ":hr " for the hunk under the cursor:
+// enter rejects it, with whatever was typed as the reason.
+func (e *Editor) startReject() {
+	if e.HunkAtCursor() == nil {
+		e.Msg = "no pending hunk on this line"
+		return
+	}
+	e.Mode, e.Cmd = Command, "hr "
+}
+
 // resolve accepts p, applying it and saving its buffer, or rejects it with
 // reason. It returns a message saying what happened.
 func (e *Editor) resolve(p *Proposal, accept bool, reason string) string {

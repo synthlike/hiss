@@ -60,6 +60,10 @@ func TestReviewKeys(t *testing.T) {
 		t.Fatalf("# on a hunk: mode=%s cmd=%q", e.Mode, e.Cmd)
 	}
 	keys(e, "esc -")
+	if e.Mode != Command || e.Cmd != "hr " || p.Status != Pending {
+		t.Fatalf("- on a hunk: mode=%s cmd=%q status=%s", e.Mode, e.Cmd, p.Status)
+	}
+	keys(e, "enter") // no reason needed
 	if p.Status != Rejected {
 		t.Errorf("- on a hunk: status=%s msg=%q", p.Status, e.Msg)
 	}
@@ -200,6 +204,6 @@ func TestHunkLines(t *testing.T) {
 		if strings.Join(h.Added, "|") != c.added || h.First != c.first || h.Last != c.last {
 			t.Errorf("%q→%q: added=%q lines %d-%d", c.old, c.new, h.Added, h.First, h.Last)
 		}
-		keys(e, "] h -")
+		keys(e, "] h - enter")
 	}
 }

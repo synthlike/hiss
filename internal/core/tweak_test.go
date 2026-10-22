@@ -42,7 +42,7 @@ func TestTweakThenReject(t *testing.T) {
 	if got := e.Buf.Text.String(); got != "a\n1\nB2\nc\n" {
 		t.Fatalf("buffer = %q", got)
 	}
-	keys(e, "-")
+	keys(e, "- enter")
 	if got := e.Buf.Text.String(); got != "a\nb\nc\n" {
 		t.Fatalf("after reject: %q", got)
 	}
