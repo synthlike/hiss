@@ -145,6 +145,9 @@ func (b *Buffer) Save() error {
 	if fi, err := os.Stat(b.Path); err == nil {
 		mode = fi.Mode().Perm()
 	}
+	if err := os.MkdirAll(filepath.Dir(b.Path), 0o755); err != nil { // new files in new directories
+		return err
+	}
 	f, err := os.CreateTemp(filepath.Dir(b.Path), ".hiss-*")
 	if err != nil {
 		return err

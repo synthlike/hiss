@@ -97,6 +97,21 @@ func TestSaveKeepsPermissions(t *testing.T) {
 	}
 }
 
+func TestSaveCreatesDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "new", "pkg", "a.go")
+	b, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Replace(0, 0, []byte("package pkg\n"), You)
+	if err := b.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "package pkg\n" {
+		t.Errorf("file = %q", got)
+	}
+}
+
 func TestOpenMissingFile(t *testing.T) {
 	b, err := Open(filepath.Join(t.TempDir(), "new.go"))
 	if err != nil || b.Text.Len() != 0 || b.Dirty() {

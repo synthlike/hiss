@@ -235,6 +235,7 @@ func (e *Editor) reviewHunk(accept bool, reason string) {
 		e.Sel = Selection{p.Start, p.Start}
 		if err := p.Buf.Save(); err != nil {
 			e.Msg = fmt.Sprintf("accepted #%d but saving failed: %v", p.ID, err)
+			p.Reason = "accepted in the editor, but saving failed: " + err.Error()
 		} else {
 			e.Msg = fmt.Sprintf("accepted #%d, wrote %s", p.ID, p.Buf.Name)
 		}
