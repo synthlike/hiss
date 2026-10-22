@@ -19,10 +19,11 @@ type Session struct {
 	ID       string
 	Turn     int // user prompts so far
 	State    AgentState
-	Note     string    // what the agent is waiting for, from its notification
-	Seen     time.Time // last hook
-	awaiting time.Time // last await_review poll
-	watcher  string    // background comment watcher started when the session stopped
+	Note     string      // what the agent is waiting for, from its notification
+	Seen     time.Time   // last hook
+	awaiting time.Time   // last await_review poll
+	watcher  string      // background comment watcher started when the session stopped
+	watched  []*Proposal // pending when the watcher registered; it reports once all are reviewed
 }
 
 // Awaiting reports whether the session is blocked in await_review.

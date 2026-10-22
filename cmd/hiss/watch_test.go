@@ -49,6 +49,21 @@ func TestWatchWakesWithComments(t *testing.T) {
 	}
 }
 
+func TestWatchWakesAfterReview(t *testing.T) {
+	serveWatch(t, func(int) tools.WatchOut {
+		return tools.WatchOut{Reviewed: []tools.ProposalInfo{
+			{ID: 1, Path: "/p/a.go", Status: "accepted"},
+			{ID: 2, Path: "/p/b.go", Status: "rejected", Reason: "not now"},
+		}}
+	})
+	var stderr strings.Builder
+	code := runWatch(strings.NewReader(`{"session_id":"s1"}`), &stderr)
+	got := stderr.String()
+	if code != 2 || !strings.Contains(got, "finished reviewing") || !strings.Contains(got, "#2 /p/b.go: rejected (not now)") {
+		t.Errorf("code=%d stderr=%q", code, got)
+	}
+}
+
 func TestWatchStandsDown(t *testing.T) {
 	serveWatch(t, func(int) tools.WatchOut { return tools.WatchOut{Superseded: true} })
 	if code := runWatch(strings.NewReader(`{"session_id":"s1"}`), &strings.Builder{}); code != 0 {

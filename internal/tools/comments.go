@@ -71,8 +71,16 @@ type watchArgs struct {
 
 // WatchOut is the reply to the comment watcher's poll.
 type WatchOut struct {
-	Superseded bool          `json:"superseded,omitempty"`
-	Comments   []CommentInfo `json:"comments,omitempty"`
+	Superseded bool           `json:"superseded,omitempty"`
+	Comments   []CommentInfo  `json:"comments,omitempty"`
+	Reviewed   []ProposalInfo `json:"reviewed,omitempty"`
+}
+
+// ReviewedText tells an agent the user has reviewed everything it left pending.
+func ReviewedText(ps []ProposalInfo) string {
+	return "The user finished reviewing the proposals you left pending:\n" +
+		ProposalsOut{Proposals: ps}.Text() +
+		"Accepted changes are saved to disk. Continue the task, adjusting for any rejections.\n"
 }
 
 // watchComments serves `hiss hook watch`; agents can't call it.
@@ -83,7 +91,11 @@ var watchComments = tool{
 		if err := json.Unmarshal(args, &in); err != nil {
 			return nil, err
 		}
-		ds, superseded := ed.WatchComments(in.SessionID, in.Watcher, in.Register)
-		return WatchOut{Superseded: superseded, Comments: commentInfos(ds)}, nil
+		r := ed.WatchComments(in.SessionID, in.Watcher, in.Register)
+		out := WatchOut{Superseded: r.Superseded, Comments: commentInfos(r.Comments)}
+		for _, p := range r.Reviewed {
+			out.Reviewed = append(out.Reviewed, proposalInfo(p))
+		}
+		return out, nil
 	},
 }

@@ -20,8 +20,9 @@ var (
 )
 
 // runWatch is a Stop hook that Claude Code runs in the background with
-// asyncRewake. It waits for the user to comment on the session's proposals and
-// then exits 2 with the comments on stderr, which wakes Claude to answer them.
+// asyncRewake. It waits for the user to comment on the session's proposals, or
+// to finish reviewing the ones left pending, then exits 2 with the news on
+// stderr, which wakes Claude to act on it.
 // It exits 0 when hiss isn't running, a newer watcher takes over, or time runs out.
 func runWatch(stdin io.Reader, stderr io.Writer) int {
 	data, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
@@ -61,9 +62,14 @@ func runWatch(stdin io.Reader, stderr io.Writer) int {
 		case out.Superseded:
 			watchLog(sock, "exit 0: superseded")
 			return 0
-		case len(out.Comments) > 0:
-			watchLog(sock, "exit 2: waking claude with %d comment(s)", len(out.Comments))
-			fmt.Fprint(stderr, tools.CommentsText(out.Comments))
+		case len(out.Comments) > 0 || len(out.Reviewed) > 0:
+			watchLog(sock, "exit 2: waking claude: %d comment(s), %d reviewed", len(out.Comments), len(out.Reviewed))
+			if len(out.Comments) > 0 {
+				fmt.Fprint(stderr, tools.CommentsText(out.Comments))
+			}
+			if len(out.Reviewed) > 0 {
+				fmt.Fprint(stderr, tools.ReviewedText(out.Reviewed))
+			}
 			return 2
 		}
 		register = false

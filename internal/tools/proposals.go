@@ -132,12 +132,16 @@ func getProposals(ed *core.Editor, agent string, in GetProposalsIn) (ProposalsOu
 	}
 	out := ProposalsOut{Proposals: []ProposalInfo{}, Comments: commentInfos(ed.TakeComments(ps))}
 	for _, p := range ps {
-		out.Proposals = append(out.Proposals, ProposalInfo{
-			ID: p.ID, Path: p.Buf.Path, Session: p.Session, Turn: p.Turn,
-			Status: string(p.Status), Reason: p.Reason, Rationale: p.Rationale,
-		})
+		out.Proposals = append(out.Proposals, proposalInfo(p))
 	}
 	return out, nil
+}
+
+func proposalInfo(p *core.Proposal) ProposalInfo {
+	return ProposalInfo{
+		ID: p.ID, Path: p.Buf.Path, Session: p.Session, Turn: p.Turn,
+		Status: string(p.Status), Reason: p.Reason, Rationale: p.Rationale,
+	}
 }
 
 type AwaitReviewIn struct {

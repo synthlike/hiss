@@ -34,24 +34,48 @@ func TestWatchComments(t *testing.T) {
 	e.Hook(HookEvent{SessionID: "s1", Event: "UserPromptSubmit"})
 	e.Hook(HookEvent{SessionID: "s1", Event: "PreToolUse", ToolName: "mcp__hiss__propose_edit"})
 	p := propose(t, e, "a", "b")
-	if _, sup := e.WatchComments("s1", "w1", true); sup {
+	if r := e.WatchComments("s1", "w1", true); r.Superseded {
 		t.Fatal("first watcher superseded")
 	}
 	keys(e, "] h")
 	e.execute("comment no")
-	if ds, _ := e.WatchComments("s1", "w1", false); len(ds) != 1 || ds[0].Proposal != p {
-		t.Errorf("deliveries = %+v", ds)
+	if r := e.WatchComments("s1", "w1", false); len(r.Comments) != 1 || r.Comments[0].Proposal != p {
+		t.Errorf("deliveries = %+v", r.Comments)
 	}
 	e.WatchComments("s1", "w2", true)
-	if _, sup := e.WatchComments("s1", "w1", false); !sup {
+	if r := e.WatchComments("s1", "w1", false); !r.Superseded {
 		t.Error("older watcher not superseded by newer")
 	}
 	e.Hook(HookEvent{SessionID: "s1", Event: "UserPromptSubmit"})
-	if _, sup := e.WatchComments("s1", "w2", false); !sup {
+	if r := e.WatchComments("s1", "w2", false); !r.Superseded {
 		t.Error("watcher not superseded by a new turn")
 	}
-	if _, sup := e.WatchComments("nope", "w", true); !sup {
+	if r := e.WatchComments("nope", "w", true); !r.Superseded {
 		t.Error("unknown session should supersede")
+	}
+}
+
+func TestWatchReportsFinishedReview(t *testing.T) {
+	e := newEditor(t, "a b\n")
+	e.Hook(HookEvent{SessionID: "s1", Event: "PreToolUse", ToolName: "mcp__hiss__propose_edit"})
+	first, second := propose(t, e, "a", "A"), propose(t, e, "b", "B")
+	if r := e.WatchComments("s1", "w1", true); len(r.Reviewed) != 0 {
+		t.Fatal("reported before any review")
+	}
+	keys(e, "] h space a") // accept the first
+	if r := e.WatchComments("s1", "w1", false); len(r.Reviewed) != 0 {
+		t.Fatal("reported with a proposal still pending")
+	}
+	e.execute("reject not now") // the cursor moved on to the second
+	r := e.WatchComments("s1", "w1", false)
+	if len(r.Reviewed) != 2 || r.Reviewed[0] != first || r.Reviewed[1] != second || second.Status != Rejected {
+		t.Fatalf("reviewed = %+v (second %s)", r.Reviewed, second.Status)
+	}
+	if r := e.WatchComments("s1", "w1", false); len(r.Reviewed) != 0 {
+		t.Error("reported the same review twice")
+	}
+	if r := e.WatchComments("s1", "w2", true); len(r.Reviewed) != 0 {
+		t.Error("a watcher with nothing pending should not report a review")
 	}
 }
 

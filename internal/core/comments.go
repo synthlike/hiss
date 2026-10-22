@@ -85,16 +85,10 @@ func (e *Editor) TakeComments(ps []*Proposal) []Delivery {
 // WatchComments serves the background watcher Claude Code runs when a session
 // stops. The first call registers the watcher; it is superseded when a newer
 // watcher registers or the session starts another turn.
-func (e *Editor) WatchComments(session, watcher string, register bool) (ds []Delivery, superseded bool) {
+func (e *Editor) WatchComments(session, watcher string, register bool) WatchResult {
 	s := e.sessions[session]
 	if s == nil {
-		return nil, true
-	}
-	if register {
-		s.watcher = watcher
-	}
-	if s.watcher != watcher {
-		return nil, true
+		return WatchResult{Superseded: true}
 	}
 	var ps []*Proposal
 	for _, p := range e.proposals {
@@ -103,7 +97,29 @@ func (e *Editor) WatchComments(session, watcher string, register bool) (ds []Del
 		}
 	}
 	slices.SortFunc(ps, func(a, b *Proposal) int { return a.ID - b.ID })
-	return e.TakeComments(ps), false
+	if register {
+		s.watcher, s.watched = watcher, nil
+		for _, p := range ps {
+			if p.Status == Pending {
+				s.watched = append(s.watched, p)
+			}
+		}
+	}
+	if s.watcher != watcher {
+		return WatchResult{Superseded: true}
+	}
+	r := WatchResult{Comments: e.TakeComments(ps)}
+	if len(s.watched) > 0 && !slices.ContainsFunc(s.watched, func(p *Proposal) bool { return p.Status == Pending }) {
+		r.Reviewed, s.watched = s.watched, nil
+	}
+	return r
+}
+
+// WatchResult answers a watcher's poll.
+type WatchResult struct {
+	Superseded bool
+	Comments   []Delivery
+	Reviewed   []*Proposal // once every proposal pending at registration has been reviewed
 }
 
 // Withdraw takes an agent's pending proposal out of its buffer so a revision
