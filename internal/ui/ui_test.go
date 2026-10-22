@@ -89,7 +89,7 @@ func TestDrawHunk(t *testing.T) {
 	b.Text = text.New([]byte("one\ntwo\nthree\n"), text.Origin{})
 	ed := core.New(b)
 	ed.Root = dir
-	ed.Resize(30, 8)
+	ed.Resize(30, 9)
 	if _, err := ed.ProposeEdit("claude", b.Path, "two\n", "2\nTWO\n", false, nil, "spell it out"); err != nil {
 		t.Fatal(err)
 	}
@@ -98,18 +98,18 @@ func TestDrawHunk(t *testing.T) {
 	}
 	ed.Toast = core.Toast{} // the "replied" toast would cover the top rows
 	ed.HandleKey("j")
-	g := newGrid(30, 8)
+	g := newGrid(30, 9)
 	Draw(g, ed)
-	want := []string{"  one", "- two", "+ 2", "+ TWO", "┆ claude: spelled out", "  three"}
+	want := []string{"  one", "- two", "+ 2", "+ TWO", "▸ #1 claude: spell it out", "┆ claude: spelled out", "  three"}
 	for y, w := range want {
 		if got := g.row(y); got != strings.TrimRight(w, " ") {
 			t.Errorf("row %d = %q, want %q", y, got, w)
 		}
 	}
-	if !strings.Contains(g.row(6), "1 pending") {
-		t.Errorf("status = %q", g.row(6))
+	if !strings.Contains(g.row(7), "1 pending") {
+		t.Errorf("status = %q", g.row(7))
 	}
-	if got := g.row(7); !strings.HasPrefix(got, "#1 claude: spell it out") {
+	if got := g.row(8); !strings.HasPrefix(got, "#1 claude: spell it out") {
 		t.Errorf("info = %q", got)
 	}
 }

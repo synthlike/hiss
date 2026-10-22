@@ -34,8 +34,9 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
   await_review or get_proposals, right after your other tool calls, or wake
   you after your turn ends. Answer them promptly with
   reply; to change the proposal, propose a revision with supersedes set to its id.
-- To point the user at code (call sites, affected places, a walk through a
-  flow), use show_locations rather than listing file:line in chat.
+- To walk the user through code (a flow, call sites, affected places), use
+  show_trail rather than listing file:line in chat. Keep notes to one line and
+  don't number them. The user may comment on a step; answer with reply (step).
 - Use get_selection to see what the user is pointing at.`
 
 // Forward sends a tool call to the editor and returns its JSON result.
@@ -117,7 +118,7 @@ var all = []tool{
 	awaitReview,
 	awaitPoll,
 	replyTool,
-	showLocationsTool,
+	showTrailTool,
 	watchComments,
 	hook,
 	define(&mcp.Tool{

@@ -11,15 +11,21 @@ import (
 
 // CommentInfo is a user comment delivered to an agent.
 type CommentInfo struct {
-	ID   int    `json:"id" jsonschema:"proposal the comment is on"`
-	Path string `json:"path"`
-	Text string `json:"text"`
-	Line string `json:"line,omitempty" jsonschema:"diff line the comment is on: '+ text' for a proposed line, '- text' for a replaced one"`
+	ID     int    `json:"id,omitempty" jsonschema:"proposal the comment is on"`
+	Step   int    `json:"step,omitempty" jsonschema:"trail step the comment is on"`
+	Path   string `json:"path"`
+	LineNo int    `json:"line_no,omitempty" jsonschema:"1-based line of the trail step"`
+	Text   string `json:"text"`
+	Line   string `json:"line,omitempty" jsonschema:"diff line the comment is on: '+ text' for a proposed line, '- text' for a replaced one"`
 }
 
 func commentInfos(ds []core.Delivery) []CommentInfo {
 	var out []CommentInfo
 	for _, d := range ds {
+		if s := d.Step; s != nil {
+			out = append(out, CommentInfo{Step: s.N, Path: s.Buf.Path, LineNo: s.Line() + 1, Text: d.Text})
+			continue
+		}
 		out = append(out, CommentInfo{ID: d.Proposal.ID, Path: d.Proposal.Buf.Path, Text: d.Text, Line: d.Line})
 	}
 	return out
@@ -29,22 +35,26 @@ func commentInfos(ds []core.Delivery) []CommentInfo {
 func CommentsText(cs []CommentInfo) string {
 	var sb strings.Builder
 	for _, c := range cs {
-		fmt.Fprintf(&sb, "The user commented in hiss on your proposal #%d (%s)", c.ID, c.Path)
-		if c.Line != "" {
-			fmt.Fprintf(&sb, " on the diff line\n    %s\n", c.Line)
-		} else {
-			sb.WriteString(":\n")
+		switch {
+		case c.Step > 0:
+			fmt.Fprintf(&sb, "The user commented in hiss on step %d of your trail (%s:%d):\n", c.Step, c.Path, c.LineNo)
+		case c.Line != "":
+			fmt.Fprintf(&sb, "The user commented in hiss on your proposal #%d (%s) on the diff line\n    %s\n", c.ID, c.Path, c.Line)
+		default:
+			fmt.Fprintf(&sb, "The user commented in hiss on your proposal #%d (%s):\n", c.ID, c.Path)
 		}
 		fmt.Fprintf(&sb, "> %s\n", c.Text)
 	}
-	sb.WriteString("Answer in the editor with the hiss reply tool. If the comment asks for a change, " +
-		"propose a revision with propose_edit or write_file, setting supersedes to the proposal's id.\n")
+	sb.WriteString("Answer each in the editor with the hiss reply tool (id for a proposal, step for a trail step). " +
+		"If a comment asks for a change to a proposal, propose a revision with propose_edit or write_file, " +
+		"setting supersedes to the proposal's id.\n")
 	return sb.String()
 }
 
 type ReplyIn struct {
-	ID   int    `json:"id" jsonschema:"proposal whose thread to answer in"`
-	Text string `json:"text" jsonschema:"your answer, shown under the hunk; keep it short"`
+	ID   int    `json:"id,omitempty" jsonschema:"proposal whose thread to answer in"`
+	Step int    `json:"step,omitempty" jsonschema:"trail step whose thread to answer in, instead of id"`
+	Text string `json:"text" jsonschema:"your answer, shown in the editor; keep it short"`
 }
 
 type ReplyOut struct {
@@ -52,15 +62,25 @@ type ReplyOut struct {
 }
 
 func reply(ed *core.Editor, agent string, in ReplyIn) (ReplyOut, error) {
-	if err := ed.Reply(agent, in.ID, in.Text); err != nil {
+	var err error
+	switch {
+	case in.Step > 0 && in.ID > 0:
+		err = fmt.Errorf("set id or step, not both")
+	case in.Step > 0:
+		err = ed.ReplyStep(agent, in.Step, in.Text)
+	default:
+		err = ed.Reply(agent, in.ID, in.Text)
+	}
+	if err != nil {
 		return ReplyOut{}, err
 	}
 	return ReplyOut{OK: true}, nil
 }
 
 var replyTool = define(&mcp.Tool{
-	Name:        "reply",
-	Description: "Answer the user's comment on one of your proposals; the reply appears under the hunk in the editor.",
+	Name: "reply",
+	Description: "Answer the user's comment on one of your proposals (id) or trail steps (step); " +
+		"the reply appears under it in the editor.",
 }, reply)
 
 type watchArgs struct {

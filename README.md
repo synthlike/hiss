@@ -55,10 +55,11 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | `]h` / `[h` | next / previous pending hunk (across buffers) |
 | `space a` | accept the hunk under the cursor (applies and saves) |
 | `space r` | reject it; `:reject <reason>` tells the agent why |
-| `space c` | comment on it, or on the `+`/`-` line under the cursor; the agent replies or revises |
+| `space c` | comment on it, on the `+`/`-` line under the cursor, or on a trail step; the agent replies or revises |
 | `j` / `k` | move through the proposed `+` lines too |
 | `space h` | pick a pending hunk |
-| `space l` | pick from locations the agent shared (`show_locations`) |
+| `]t` / `[t` | next / previous step of the trail the agent shared (`show_trail`) |
+| `space t` / `space T` | pick a trail step / clear the trail |
 | `space f` / `space b` | pick a file / an open buffer |
 
 Editing the text of a pending hunk makes it stale; the agent is told to re-read.

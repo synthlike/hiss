@@ -155,7 +155,10 @@ func TestErrorsReachTheAgent(t *testing.T) {
 // onEditor runs f on the editor loop and waits for it.
 func onEditor(reqs chan<- func(*core.Editor), f func(*core.Editor)) {
 	done := make(chan bool)
-	reqs <- func(ed *core.Editor) { f(ed); done <- true }
+	reqs <- func(ed *core.Editor) {
+		defer func() { done <- true }() // also when f calls t.Fatal, which exits the goroutine
+		f(ed)
+	}
 	<-done
 }
 

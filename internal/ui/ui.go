@@ -108,7 +108,7 @@ func Draw(s Screen, ed *core.Editor) {
 	w, h := s.Size()
 	t := ed.Buf.Text
 	hunks := ed.Hunks()
-	locNotes := ed.LocationNotes()
+	trailRows := ed.TrailRows()
 	syn := highlight(ed.Buf.Path, t, ed.Top, h)
 	cursor := ed.Sel.Head
 	curLine, _ := ed.Cursor()
@@ -181,11 +181,14 @@ func Draw(s Screen, ed *core.Editor) {
 				if row >= h-2 {
 					break
 				}
-				style := styleAgentNote
-				if n.Mine {
+				mark, style := "┆", styleAgentNote
+				switch {
+				case n.Note:
+					mark = "▸" // the proposal's rationale
+				case n.Mine:
 					style = styleYourNote
 				}
-				s.Put(0, row, "┆", styleDim)
+				s.Put(0, row, mark, styleDim)
 				putString(s, gutter, row, n.Text, style)
 				row++
 			}
@@ -194,15 +197,22 @@ func Draw(s Screen, ed *core.Editor) {
 		if hunk != nil && line == hunk.Last {
 			sub += hunk.Rows()
 		}
-		for i, n := range locNotes[line] {
+		for i, n := range trailRows[line] {
 			if sub+i < skip {
 				continue
 			}
 			if row >= h-2 {
 				break
 			}
-			s.Put(0, row, "▸", styleAgentNote)
-			drawText(s, gutter, row, w, n, 0, style(styleAgentNote))
+			mark, st := "┆", styleAgentNote
+			switch {
+			case n.Note:
+				mark = "▸"
+			case n.Mine:
+				st = styleYourNote
+			}
+			s.Put(0, row, mark, st)
+			drawText(s, gutter, row, w, n.Text, 0, style(st))
 			row++
 		}
 		line++

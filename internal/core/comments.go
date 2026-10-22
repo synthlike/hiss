@@ -22,23 +22,30 @@ type Comment struct {
 // NoteLine is one drawn row of a thread.
 type NoteLine struct {
 	Mine bool // written by the user
+	Note bool // a trail step's note rather than a comment
 	Text string
 }
 
 // Delivery is a user comment handed to an agent.
 type Delivery struct {
-	Proposal *Proposal
+	Proposal *Proposal // the proposal commented on, or nil for a trail step
+	Step     *Step
 	Text     string
 	Line     string // diff line the comment is on, if any
 }
 
-func (e *Editor) commentOnHunk(text string) {
-	h := e.HunkAtCursor()
+// comment adds the user's comment to the pending hunk under the cursor or,
+// failing that, to the trail step on the cursor's line.
+func (e *Editor) comment(text string) {
+	h, s := e.HunkAtCursor(), e.stepAtCursor()
 	switch {
-	case h == nil:
-		e.Msg = "no pending hunk on this line"
+	case h == nil && s == nil:
+		e.Msg = "nothing to comment on here: move to a pending hunk or a trail step"
 	case text == "":
 		e.Msg = "empty comment"
+	case h == nil:
+		s.Thread = append(s.Thread, Comment{Author: You.Author, Text: text})
+		e.Msg = fmt.Sprintf("commented on step %d; %s will see it", s.N, e.trail.Agent)
 	default:
 		c := Comment{Author: You.Author, Text: text}
 		if r := e.DiffRow(); r > 0 {
@@ -75,7 +82,7 @@ func (e *Editor) TakeComments(ps []*Proposal) []Delivery {
 		for i := range p.Thread {
 			if c := &p.Thread[i]; c.Author == You.Author && !c.delivered {
 				c.delivered = true
-				out = append(out, Delivery{p, c.Text, c.Line})
+				out = append(out, Delivery{Proposal: p, Text: c.Text, Line: c.Line})
 			}
 		}
 	}
@@ -102,7 +109,7 @@ func (e *Editor) WatchComments(session, watcher string, register bool) WatchResu
 	if s.watcher != watcher {
 		return WatchResult{Superseded: true}
 	}
-	r := WatchResult{Comments: e.TakeComments(ps)}
+	r := WatchResult{Comments: append(e.TakeComments(ps), e.takeTrailComments(session)...)}
 	if len(s.watched) > 0 && !slices.ContainsFunc(s.watched, func(p *Proposal) bool { return p.Status == Pending }) {
 		r.Reviewed, s.watched = s.watched, nil
 	}
@@ -112,7 +119,7 @@ func (e *Editor) WatchComments(session, watcher string, register bool) WatchResu
 // SessionComments returns the user's new comments on a session's proposals,
 // for hooks that pass them to the agent mid-turn.
 func (e *Editor) SessionComments(session string) []Delivery {
-	return e.TakeComments(e.sessionProposals(session))
+	return append(e.TakeComments(e.sessionProposals(session)), e.takeTrailComments(session)...)
 }
 
 func (e *Editor) sessionProposals(session string) []*Proposal {
@@ -170,13 +177,25 @@ func threadLines(thread []Comment, width int) []NoteLine {
 		line, empty := label+":", true
 		for _, w := range strings.Fields(c.Text) {
 			if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
-				out = append(out, NoteLine{mine, line})
+				out = append(out, NoteLine{Mine: mine, Text: line})
 				line = indent
 			}
 			line += " " + w
 			empty = false
 		}
-		out = append(out, NoteLine{mine, line})
+		out = append(out, NoteLine{Mine: mine, Text: line})
 	}
 	return out
+}
+
+// rationaleLines wraps a proposal's rationale as note rows: "#3 claude: why".
+func rationaleLines(p *Proposal, width int) []NoteLine {
+	if p.Rationale == "" {
+		return nil
+	}
+	ls := threadLines([]Comment{{Author: fmt.Sprintf("#%d %s", p.ID, p.Agent), Text: p.Rationale}}, width)
+	for i := range ls {
+		ls[i].Note = true
+	}
+	return ls
 }

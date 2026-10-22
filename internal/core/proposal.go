@@ -205,7 +205,7 @@ func (e *Editor) hunk(p *Proposal) Hunk {
 		}
 	}
 	return Hunk{P: p, First: first, Last: last, Removes: p.End > p.Start, Added: added,
-		Notes: threadLines(p.Thread, e.Width-2)}
+		Notes: append(rationaleLines(p, e.Width-2), threadLines(p.Thread, e.Width-2)...)}
 }
 
 // HunkAtCursor returns the pending hunk on the cursor's line, or nil.

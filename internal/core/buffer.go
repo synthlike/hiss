@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/synthlike/hiss/internal/text"
 )
@@ -20,6 +21,7 @@ type Buffer struct {
 
 	log     []logged    // every edit, for checking proposals against old versions
 	pending []*Proposal // pending proposals, kept in step with edits
+	anchors []*anchor   // offsets other things point at, kept in step with edits
 
 	sel        Selection
 	top        int
@@ -85,9 +87,25 @@ func (b *Buffer) Restore(t text.Text) text.Edit {
 	return e
 }
 
+// anchor is an offset into a buffer that moves with edits.
+type anchor struct{ off int }
+
+func (b *Buffer) anchor(off int) *anchor {
+	a := &anchor{off}
+	b.anchors = append(b.anchors, a)
+	return a
+}
+
+func (b *Buffer) release(a *anchor) {
+	b.anchors = slices.DeleteFunc(b.anchors, func(x *anchor) bool { return x == a })
+}
+
 func (b *Buffer) record(e text.Edit) {
 	b.Version++
 	b.log = append(b.log, logged{b.Version, e})
+	for _, a := range b.anchors {
+		a.off = e.Map(a.off, false) // text typed at an anchor goes after it
+	}
 	keep := b.pending[:0]
 	for _, p := range b.pending {
 		switch {

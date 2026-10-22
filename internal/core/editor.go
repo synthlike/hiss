@@ -74,7 +74,7 @@ type Editor struct {
 	caller    string           // session ID of the latest hiss tool call
 	now       func() time.Time // replaced in tests
 	notices   []Toast          // raised since the UI last took them
-	locations *LocationList    // last list an agent shared
+	trail     *Trail           // the trail an agent shared, if any
 }
 
 func New(b *Buffer) *Editor {
@@ -163,19 +163,21 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 
 var nextMenu = Menu{Title: "next", Items: []MenuItem{
 	{"h", "pending hunk", func(e *Editor) { e.jumpHunk(1) }},
+	{"t", "trail step", func(e *Editor) { e.stepTrail(1) }},
 }}
 
 var prevMenu = Menu{Title: "previous", Items: []MenuItem{
 	{"h", "pending hunk", func(e *Editor) { e.jumpHunk(-1) }},
+	{"t", "trail step", func(e *Editor) { e.stepTrail(-1) }},
 }}
 
 var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"a", "accept hunk", func(e *Editor) { e.reviewHunk(true, "") }},
 	{"r", "reject hunk", func(e *Editor) { e.reviewHunk(false, "") }},
-	{"c", "comment on hunk", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
+	{"c", "comment (hunk or trail step)", func(e *Editor) { e.Mode, e.Cmd = Command, "comment " }},
 	{"h", "pick a hunk", (*Editor).openHunkPicker},
-	{"l", "agent's locations", (*Editor).openLocationPicker},
-	{"L", "clear agent's locations", (*Editor).clearLocations},
+	{"t", "pick a trail step", (*Editor).openTrailPicker},
+	{"T", "clear the trail", (*Editor).clearTrail},
 	{"f", "open file", (*Editor).openFilePicker},
 	{"b", "buffers", (*Editor).openBufferPicker},
 	{"w", "write", func(e *Editor) { e.save() }},
@@ -264,7 +266,7 @@ func (e *Editor) execute(cmd string) {
 	default:
 		c := strings.TrimSpace(cmd)
 		if text, ok := strings.CutPrefix(c, "comment"); ok {
-			e.commentOnHunk(strings.TrimSpace(text))
+			e.comment(strings.TrimSpace(text))
 			return
 		}
 		if reason, ok := strings.CutPrefix(c, "reject "); ok {
