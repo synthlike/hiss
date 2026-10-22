@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v3"
@@ -22,10 +21,11 @@ import (
 const version = "0.1.0-dev"
 
 const usage = `usage:
-  hiss [file]   edit a file, or start with an empty buffer
-  hiss mcp      serve MCP on stdio for the hiss running in this project
-  hiss hook     forward a Claude Code hook event (JSON on stdin) to hiss
-  hiss setup    print Claude Code settings that route edits through hiss`
+  hiss [file]           edit a file, or start with an empty buffer
+  hiss setup [--write]  print Claude Code settings that route edits through hiss,
+                        or merge them into .claude/settings.json in this project
+  hiss mcp              serve MCP on stdio for the hiss running in this project
+  hiss hook             forward a Claude Code hook event (JSON on stdin) to hiss`
 
 func main() {
 	var err error
@@ -38,6 +38,11 @@ func main() {
 		os.Exit(runWatch(os.Stdin, os.Stderr))
 	case len(args) == 1 && args[0] == "setup":
 		err = runSetup(os.Stdout)
+	case len(args) == 2 && args[0] == "setup" && args[1] == "--write":
+		var cwd string
+		if cwd, err = os.Getwd(); err == nil {
+			err = runSetupWrite(rpc.Root(cwd), os.Stdout)
+		}
 	case len(args) == 0:
 		err = runEditor("")
 	case len(args) == 1 && args[0] != "-h" && args[0] != "--help":
@@ -177,58 +182,4 @@ func runHook(stdin io.Reader, stdout io.Writer) {
 		"hookEventName":     in.Event,
 		"additionalContext": tools.CommentsText(out.Comments),
 	}})
-}
-
-// runSetup prints project settings for Claude Code: hooks that report agent
-// state to hiss, permission for hiss's tools, and a ban on direct file edits.
-func runSetup(w io.Writer) error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	if strings.ContainsAny(exe, " '\"\\$") {
-		exe = "'" + strings.ReplaceAll(exe, "'", `'\''`) + "'"
-	}
-	command := exe + " hook"
-	handler := func(async bool) []map[string]any {
-		h := map[string]any{"type": "command", "command": command, "timeout": 5}
-		if async {
-			h["async"] = true
-		}
-		return []map[string]any{h}
-	}
-	group := func(matcher string, async bool) []map[string]any {
-		g := map[string]any{"hooks": handler(async)}
-		if matcher != "" {
-			g["matcher"] = matcher
-		}
-		return []map[string]any{g}
-	}
-	settings := map[string]any{
-		"permissions": map[string]any{
-			"allow": []string{"mcp__hiss"},
-			"deny":  []string{"Edit", "Write", "MultiEdit", "NotebookEdit"},
-		},
-		"hooks": map[string]any{
-			"SessionStart": group("", true),
-			// Synchronous so new comments reach Claude with the prompt and right
-			// after each tool call, not a turn later.
-			"UserPromptSubmit": group("", false),
-			// Synchronous, so hiss knows which session is calling before the call arrives.
-			"PreToolUse":   group("mcp__hiss__.*", false),
-			"PostToolUse":  group("", false),
-			"Notification": group("", true),
-			// The second Stop handler waits in the background for comments and
-			// wakes Claude to answer them (exit 2 with asyncRewake).
-			"Stop": []map[string]any{{"hooks": append(handler(true), map[string]any{
-				"type": "command", "command": exe + " hook watch", "asyncRewake": true, "timeout": 3600,
-			})}},
-			"SessionEnd": group("", true),
-		},
-	}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	fmt.Fprintf(os.Stderr, "# Merge into .claude/settings.json in your project, and register the MCP bridge:\n"+
-		"#   claude mcp add --scope user hiss -- %s mcp\n", exe)
-	return enc.Encode(settings)
 }

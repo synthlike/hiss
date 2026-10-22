@@ -18,7 +18,7 @@ go install github.com/synthlike/hiss/cmd/hiss@latest
 
 ```sh
 claude mcp add --scope user hiss -- hiss mcp
-hiss setup   # prints settings; merge them into .claude/settings.json in your project
+hiss setup --write   # in your project: adds hiss to .claude/settings.json
 ```
 
 The settings route Claude's edits through hiss (they deny its built-in Edit and
