@@ -235,59 +235,12 @@ func (e *Editor) commandKey(k string) {
 		e.Cmd = e.Cmd[:len(e.Cmd)-n]
 	case "space":
 		e.Cmd += " "
+	case "tab":
+		e.completeCommand()
 	default:
 		if utf8.RuneCountInString(k) == 1 {
 			e.Cmd += k
 		}
-	}
-}
-
-func (e *Editor) execute(cmd string) {
-	switch strings.TrimSpace(cmd) {
-	case "w", "write":
-		e.save()
-	case "q", "quit":
-		for _, b := range e.Bufs {
-			if b.Dirty() {
-				e.Msg = fmt.Sprintf("unsaved changes in %s (:q! to discard)", b.Name)
-				return
-			}
-		}
-		e.Quit = true
-	case "q!", "quit!":
-		e.Quit = true
-	case "wq", "x":
-		if e.save() {
-			e.Quit = true
-		}
-	case "accept-all":
-		e.reviewAll(true, "")
-	case "clear-trail":
-		e.clearTrail()
-	case "":
-	default:
-		c := strings.TrimSpace(cmd)
-		if text, ok := strings.CutPrefix(c, "comment"); ok {
-			e.comment(strings.TrimSpace(text))
-			return
-		}
-		if reason, ok := strings.CutPrefix(c, "reject-all"); ok {
-			e.reviewAll(false, strings.TrimSpace(reason))
-			return
-		}
-		if reason, ok := strings.CutPrefix(c, "reject "); ok {
-			e.reviewHunk(false, strings.TrimSpace(reason))
-			return
-		}
-		if path, ok := strings.CutPrefix(c, "w "); ok {
-			e.saveAs(strings.TrimSpace(path))
-			return
-		}
-		if path, ok := strings.CutPrefix(c, "e "); ok {
-			e.openFile(strings.TrimSpace(path))
-			return
-		}
-		e.Msg = fmt.Sprintf("unknown command: %s", cmd)
 	}
 }
 

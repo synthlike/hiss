@@ -66,7 +66,7 @@ func TestWatchReportsFinishedReview(t *testing.T) {
 	if r := e.WatchComments("s1", "w1", false); len(r.Reviewed) != 0 {
 		t.Fatal("reported with a proposal still pending")
 	}
-	e.execute("reject not now") // the cursor moved on to the second
+	e.execute("hunk-reject not now") // the cursor moved on to the second
 	r := e.WatchComments("s1", "w1", false)
 	if len(r.Reviewed) != 2 || r.Reviewed[0] != first || r.Reviewed[1] != second || second.Status != Rejected {
 		t.Fatalf("reviewed = %+v (second %s)", r.Reviewed, second.Status)

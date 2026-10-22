@@ -42,7 +42,7 @@ func TestAcceptAppliesSavesAndAttributes(t *testing.T) {
 func TestRejectWithReason(t *testing.T) {
 	e := newEditor(t, "x := 1\n")
 	p := propose(t, e, "1", "2")
-	keys(e, ": r e j e c t space n o enter")
+	keys(e, ": h r space n o enter")
 	if p.Status != Rejected || p.Reason != "no" || e.Buf.Text.String() != "x := 1\n" {
 		t.Errorf("status=%s reason=%q text=%q", p.Status, p.Reason, e.Buf.Text.String())
 	}
@@ -68,7 +68,7 @@ func TestReviewKeys(t *testing.T) {
 func TestReviewAll(t *testing.T) {
 	e := newEditor(t, "a\nb\n")
 	first, second := propose(t, e, "a", "A"), propose(t, e, "b", "B")
-	e.execute("accept-all")
+	e.execute("haa")
 	if first.Status != Accepted || second.Status != Accepted || e.Msg != "accepted 2 hunks" {
 		t.Fatalf("statuses %s %s, msg=%q", first.Status, second.Status, e.Msg)
 	}
@@ -76,11 +76,11 @@ func TestReviewAll(t *testing.T) {
 		t.Errorf("file = %q", got)
 	}
 	third := propose(t, e, "A", "x")
-	e.execute("reject-all too much")
+	e.execute("hunk-reject-all too much")
 	if third.Status != Rejected || third.Reason != "too much" || e.Msg != "rejected 1 hunk" {
 		t.Errorf("status=%s reason=%q msg=%q", third.Status, third.Reason, e.Msg)
 	}
-	e.execute("accept-all")
+	e.execute("hunk-accept-all")
 	if e.Msg != "no pending hunks" {
 		t.Errorf("msg = %q", e.Msg)
 	}

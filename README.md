@@ -54,13 +54,16 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | --- | --- |
 | `]h` / `[h` | next / previous pending hunk (across buffers) |
 | `+` | accept the hunk under the cursor (applies and saves) |
-| `-` | reject it; `:reject <reason>` tells the agent why |
+| `-` | reject it; `:hr <reason>` (`:hunk-reject`) tells the agent why |
 | `#` | comment on it, on the `+`/`-` line under the cursor, or on a trail step; the agent replies or revises |
 | `j` / `k` | move through the proposed `+` lines too |
 | `]t` / `[t` | next / previous step of the trail the agent shared (`show_trail`) |
 | `space f` / `b` / `h` / `t` | pick a file / buffer / pending hunk / trail step |
-| `:accept-all` / `:reject-all [reason]` | accept or reject every pending hunk |
-| `:clear-trail` | stop showing the trail |
+| `:haa` / `:hra [reason]` | accept or reject every pending hunk (`:hunk-accept-all` / `:hunk-reject-all`) |
+| `:tc` | stop showing the trail (`:trail-clear`) |
+
+Typing `:` lists the commands, each with a short and a long name (`ha` /
+`hunk-accept`); `tab` completes the name.
 
 To adjust a proposal before accepting it, edit its `+` lines (`i`, `c`, `d`, `o`,
 `p`, `x` …): the proposed text moves into the buffer, with the old lines shown

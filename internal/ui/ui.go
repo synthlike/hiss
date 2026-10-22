@@ -265,7 +265,12 @@ func Draw(s Screen, ed *core.Editor) {
 		drawToast(s, w, t)
 	}
 	if ed.Menu != nil {
-		drawMenu(s, w, h-2, ed.Menu)
+		drawMenu(s, w, h-2, ed.Menu, false)
+	}
+	if ed.Mode == core.Command {
+		if m := ed.CommandHints(); m != nil {
+			drawMenu(s, w, h-2, m, true) // by the command line it completes
+		}
 	}
 	if ed.Picker != nil {
 		drawPicker(s, w, h, ed.Picker)
@@ -303,19 +308,30 @@ func agentStatus(ed *core.Editor) string {
 	return out
 }
 
-// drawMenu draws a menu's key hints in a box ending just above row bottom.
-func drawMenu(s Screen, w, bottom int, m *core.Menu) {
+// drawMenu draws a menu's key hints in a box ending just above row bottom, at
+// the right edge or, if left is set, the left.
+func drawMenu(s Screen, w, bottom int, m *core.Menu, left bool) {
+	keyWidth := 0
+	for _, it := range m.Items {
+		keyWidth = max(keyWidth, len(it.Key))
+	}
 	width := len(m.Title) + 2
 	for _, it := range m.Items {
-		width = max(width, len(it.Key)+len(it.Desc)+4)
+		width = max(width, keyWidth+len(it.Desc)+4)
 	}
-	x, y := max(w-width-1, 0), bottom-len(m.Items)-1
+	x, y := max(w-width-1, 0), max(bottom-len(m.Items)-1, 0)
+	if left {
+		x = 0
+	}
 	fill(s, x, y, width, styleMenu)
 	putString(s, x+1, y, m.Title, styleMenu.Bold(true))
 	for i, it := range m.Items {
+		if y+1+i >= bottom {
+			break
+		}
 		fill(s, x, y+1+i, width, styleMenu)
 		putString(s, x+1, y+1+i, it.Key, styleMenuKey)
-		putString(s, x+3+len(it.Key), y+1+i, it.Desc, styleMenu)
+		putString(s, x+3+keyWidth, y+1+i, it.Desc, styleMenu)
 	}
 }
 
