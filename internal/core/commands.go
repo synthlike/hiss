@@ -25,10 +25,10 @@ var commands = []command{
 	}},
 	{[]string{"e", "edit"}, "<path>", "open a file", (*Editor).openFile},
 	{[]string{"q", "quit"}, "", "quit", func(e *Editor, _ string) { e.quit() }},
-	{[]string{"q!", "quit!"}, "", "quit, discarding unsaved changes", func(e *Editor, _ string) { e.Quit = true }},
+	{[]string{"q!", "quit!"}, "", "quit, discarding unsaved changes and pending hunks", func(e *Editor, _ string) { e.Quit = true }},
 	{[]string{"wq", "write-quit"}, "", "write and quit", func(e *Editor, _ string) {
 		if e.save() {
-			e.Quit = true
+			e.quit()
 		}
 	}},
 	{[]string{"ha", "hunk-accept"}, "", "accept the hunk under the cursor", func(e *Editor, _ string) { e.reviewHunk(true, "") }},
@@ -135,12 +135,22 @@ func (e *Editor) completeCommand() {
 	e.Cmd = common
 }
 
+// quit quits unless that would lose unsaved changes or pending proposals,
+// which agents would be left waiting on.
 func (e *Editor) quit() {
 	for _, b := range e.Bufs {
 		if b.Dirty() {
 			e.Msg = fmt.Sprintf("unsaved changes in %s (:q! to discard)", b.Name)
 			return
 		}
+	}
+	if n := e.PendingCount(); n > 0 {
+		s := "s"
+		if n == 1 {
+			s = ""
+		}
+		e.Msg = fmt.Sprintf("%d pending hunk%s (:haa / :hra to review them all, :q! to discard)", n, s)
+		return
 	}
 	e.Quit = true
 }
