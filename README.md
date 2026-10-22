@@ -22,6 +22,23 @@ go build -o hiss ./cmd/hiss
 ./hiss path/to/file
 ```
 
+## Use with Claude Code
+
+Install hiss and register its MCP bridge once for all projects:
+
+```sh
+go install ./cmd/hiss
+claude mcp add --scope user hiss -- hiss mcp
+```
+
+Run `hiss <file>` in your project and start Claude Code in the same project.
+`hiss mcp` finds the editor by project root (the nearest directory containing
+`.git`), so Claude can start before or after the editor. Set `HISS_SOCKET` to
+override the socket path.
+
+Agents can currently list buffers, read them (including unsaved changes) and
+see your selection.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

@@ -45,6 +45,7 @@ type snapshot struct {
 }
 
 type Editor struct {
+	Root   string // project root; agents' relative paths resolve against it
 	Buf    *Buffer
 	Sel    Selection
 	Mode   Mode
@@ -221,7 +222,7 @@ func (e *Editor) save() bool {
 		e.Msg = "save failed: " + err.Error()
 		return false
 	}
-	e.Msg = fmt.Sprintf("wrote %s (%d bytes)", e.Buf.Path, e.Buf.Text.Len())
+	e.Msg = fmt.Sprintf("wrote %s (%d bytes)", e.Buf.Name, e.Buf.Text.Len())
 	return true
 }
 

@@ -6,7 +6,12 @@ import (
 )
 
 // Cursor returns the 0-based line and rune column of the cursor.
-func (e *Editor) Cursor() (line, col int) { return e.line(), e.column(e.Sel.Head) }
+func (e *Editor) Cursor() (line, col int) { return e.PositionOf(e.Sel.Head) }
+
+// PositionOf returns the 0-based line and rune column of a byte offset.
+func (e *Editor) PositionOf(off int) (line, col int) {
+	return e.Buf.Text.LineOf(off), e.column(off)
+}
 
 // SelRange returns the selected byte range [from, to) as drawn.
 func (e *Editor) SelRange() (from, to int) { return e.selRange() }

@@ -11,7 +11,8 @@ import (
 
 // Buffer is a file's contents as edited in hiss.
 type Buffer struct {
-	Path    string
+	Path    string // absolute
+	Name    string // as shown to the user
 	Text    text.Text
 	Version int // bumped on every change
 	saved   int // Version at the last load or save
@@ -19,11 +20,15 @@ type Buffer struct {
 
 // Open reads path into a buffer. A missing file gives an empty buffer.
 func Open(path string) (*Buffer, error) {
-	data, err := os.ReadFile(path)
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(abs)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	return &Buffer{Path: path, Text: text.New(data, text.Origin{})}, nil
+	return &Buffer{Path: abs, Name: path, Text: text.New(data, text.Origin{})}, nil
 }
 
 // Dirty reports whether the buffer has changes not written to disk.
@@ -66,6 +71,16 @@ func (b *Buffer) Save() error {
 	}
 	b.saved = b.Version
 	return nil
+}
+
+// Lines counts lines the way agents and cat -n do: a trailing newline ends
+// the last line rather than starting an empty one.
+func (b *Buffer) Lines() int {
+	n := b.Text.LineCount()
+	if b.Text.Len() > 0 && b.Text.LineStart(n-1) == b.Text.Len() {
+		n--
+	}
+	return n
 }
 
 // LineEnd returns the offset of line's newline, or Len() on the last line.

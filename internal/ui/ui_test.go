@@ -39,7 +39,7 @@ func (g *grid) Put(x, y int, str string, style tcell.Style) (string, int) {
 func (g *grid) row(y int) string { return strings.TrimRight(string(g.cells[y]), " ") }
 
 func TestDraw(t *testing.T) {
-	ed := core.New(&core.Buffer{Path: "a.go", Text: text.New([]byte("a\tb\nxy\n"), text.Origin{})})
+	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go", Text: text.New([]byte("a\tb\nxy\n"), text.Origin{})})
 	ed.Resize(20, 6)
 	ed.HandleKey("j")
 	ed.HandleKey("l")

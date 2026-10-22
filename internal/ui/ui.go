@@ -101,7 +101,7 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Buf.Dirty() {
 		dirty = " [+]"
 	}
-	left := fmt.Sprintf(" %s  %s%s", ed.Mode, ed.Buf.Path, dirty)
+	left := fmt.Sprintf(" %s  %s%s", ed.Mode, ed.Buf.Name, dirty)
 	line, col := ed.Cursor()
 	right := fmt.Sprintf("%d:%d ", line+1, col+1)
 	fill(s, 0, h-2, w, styleStatus)
