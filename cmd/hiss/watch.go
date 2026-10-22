@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/synthlike/hiss/internal/rpc"
@@ -42,6 +43,7 @@ func runWatch(stdin io.Reader, stderr io.Writer) int {
 		return 0
 	}
 	id := fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
+	watchLog(sock, "start session %s", in.SessionID)
 	register := true
 	for deadline := time.Now().Add(watchFor); time.Now().Before(deadline); time.Sleep(watchEvery) {
 		args, _ := json.Marshal(map[string]any{"session_id": in.SessionID, "watcher": id, "register": register})
@@ -49,14 +51,34 @@ func runWatch(stdin io.Reader, stderr io.Writer) int {
 		raw, err := rpc.Call(ctx, sock, rpc.Request{Tool: "watch_comments", Args: args})
 		cancel()
 		var out tools.WatchOut
-		if err != nil || json.Unmarshal(raw, &out) != nil || out.Superseded {
-			return 0
+		if err == nil {
+			err = json.Unmarshal(raw, &out)
 		}
-		if len(out.Comments) > 0 {
+		switch {
+		case err != nil:
+			watchLog(sock, "exit 0: %v", err)
+			return 0
+		case out.Superseded:
+			watchLog(sock, "exit 0: superseded")
+			return 0
+		case len(out.Comments) > 0:
+			watchLog(sock, "exit 2: waking claude with %d comment(s)", len(out.Comments))
 			fmt.Fprint(stderr, tools.CommentsText(out.Comments))
 			return 2
 		}
 		register = false
 	}
+	watchLog(sock, "exit 0: timed out")
 	return 0
+}
+
+// watchLog appends a line to watch.log next to the socket, since Claude Code
+// shows nothing of background hooks.
+func watchLog(sock, format string, args ...any) {
+	f, err := os.OpenFile(filepath.Join(filepath.Dir(sock), "watch.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s pid %d: %s\n", time.Now().Format(time.TimeOnly), os.Getpid(), fmt.Sprintf(format, args...))
 }

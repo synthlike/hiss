@@ -55,9 +55,12 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | `]h` / `[h` | next / previous pending hunk (across buffers) |
 | `space a` | accept the hunk under the cursor (applies and saves) |
 | `space r` | reject it; `:reject <reason>` tells the agent why |
+| `space c` | comment on it; the agent replies under the hunk or revises it |
 | `space b` | switch buffer |
 
 Editing the text of a pending hunk makes it stale; the agent is told to re-read.
+Comments reach Claude while it waits for your review, or wake it after its turn
+ends (via the `hiss hook watch` Stop hook that `hiss setup` adds).
 
 ## License
 
