@@ -46,7 +46,7 @@ func TestMovement(t *testing.T) {
 		{"h h", 0, 0},
 	}
 	for _, c := range cases {
-		e.moveTo(0)
+		e.Sel = Selection{}
 		keys(e, c.keys)
 		if l, col := e.Cursor(); l != c.line || col != c.col {
 			t.Errorf("%q: cursor %d:%d, want %d:%d", c.keys, l, col, c.line, c.col)
@@ -101,5 +101,95 @@ func TestOpenMissingFile(t *testing.T) {
 	b, err := Open(filepath.Join(t.TempDir(), "new.go"))
 	if err != nil || b.Text.Len() != 0 || b.Dirty() {
 		t.Errorf("err=%v len=%d dirty=%v", err, b.Text.Len(), b.Dirty())
+	}
+}
+
+func TestEditing(t *testing.T) {
+	cases := []struct {
+		name, content, keys, want string
+	}{
+		{"insert", "world\n", "i h e l l o space esc", "hello world\n"},
+		{"append", "ab\n", "a X esc", "aXb\n"},
+		{"delete word", "foo bar baz\n", "w w d", "foo baz\n"},
+		{"change word", "foo bar\n", "e c q u x esc", "qux bar\n"},
+		{"delete back word", "foo bar\n", "g l h b d", "foo \n"},
+		{"delete line", "one\ntwo\nthree\n", "j x d", "one\nthree\n"},
+		{"delete two lines", "one\ntwo\nthree\n", "x x d", "three\n"},
+		{"yank paste line", "one\ntwo\n", "x y p", "one\none\ntwo\n"},
+		{"open below keeps indent", "\tif x {\n}\n", "o y esc", "\tif x {\n\ty\n}\n"},
+		{"open above", "b\n", "O a esc", "a\nb\n"},
+		{"enter indents", "  x\n", "g l i enter y esc", "  x\n  y\n"},
+		{"backspace", "abc\n", "g l i backspace backspace esc", "a\n"},
+		{"select mode extend", "abcdef\n", "l v l l l d", "af\n"},
+		{"undo", "abc\n", "x d u", "abc\n"},
+		{"undo groups insert session", "\n", "i a b c esc u", "\n"},
+		{"redo", "abc\n", "d u U", "bc\n"},
+		{"delete on empty buffer", "", "d", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEditor(t, c.content)
+			keys(e, c.keys)
+			if got := e.Buf.Text.String(); got != c.want {
+				t.Errorf("text = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestEmptyDeleteStaysClean(t *testing.T) {
+	e := newEditor(t, "")
+	keys(e, "d")
+	if e.Buf.Dirty() {
+		t.Error("no-op delete marked buffer dirty")
+	}
+}
+
+func TestUndoRestoresAuthorship(t *testing.T) {
+	e := newEditor(t, "abc\n")
+	claude := text.Origin{Author: "claude"}
+	e.Buf.Replace(0, 3, []byte("xyz"), claude)
+	keys(e, "x d u")
+	spans := e.Buf.Text.Spans(0, e.Buf.Text.Len())
+	if len(spans) == 0 || spans[0].Origin != claude {
+		t.Errorf("spans after undo = %v", spans)
+	}
+}
+
+func TestWordSelection(t *testing.T) {
+	e := newEditor(t, "foo.bar  baz\n")
+	cases := []struct {
+		keys     string
+		from, to int
+	}{
+		{"w", 0, 3},      // "foo"
+		{"w w", 3, 4},    // "."
+		{"w w w", 4, 9},  // "bar  "
+		{"e e e", 4, 7},  // "bar"
+		{"g l b", 9, 12}, // "baz"
+	}
+	for _, c := range cases {
+		e.Sel, e.Mode = Selection{}, Normal
+		keys(e, c.keys)
+		if from, to := e.SelRange(); from != c.from || to != c.to {
+			t.Errorf("%q: selection [%d,%d) %q, want [%d,%d)", c.keys, from, to,
+				e.Buf.Text.Slice(from, to), c.from, c.to)
+		}
+	}
+}
+
+func TestMenus(t *testing.T) {
+	e := newEditor(t, "x\n")
+	keys(e, "space")
+	if e.Menu == nil || e.Menu.Title != "space" {
+		t.Fatalf("menu = %v", e.Menu)
+	}
+	keys(e, "z")
+	if e.Menu != nil {
+		t.Error("unknown key should close the menu")
+	}
+	keys(e, "i y esc space w")
+	if e.Buf.Dirty() || !strings.HasPrefix(e.Msg, "wrote") {
+		t.Errorf("space w: dirty=%v msg=%q", e.Buf.Dirty(), e.Msg)
 	}
 }

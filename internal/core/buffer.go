@@ -31,6 +31,9 @@ func (b *Buffer) Dirty() bool { return b.Version != b.saved }
 
 // Replace edits the buffer and returns the edit for mapping positions.
 func (b *Buffer) Replace(start, end int, s []byte, o text.Origin) text.Edit {
+	if start == end && len(s) == 0 {
+		return text.Edit{Start: start, End: end}
+	}
 	b.Text = b.Text.Replace(start, end, s, o)
 	b.Version++
 	return text.Edit{Start: start, End: end, Len: len(s)}

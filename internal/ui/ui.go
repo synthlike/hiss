@@ -17,10 +17,13 @@ type Screen interface {
 }
 
 var (
-	styleText   = tcell.StyleDefault
-	styleCursor = tcell.StyleDefault.Reverse(true)
-	styleStatus = tcell.StyleDefault.Reverse(true)
-	styleDim    = tcell.StyleDefault.Dim(true)
+	styleText    = tcell.StyleDefault
+	styleCursor  = tcell.StyleDefault.Reverse(true)
+	styleStatus  = tcell.StyleDefault.Reverse(true)
+	styleDim     = tcell.StyleDefault.Dim(true)
+	styleSel     = tcell.StyleDefault.Background(tcell.ColorNavy)
+	styleMenu    = tcell.StyleDefault.Background(tcell.ColorDarkSlateGray)
+	styleMenuKey = styleMenu.Bold(true).Foreground(tcell.ColorYellow)
 )
 
 // Run draws and handles events until the editor quits. Work sent on reqs runs on
@@ -59,6 +62,8 @@ func KeyName(ev *tcell.EventKey) string {
 	}
 	k := ev.Key()
 	switch {
+	case k == tcell.KeyRune && ev.Str() == " ":
+		return mods + "space"
 	case k == tcell.KeyRune:
 		return mods + ev.Str()
 	case k >= tcell.KeyCtrlA && k <= tcell.KeyCtrlZ:
@@ -89,7 +94,7 @@ func Draw(s Screen, ed *core.Editor) {
 			continue
 		}
 		start, end := t.LineStart(line), ed.Buf.LineEnd(line)
-		drawLine(s, row, w, string(t.Slice(start, end)), start, ed.Sel.Head)
+		drawLine(s, row, w, string(t.Slice(start, end)), start, ed)
 	}
 
 	dirty := ""
@@ -108,15 +113,38 @@ func Draw(s Screen, ed *core.Editor) {
 	} else {
 		putString(s, 0, h-1, ed.Msg, styleText)
 	}
+	if ed.Menu != nil {
+		drawMenu(s, w, h-2, ed.Menu)
+	}
 }
 
-// drawLine draws one line of text that starts at byte offset off, marking cursor.
-func drawLine(s Screen, row, width int, str string, off, cursor int) {
+// drawMenu draws a menu's key hints in a box ending just above row bottom.
+func drawMenu(s Screen, w, bottom int, m *core.Menu) {
+	width := len(m.Title) + 2
+	for _, it := range m.Items {
+		width = max(width, len(it.Key)+len(it.Desc)+4)
+	}
+	x, y := max(w-width-1, 0), bottom-len(m.Items)-1
+	fill(s, x, y, width, styleMenu)
+	putString(s, x+1, y, m.Title, styleMenu.Bold(true))
+	for i, it := range m.Items {
+		fill(s, x, y+1+i, width, styleMenu)
+		putString(s, x+1, y+1+i, it.Key, styleMenuKey)
+		putString(s, x+3+len(it.Key), y+1+i, it.Desc, styleMenu)
+	}
+}
+
+// drawLine draws one line of text that starts at byte offset off.
+func drawLine(s Screen, row, width int, str string, off int, ed *core.Editor) {
+	cursor := ed.Sel.Head
+	from, to := ed.SelRange()
 	x := 0
 	for str != "" && x < width {
 		style := styleText
 		if off == cursor {
 			style = styleCursor
+		} else if off >= from && off < to {
+			style = styleSel
 		}
 		if str[0] == '\t' {
 			n := tabWidth - x%tabWidth
