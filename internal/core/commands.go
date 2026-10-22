@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -62,6 +63,10 @@ func (e *Editor) execute(cmd string) {
 	if name == "" {
 		return
 	}
+	if n, err := strconv.Atoi(name); err == nil {
+		e.gotoLine(n)
+		return
+	}
 	c := findCommand(name)
 	arg = strings.TrimSpace(arg)
 	switch {
@@ -79,6 +84,10 @@ func (e *Editor) execute(cmd string) {
 func (e *Editor) CommandHints() *Menu {
 	name, _, inArgs := strings.Cut(strings.TrimLeft(e.Cmd, " "), " ")
 	m := &Menu{Title: "commands"}
+	if _, err := strconv.Atoi(name); err == nil {
+		m.Items = append(m.Items, MenuItem{Key: name, Desc: "go to line " + name})
+		return m
+	}
 	for i := range commands {
 		c := &commands[i]
 		if inArgs && !slices.Contains(c.names, name) || !inArgs && c.matching(name) == "" {

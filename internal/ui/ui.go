@@ -3,6 +3,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gdamore/tcell/v3"
@@ -26,6 +27,7 @@ var (
 	styleStatus    = tcell.StyleDefault.Reverse(true)
 	styleDim       = tcell.StyleDefault.Dim(true)
 	styleSel       = tcell.StyleDefault.Background(tcell.ColorNavy)
+	styleMatch     = tcell.StyleDefault.Background(tcell.ColorOlive).Foreground(tcell.ColorBlack)
 	styleMenu      = tcell.StyleDefault.Background(tcell.ColorDarkSlateGray)
 	styleMenuKey   = styleMenu.Bold(true).Foreground(tcell.ColorYellow)
 	styleRemoved   = tcell.StyleDefault.Foreground(tcell.ColorRed)
@@ -117,6 +119,11 @@ func Draw(s Screen, ed *core.Editor) {
 		cursor = -1 // the cursor is on a proposed line, drawn below
 	}
 	from, to := ed.SelRange()
+	matches := ed.Matches(t.LineStart(ed.Top), ed.Buf.LineEnd(min(ed.Top+h, t.LineCount()-1)))
+	inMatch := func(off int) bool {
+		i := sort.Search(len(matches), func(i int) bool { return matches[i][1] > off })
+		return i < len(matches) && matches[i][0] <= off
+	}
 	row, line := 0, ed.Top
 	for row < h-2 {
 		if line >= t.LineCount() {
@@ -166,6 +173,8 @@ func Draw(s Screen, ed *core.Editor) {
 					return styleCursor
 				case off >= from && off < to:
 					return styleSel
+				case inMatch(off):
+					return styleMatch
 				case base == styleText:
 					return syn(off) // plain lines get syntax colours; diff lines keep theirs
 				}
@@ -242,6 +251,8 @@ func Draw(s Screen, ed *core.Editor) {
 	switch {
 	case ed.Mode == core.Command:
 		putString(s, 0, h-1, ":"+ed.Cmd, styleText)
+	case ed.Mode == core.Search:
+		putString(s, 0, h-1, "/"+ed.Cmd, styleText)
 	case ed.Msg != "":
 		putString(s, 0, h-1, ed.Msg, styleText)
 	default:

@@ -7,7 +7,10 @@ an MCP server built into hiss, and you review, accept or reject them inline. Eve
 edit records who made it, so you can see which agent turn wrote a line and undo
 an agent's change while keeping your own.
 
-Editing is selection-first and keyboard-driven, in the style of Helix.
+Editing is selection-first and keyboard-driven, in the style of Helix. `/` searches
+as you type (Go regular expressions, case-insensitive unless the pattern has a
+capital), `n` / `N` repeat it, `*` searches for the selection, and `:<line>` jumps
+to a line.
 
 ## Status
 

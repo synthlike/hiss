@@ -19,9 +19,10 @@ const (
 	Insert
 	Select
 	Command
+	Search
 )
 
-func (m Mode) String() string { return [...]string{"NOR", "INS", "SEL", "CMD"}[m] }
+func (m Mode) String() string { return [...]string{"NOR", "INS", "SEL", "CMD", "SRC"}[m] }
 
 // You is the origin of text typed by the user.
 var You = text.Origin{Author: "you"}
@@ -75,6 +76,7 @@ type Editor struct {
 	now       func() time.Time // replaced in tests
 	notices   []Toast          // raised since the UI last took them
 	trail     *Trail           // the trail an agent shared, if any
+	search    searchState
 }
 
 func New(b *Buffer) *Editor {
@@ -115,6 +117,8 @@ func (e *Editor) HandleKey(k string) {
 		e.insertKey(k)
 	case e.Mode == Command:
 		e.commandKey(k)
+	case e.Mode == Search:
+		e.searchKey(k)
 	default:
 		if f, ok := normalKeys[k]; ok && e.beforeKey(k) {
 			f(e)
@@ -133,7 +137,11 @@ var normalKeys = map[string]func(*Editor){
 	"x":   (*Editor).selectLine,
 	";":   func(e *Editor) { e.Sel.Anchor = e.Sel.Head },
 	"v":   (*Editor).toggleSelect,
-	"esc": func(e *Editor) { e.Mode = Normal },
+	"esc": func(e *Editor) { e.Mode, e.search.shown = Normal, false },
+	"/":   (*Editor).startSearch,
+	"n":   func(e *Editor) { e.searchNext(1) },
+	"N":   func(e *Editor) { e.searchNext(-1) },
+	"*":   (*Editor).searchSelection,
 
 	"d": func(e *Editor) { e.checkpoint(); e.deleteSelection() },
 	"c": func(e *Editor) { e.checkpoint(); e.deleteSelection(); e.Mode = Insert },
