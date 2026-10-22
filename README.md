@@ -57,7 +57,7 @@ Proposals appear inline as pending hunks; agents wait for your decision with
 | `-` | reject it; `:hr <reason>` (`:hunk-reject`) tells the agent why |
 | `#` | comment on it, on the `+`/`-` line under the cursor, or on a trail step; the agent replies or revises |
 | `j` / `k` | move through the proposed `+` lines too |
-| `]t` / `[t` | next / previous step of the trail the agent shared (`show_trail`) |
+| `]s` / `[s` | next / previous step of the trail the agent shared (`show_trail`) |
 | `space f` / `b` / `h` / `t` | pick a file / buffer / pending hunk / trail step |
 | `:haa` / `:hra [reason]` | accept or reject every pending hunk (`:hunk-accept-all` / `:hunk-reject-all`) |
 | `:tc` | stop showing the trail (`:trail-clear`) |

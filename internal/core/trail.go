@@ -54,7 +54,7 @@ func (e *Editor) ShowTrail(agent, title string, steps []StepInput) error {
 		e.trail.release()
 	}
 	e.trail = t
-	e.notify(agent, fmt.Sprintf("shared a trail: %s, %d steps (]t to walk it)", title, len(steps)))
+	e.notify(agent, fmt.Sprintf("shared a trail: %s, %d steps (]s to walk it)", title, len(steps)))
 	return nil
 }
 

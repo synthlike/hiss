@@ -26,7 +26,7 @@ type ShowTrailOut struct {
 }
 
 func (o ShowTrailOut) Text() string {
-	return fmt.Sprintf("Shared a trail of %d steps; the user walks it with ]t and may comment on steps.", o.Steps)
+	return fmt.Sprintf("Shared a trail of %d steps; the user walks it with ]s and may comment on steps.", o.Steps)
 }
 
 const maxSteps = 500
@@ -61,6 +61,6 @@ var showTrailTool = define(&mcp.Tool{
 	Name: "show_trail",
 	Description: "Walk the user through code: a titled, ordered list of steps (file, line, short note), " +
 		"such as a flow, call sites, or places a change affects. The user steps through it in the editor " +
-		"(]t, space t), sees each note under its line, and can comment on a step; answer with reply (step). " +
+		"(]s, space t), sees each note under its line, and can comment on a step; answer with reply (step). " +
 		"Prefer this to listing file:line references in chat. A new trail replaces the previous one.",
 }, showTrail)

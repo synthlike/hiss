@@ -31,20 +31,20 @@ func TestTrail(t *testing.T) {
 		t.Fatalf("step 1 on line %d after an edit above, want 2", l)
 	}
 
-	keys(e, "] t")
+	keys(e, "] s")
 	if l, _ := e.Cursor(); e.Buf != f || l != 2 || !strings.HasPrefix(e.Msg, "step 1/2") {
-		t.Errorf("]t: %s line %d msg %q", e.Buf.Name, l, e.Msg)
+		t.Errorf("]s: %s line %d msg %q", e.Buf.Name, l, e.Msg)
 	}
-	keys(e, "] t")
+	keys(e, "] s")
 	if e.Buf.Path != other {
-		t.Errorf("second ]t went to %s", e.Buf.Name)
+		t.Errorf("second ]s went to %s", e.Buf.Name)
 	}
-	keys(e, "] t [ t") // wraps to step 1, then back to step 2
+	keys(e, "] s [ s") // wraps to step 1, then back to step 2
 	if e.Buf.Path != other {
-		t.Errorf("[t went to %s", e.Buf.Name)
+		t.Errorf("[s went to %s", e.Buf.Name)
 	}
 
-	keys(e, "[ t")
+	keys(e, "[ s")
 	e.execute("comment why b?")
 	ds := e.SessionComments("s1")
 	if len(ds) != 1 || ds[0].Step == nil || ds[0].Step.N != 1 || len(e.SessionComments("s1")) != 0 {
