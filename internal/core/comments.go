@@ -14,7 +14,9 @@ const Superseded Status = "superseded"
 type Comment struct {
 	Author    string // "you" or the agent
 	Text      string
-	delivered bool // for the user's comments: the agent has been given it
+	At        string // diff line commented on: "+3" (3rd proposed line) or "-12" (buffer line 12); "" for the hunk
+	Line      string // that line's text, prefixed "+ " or "- "
+	delivered bool   // for the user's comments: the agent has been given it
 }
 
 // NoteLine is one drawn row of a thread.
@@ -27,6 +29,7 @@ type NoteLine struct {
 type Delivery struct {
 	Proposal *Proposal
 	Text     string
+	Line     string // diff line the comment is on, if any
 }
 
 func (e *Editor) commentOnHunk(text string) {
@@ -37,7 +40,15 @@ func (e *Editor) commentOnHunk(text string) {
 	case text == "":
 		e.Msg = "empty comment"
 	default:
-		h.P.Thread = append(h.P.Thread, Comment{Author: You.Author, Text: text})
+		c := Comment{Author: You.Author, Text: text}
+		if r := e.DiffRow(); r > 0 {
+			c.At, c.Line = fmt.Sprintf("+%d", r), "+ "+h.Added[r-1]
+		} else if h.Removes {
+			line := e.line()
+			c.At = fmt.Sprintf("-%d", line+1)
+			c.Line = "- " + string(e.Buf.Text.Slice(e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)))
+		}
+		h.P.Thread = append(h.P.Thread, c)
 		e.Msg = fmt.Sprintf("commented on #%d; %s will see it", h.P.ID, h.P.Agent)
 	}
 }
@@ -64,7 +75,7 @@ func (e *Editor) TakeComments(ps []*Proposal) []Delivery {
 		for i := range p.Thread {
 			if c := &p.Thread[i]; c.Author == You.Author && !c.delivered {
 				c.delivered = true
-				out = append(out, Delivery{p, c.Text})
+				out = append(out, Delivery{p, c.Text, c.Line})
 			}
 		}
 	}
@@ -124,8 +135,12 @@ func threadLines(thread []Comment, width int) []NoteLine {
 	var out []NoteLine
 	for _, c := range thread {
 		mine := c.Author == You.Author
-		indent := strings.Repeat(" ", utf8.RuneCountInString(c.Author)+1)
-		line, empty := c.Author+":", true
+		label := c.Author
+		if c.At != "" {
+			label += " (" + c.At + ")"
+		}
+		indent := strings.Repeat(" ", utf8.RuneCountInString(label)+1)
+		line, empty := label+":", true
 		for _, w := range strings.Fields(c.Text) {
 			if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
 				out = append(out, NoteLine{mine, line})

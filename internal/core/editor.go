@@ -53,6 +53,7 @@ type Editor struct {
 	Sel    Selection
 	Mode   Mode
 	Top    int    // first visible line
+	TopSub int    // rows of the Top line's diff already scrolled past
 	Width  int    // columns, for wrapping review threads
 	Height int    // rows available for text
 	Cmd    string // command line contents in Command mode
@@ -63,7 +64,9 @@ type Editor struct {
 	Quit   bool
 	Picker *Picker // open fuzzy picker, if any
 
-	goal      int // preferred column for vertical moves, -1 if none
+	goal      int  // preferred column for vertical moves, -1 if none
+	row       int  // n>0: the cursor is on the n-th proposed line below its hunk
+	rowSet    bool // a vertical move set row during the current key
 	register  string
 	proposals map[int]*Proposal
 	nextID    int
@@ -88,6 +91,14 @@ func (e *Editor) Resize(width, height int) {
 // HandleKey applies one key, named like "j", "C-s", "A-x", "esc", "enter", "left".
 func (e *Editor) HandleKey(k string) {
 	e.Msg = ""
+	sel, buf := e.Sel, e.Buf
+	e.rowSet = false
+	defer func() {
+		if !e.rowSet && (e.Sel != sel || e.Buf != buf) {
+			e.row = 0 // any other motion or edit leaves the proposed lines
+		}
+		e.scroll()
+	}()
 	switch {
 	case e.Picker != nil:
 		e.pickerKey(k)
@@ -108,7 +119,6 @@ func (e *Editor) HandleKey(k string) {
 			f(e)
 		}
 	}
-	e.scroll()
 }
 
 var normalKeys = map[string]func(*Editor){
@@ -421,7 +431,7 @@ func (e *Editor) SwitchTo(b *Buffer) {
 		return
 	}
 	e.Buf.sel, e.Buf.top = e.Sel, e.Top
-	e.Buf, e.Sel, e.Top = b, b.sel, b.top
+	e.Buf, e.Sel, e.Top, e.TopSub = b, b.sel, b.top, 0
 	e.Mode, e.goal = Normal, -1
 }
 

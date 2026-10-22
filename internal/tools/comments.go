@@ -14,12 +14,13 @@ type CommentInfo struct {
 	ID   int    `json:"id" jsonschema:"proposal the comment is on"`
 	Path string `json:"path"`
 	Text string `json:"text"`
+	Line string `json:"line,omitempty" jsonschema:"diff line the comment is on: '+ text' for a proposed line, '- text' for a replaced one"`
 }
 
 func commentInfos(ds []core.Delivery) []CommentInfo {
 	var out []CommentInfo
 	for _, d := range ds {
-		out = append(out, CommentInfo{ID: d.Proposal.ID, Path: d.Proposal.Buf.Path, Text: d.Text})
+		out = append(out, CommentInfo{ID: d.Proposal.ID, Path: d.Proposal.Buf.Path, Text: d.Text, Line: d.Line})
 	}
 	return out
 }
@@ -28,7 +29,13 @@ func commentInfos(ds []core.Delivery) []CommentInfo {
 func CommentsText(cs []CommentInfo) string {
 	var sb strings.Builder
 	for _, c := range cs {
-		fmt.Fprintf(&sb, "The user commented in hiss on your proposal #%d (%s):\n> %s\n", c.ID, c.Path, c.Text)
+		fmt.Fprintf(&sb, "The user commented in hiss on your proposal #%d (%s)", c.ID, c.Path)
+		if c.Line != "" {
+			fmt.Fprintf(&sb, " on the diff line\n    %s\n", c.Line)
+		} else {
+			sb.WriteString(":\n")
+		}
+		fmt.Fprintf(&sb, "> %s\n", c.Text)
 	}
 	sb.WriteString("Answer in the editor with the hiss reply tool. If the comment asks for a change, " +
 		"propose a revision with propose_edit or write_file, setting supersedes to the proposal's id.\n")

@@ -113,6 +113,35 @@ func TestDrawHunk(t *testing.T) {
 	}
 }
 
+func TestDrawCursorInTallHunk(t *testing.T) {
+	dir := t.TempDir()
+	b, err := core.Open(dir + "/f.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Text = text.New([]byte("a\nb\nc\n"), text.Origin{})
+	ed := core.New(b)
+	ed.Root = dir
+	ed.Resize(30, 5) // three text rows
+	if _, err := ed.ProposeEdit("claude", b.Path, "b\n", "1\n2\n3\n4\n5\n6\n", false, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	ed.Toast = core.Toast{}
+	for range 5 {
+		ed.HandleKey("j")
+	}
+	g := newGrid(30, 5)
+	Draw(g, ed)
+	for y, want := range []string{"+ 2", "+ 3", "+ 4"} {
+		if got := g.row(y); got != want {
+			t.Errorf("row %d = %q, want %q", y, got, want)
+		}
+	}
+	if !g.styles[2][0].HasReverse() || g.styles[1][0].HasReverse() {
+		t.Error("cursor row should be the highlighted + line")
+	}
+}
+
 func TestAgentStatus(t *testing.T) {
 	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go", Text: text.New([]byte("x\n"), text.Origin{})})
 	ed.Resize(60, 4)

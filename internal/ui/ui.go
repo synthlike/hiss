@@ -109,6 +109,11 @@ func Draw(s Screen, ed *core.Editor) {
 	t := ed.Buf.Text
 	hunks := ed.Hunks()
 	cursor := ed.Sel.Head
+	curLine, _ := ed.Cursor()
+	diffRow := ed.DiffRow()
+	if diffRow > 0 {
+		cursor = -1 // the cursor is on a proposed line, drawn below
+	}
 	from, to := ed.SelRange()
 	row, line := 0, ed.Top
 	for row < h-2 {
@@ -116,6 +121,10 @@ func Draw(s Screen, ed *core.Editor) {
 			s.Put(0, row, "~", styleDim)
 			row, line = row+1, line+1
 			continue
+		}
+		skip := 0 // rows of this line's block scrolled past: the line, then its diff
+		if line == ed.Top {
+			skip = ed.TopSub
 		}
 		base, mark := styleText, " "
 		var hunk *core.Hunk
@@ -127,32 +136,44 @@ func Draw(s Screen, ed *core.Editor) {
 		if hunk != nil && hunk.Removes {
 			base, mark = styleRemoved, "-"
 		}
-		s.Put(0, row, mark, base)
-		start, end := t.LineStart(line), ed.Buf.LineEnd(line)
-		x := drawText(s, gutter, row, w, string(t.Slice(start, end)), start, func(off int) tcell.Style {
-			switch {
-			case off == cursor:
-				return styleCursor
-			case off >= from && off < to:
-				return styleSel
+		if skip == 0 {
+			s.Put(0, row, mark, base)
+			start, end := t.LineStart(line), ed.Buf.LineEnd(line)
+			x := drawText(s, gutter, row, w, string(t.Slice(start, end)), start, func(off int) tcell.Style {
+				switch {
+				case off == cursor:
+					return styleCursor
+				case off >= from && off < to:
+					return styleSel
+				}
+				return base
+			})
+			if end == cursor && x < w { // cursor on the newline or end of file
+				s.Put(x, row, " ", styleCursor)
 			}
-			return base
-		})
-		if end == cursor && x < w { // cursor on the newline or end of file
-			s.Put(x, row, " ", styleCursor)
+			row++
 		}
-		row++
 		if hunk != nil && line == hunk.Last {
-			for _, a := range hunk.Added {
+			for i, a := range hunk.Added {
+				if i+1 < skip {
+					continue
+				}
 				if row >= h-2 {
 					break
 				}
-				fill(s, 0, row, w, styleAdded)
-				s.Put(0, row, "+", styleAdded)
-				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return styleAdded })
+				st := styleAdded
+				if line == curLine && i+1 == diffRow {
+					st = styleAdded.Reverse(true)
+				}
+				fill(s, 0, row, w, st)
+				s.Put(0, row, "+", st)
+				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return st })
 				row++
 			}
-			for _, n := range hunk.Notes {
+			for i, n := range hunk.Notes {
+				if len(hunk.Added)+1+i < skip {
+					continue
+				}
 				if row >= h-2 {
 					break
 				}

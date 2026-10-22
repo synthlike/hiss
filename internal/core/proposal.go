@@ -289,5 +289,5 @@ func (e *Editor) jumpHunk(dir int) {
 	}
 	e.SwitchTo(target.buf)
 	e.setHead(e.Buf.Text.LineStart(target.line))
-	e.Top = max(target.line-2, 0)
+	e.Top, e.TopSub = max(target.line-2, 0), 0
 }

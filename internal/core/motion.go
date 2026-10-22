@@ -39,14 +39,45 @@ func (e *Editor) setHead(off int) {
 func (e *Editor) left()  { e.setHead(e.prevRune(e.Sel.Head)) }
 func (e *Editor) right() { e.setHead(e.nextRune(e.Sel.Head)) }
 
+// moveLines moves n rows down (or up when n < 0), stepping through the
+// proposed lines drawn below pending hunks as well as buffer lines.
 func (e *Editor) moveLines(n int) {
 	if e.goal < 0 {
 		e.goal = e.column(e.Sel.Head)
 	}
-	goal := e.goal
-	target := min(max(e.line()+n, 0), e.Buf.Text.LineCount()-1)
-	e.setHead(e.offsetAt(target, goal))
-	e.goal = goal
+	goal, line, row := e.goal, e.line(), e.DiffRow()
+	last := e.Buf.Text.LineCount() - 1
+	for ; n > 0; n-- {
+		if row < e.addedBelow(line) {
+			row++
+		} else if line < last {
+			line, row = line+1, 0
+		}
+	}
+	for ; n < 0; n++ {
+		if row > 0 {
+			row--
+		} else if line > 0 {
+			line--
+			row = e.addedBelow(line)
+		}
+	}
+	e.setHead(e.offsetAt(line, goal))
+	e.goal, e.row, e.rowSet = goal, row, true
+}
+
+// DiffRow returns n>0 when the cursor is on the n-th proposed line drawn
+// below its hunk, or 0 when it is on the buffer line.
+func (e *Editor) DiffRow() int { return min(e.row, e.addedBelow(e.line())) }
+
+// addedBelow returns how many proposed lines are drawn below line.
+func (e *Editor) addedBelow(line int) int {
+	for _, h := range e.Hunks() {
+		if h.Last == line {
+			return len(h.Added)
+		}
+	}
+	return 0
 }
 
 // selectLine selects the cursor's line, or extends a line selection by a line.
@@ -190,26 +221,28 @@ func (e *Editor) scroll() {
 	if e.Height <= 0 {
 		return
 	}
-	line := e.line()
-	if line < e.Top {
-		e.Top = line
+	extra := map[int]int{} // rows drawn below a line for pending hunks
+	for _, h := range e.Hunks() {
+		extra[h.Last] += h.Rows()
+	}
+	line, sub := e.line(), e.DiffRow()
+	e.TopSub = min(e.TopSub, extra[e.Top])
+	if line < e.Top || line == e.Top && sub < e.TopSub {
+		e.Top, e.TopSub = line, sub
 		return
 	}
 	if line >= e.Top+e.Height {
-		e.Top = line - e.Height + 1
+		e.Top, e.TopSub = line-e.Height+1, 0
 	}
-	added := map[int]int{} // rows drawn after a line for pending hunks
-	for _, h := range e.Hunks() {
-		added[h.Last] += h.Rows()
+	rows := sub + 1 - e.TopSub // rows from the top of the screen to the cursor
+	for l := e.Top; l < line; l++ {
+		rows += 1 + extra[l]
 	}
-	for e.Top < line {
-		rows := line - e.Top + 1
-		for l := e.Top; l < line; l++ {
-			rows += added[l]
+	for ; rows > e.Height; rows-- { // scroll one row at a time
+		if e.TopSub < extra[e.Top] {
+			e.TopSub++
+		} else {
+			e.Top, e.TopSub = e.Top+1, 0
 		}
-		if rows <= e.Height {
-			break
-		}
-		e.Top++
 	}
 }
