@@ -10,8 +10,10 @@ user reviews them inline. Aim for 80/20: small, pleasant and useful beats comple
   position mapping across edits.
 - `internal/core`: the event loop. One goroutine owns all editor state; input, MCP,
   LSP, hooks and workers talk to it over channels and never touch state directly.
-- `internal/proposal`, `internal/ui`, `internal/mcpserver`, `internal/agent`,
-  `internal/syntax`, `internal/lsp`: added as the build order reaches them.
+- `internal/rpc`: the per-project unix socket between the editor and `hiss mcp`/`hiss hook`.
+- `internal/tools`: MCP tools, each defined once and run on the editor's loop.
+- `internal/ui`: tcell drawing and key names.
+- `internal/syntax`, `internal/lsp`: added as the build order reaches them.
 
 ## Rules
 
