@@ -177,8 +177,8 @@ func (e *Editor) PendingCount() int {
 // Hunk is how a pending proposal is drawn: the rationale Above line First,
 // buffer lines First..Last holding the old text (marked removed when the
 // proposal replaces any), then Added lines and the review thread's Notes. A
-// tweaked hunk is the other way round: lines First..Last are the proposal,
-// followed by the Removed old lines.
+// tweaked hunk is the other way round: the Removed old lines come between the
+// rationale and lines First..Last, which are the proposal.
 type Hunk struct {
 	P           *Proposal
 	First, Last int
@@ -191,7 +191,10 @@ type Hunk struct {
 }
 
 // Below returns the number of diff lines drawn after the hunk's last line.
-func (h Hunk) Below() int { return len(h.Added) + len(h.Removed) }
+func (h Hunk) Below() int { return len(h.Added) }
+
+// RowsAbove returns the number of rows drawn before the hunk's first line.
+func (h Hunk) RowsAbove() int { return len(h.Above) + len(h.Removed) }
 
 // Rows returns the number of rows drawn after the hunk's last line.
 func (h Hunk) Rows() int { return h.Below() + len(h.Notes) }

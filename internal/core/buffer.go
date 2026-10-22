@@ -109,6 +109,8 @@ func (b *Buffer) record(e text.Edit) {
 	keep := b.pending[:0]
 	for _, p := range b.pending {
 		switch {
+		case p.Tweaked && e.Start == p.End && p.End > p.Start && b.Text.Slice(p.End-1, p.End)[0] == '\n':
+			// the start of the line after the proposal: not part of it
 		case p.Tweaked && e.Start <= p.End && e.End >= p.Start: // the user is editing the proposal itself
 			p.Start, p.End = min(p.Start, e.Start), max(p.End, e.End)+e.Len-(e.End-e.Start)
 		case overlaps(e.Start, e.End, p.Start, p.End):

@@ -115,8 +115,8 @@ func Draw(s Screen, ed *core.Editor) {
 	cursor := ed.Sel.Head
 	curLine, _ := ed.Cursor()
 	diffRow := ed.DiffRow()
-	if diffRow > 0 {
-		cursor = -1 // the cursor is on a proposed line, drawn below
+	if diffRow != 0 {
+		cursor = -1 // the cursor is on a diff line drawn below or above the buffer line
 	}
 	from, to := ed.SelRange()
 	matches := ed.Matches(t.LineStart(ed.Top), ed.Buf.LineEnd(min(ed.Top+h, t.LineCount()-1)))
@@ -146,6 +146,13 @@ func Draw(s Screen, ed *core.Editor) {
 				for _, n := range hk.Above {
 					if visible() {
 						drawHunkNote(s, row, n)
+						row++
+					}
+				}
+				for i, a := range hk.Removed { // a tweaked hunk's old lines
+					if visible() {
+						onIt := line == curLine && i-len(hk.Removed) == diffRow
+						drawDiffLine(s, row, w, "-", a, styleRemoved, onIt)
 						row++
 					}
 				}
@@ -186,22 +193,11 @@ func Draw(s Screen, ed *core.Editor) {
 			row++
 		}
 		if hunk != nil && line == hunk.Last {
-			below, belowStyle, belowMark := hunk.Added, styleAdded, "+"
-			if hunk.Tweaked {
-				below, belowStyle, belowMark = hunk.Removed, styleRemoved, "-"
-			}
-			for i, a := range below {
-				if !visible() {
-					continue
+			for i, a := range hunk.Added {
+				if visible() {
+					drawDiffLine(s, row, w, "+", a, styleAdded, line == curLine && i+1 == diffRow)
+					row++
 				}
-				st := belowStyle
-				if line == curLine && i+1 == diffRow {
-					st = belowStyle.Reverse(true)
-				}
-				fill(s, 0, row, w, st)
-				s.Put(0, row, belowMark, st)
-				drawText(s, gutter, row, w, a, 0, func(int) tcell.Style { return st })
-				row++
 			}
 			for _, n := range hunk.Notes {
 				if visible() {
@@ -286,6 +282,17 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Picker != nil {
 		drawPicker(s, w, h, ed.Picker)
 	}
+}
+
+// drawDiffLine draws a diff line that isn't in the buffer, reversed when the
+// cursor is on it.
+func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, cursor bool) {
+	if cursor {
+		st = st.Reverse(true)
+	}
+	fill(s, 0, row, w, st)
+	s.Put(0, row, mark, st)
+	drawText(s, gutter, row, w, text, 0, func(int) tcell.Style { return st })
 }
 
 // drawHunkNote draws a hunk's rationale or a comment in its review thread.

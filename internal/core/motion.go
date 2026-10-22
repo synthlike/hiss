@@ -39,8 +39,8 @@ func (e *Editor) setHead(off int) {
 func (e *Editor) left()  { e.setHead(e.prevRune(e.Sel.Head)) }
 func (e *Editor) right() { e.setHead(e.nextRune(e.Sel.Head)) }
 
-// moveLines moves n rows down (or up when n < 0), stepping through the
-// proposed lines drawn below pending hunks as well as buffer lines.
+// moveLines moves n rows down (or up when n < 0), stepping through the diff
+// lines drawn around pending hunks as well as buffer lines.
 func (e *Editor) moveLines(n int) {
 	if e.goal < 0 {
 		e.goal = e.column(e.Sel.Head)
@@ -51,11 +51,12 @@ func (e *Editor) moveLines(n int) {
 		if row < e.diffBelow(line) {
 			row++
 		} else if line < last {
-			line, row = line+1, 0
+			line = line + 1
+			row = -e.diffAbove(line)
 		}
 	}
 	for ; n < 0; n++ {
-		if row > 0 {
+		if row > -e.diffAbove(line) {
 			row--
 		} else if line > 0 {
 			line--
@@ -66,15 +67,29 @@ func (e *Editor) moveLines(n int) {
 	e.goal, e.row, e.rowSet = goal, row, true
 }
 
-// DiffRow returns n>0 when the cursor is on the n-th diff line drawn below its
-// hunk (proposed, or old for a tweaked hunk), or 0 when it is on the buffer line.
-func (e *Editor) DiffRow() int { return min(e.row, e.diffBelow(e.line())) }
+// DiffRow returns n>0 when the cursor is on the n-th proposed line drawn below
+// its hunk, -n when it is n rows above a tweaked hunk's first line on one of
+// its old lines, or 0 when it is on the buffer line.
+func (e *Editor) DiffRow() int {
+	line := e.line()
+	return min(max(e.row, -e.diffAbove(line)), e.diffBelow(line))
+}
 
-// diffBelow returns how many diff lines are drawn below line.
+// diffBelow returns how many proposed lines are drawn below line.
 func (e *Editor) diffBelow(line int) int {
 	for _, h := range e.Hunks() {
 		if h.Last == line {
 			return h.Below()
+		}
+	}
+	return 0
+}
+
+// diffAbove returns how many old lines of a tweaked hunk are drawn above line.
+func (e *Editor) diffAbove(line int) int {
+	for _, h := range e.Hunks() {
+		if h.First == line {
+			return len(h.Removed)
 		}
 	}
 	return 0
@@ -221,10 +236,10 @@ func (e *Editor) scroll() {
 	if e.Height <= 0 {
 		return
 	}
-	above := map[int]int{} // rows drawn above a line: hunk rationales
+	above := map[int]int{} // rows drawn above a line: hunk rationales and a tweaked hunk's old lines
 	extra := map[int]int{} // rows drawn below a line for pending hunks
 	for _, h := range e.Hunks() {
-		above[h.First] += len(h.Above)
+		above[h.First] += h.RowsAbove()
 		extra[h.Last] += h.Rows()
 	}
 	for l, rows := range e.TrailRows() {

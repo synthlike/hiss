@@ -36,20 +36,21 @@ func (e *Editor) beforeKey(k string) bool {
 	if !tweakKeys[k] || r == 0 {
 		return true
 	}
-	h := e.HunkAtCursor()
-	if h.Tweaked {
-		e.Msg = "these are the old lines; edit the + lines above them"
+	if r < 0 { // only a tweaked hunk has old lines drawn above it
+		e.Msg = "these are the old lines; edit the + lines below them"
 		return false
 	}
+	h := e.HunkAtCursor()
 	col := e.goal
 	if col < 0 {
 		col = e.column(e.Sel.Head)
 	}
+	anchor := e.Sel.Anchor
 	ed := e.tweak(h.P)
 	head := e.offsetAt(h.First+r-1, col) // proposed line r is now buffer line First+r-1
 	e.Sel = Selection{head, head}
 	if e.Mode == Select {
-		e.Sel.Anchor = ed.Map(e.Sel.Anchor, false)
+		e.Sel.Anchor = ed.Map(anchor, false)
 	}
 	e.goal, e.row = col, 0
 	return true
@@ -59,7 +60,7 @@ func (e *Editor) beforeKey(k string) bool {
 func (e *Editor) tweak(p *Proposal) text.Edit {
 	b := p.Buf
 	e.checkpointBuf(b)
-	p.tweakUndo = len(b.undo)
+	p.tweakUndo, p.old = len(b.undo), nil
 	for _, s := range b.Text.Spans(p.Start, p.End) {
 		p.old = append(p.old, oldSpan{b.Text.Slice(s.Start, s.End), s.Origin})
 	}
@@ -92,7 +93,8 @@ func (p *Proposal) oldText() string {
 }
 
 // untweakUndone turns tweaked proposals whose tweak was just undone back
-// into plain proposals over the restored old text.
+// into plain proposals over the restored old text. They keep their old text,
+// so a redo can tweak them again.
 func (e *Editor) untweakUndone() {
 	b := e.Buf
 	b.pending = slices.DeleteFunc(b.pending, func(p *Proposal) bool {
@@ -100,7 +102,7 @@ func (e *Editor) untweakUndone() {
 			return false
 		}
 		old := p.oldText()
-		p.Tweaked, p.old = false, nil
+		p.Tweaked = false
 		if end := p.Start + len(old); end <= b.Text.Len() && string(b.Text.Slice(p.Start, end)) == old {
 			p.End = end
 			return false
@@ -108,6 +110,17 @@ func (e *Editor) untweakUndone() {
 		p.Status, p.Reason = Stale, userEdited
 		return true
 	})
+}
+
+// retweakRedone marks proposals whose undone tweak the coming redo restores
+// as tweaked again, so the buffer reshapes them instead of making them stale.
+// Call it after pushing the undo snapshot and before restoring.
+func (e *Editor) retweakRedone() {
+	for _, p := range e.Buf.pending {
+		if !p.Tweaked && p.old != nil && len(e.Buf.undo) >= p.tweakUndo {
+			p.Tweaked = true
+		}
+	}
 }
 
 // markSavedIfOnDisk marks b saved if its text is what the file holds.

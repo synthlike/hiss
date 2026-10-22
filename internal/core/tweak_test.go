@@ -77,11 +77,22 @@ func TestUndoPastTweak(t *testing.T) {
 func TestTweakedOldLinesAndSupersede(t *testing.T) {
 	e := newEditor(t, "a\nb\nc\n")
 	p := propose(t, e, "b\n", "B1\nB2\n")
-	keys(e, "j j i X esc j j") // onto the old "- b" below the hunk
+	keys(e, "j j i X esc k") // onto the old "- b" above the hunk
+	if e.DiffRow() != -1 {
+		t.Fatalf("DiffRow = %d, want the old line above", e.DiffRow())
+	}
 	before := e.Buf.Text.String()
 	keys(e, "d")
 	if e.Buf.Text.String() != before || !strings.Contains(e.Msg, "old lines") {
 		t.Errorf("editing an old line: %q, msg %q", e.Buf.Text.String(), e.Msg)
+	}
+	e.execute("comment why drop b")
+	if c := p.Thread[len(p.Thread)-1]; c.At != "-2" || c.Line != "- b" {
+		t.Errorf("comment on the old line: %+v", c)
+	}
+	keys(e, "k")
+	if l, _ := e.Cursor(); l != 0 || e.DiffRow() != 0 {
+		t.Errorf("k above the old lines: line %d row %d", l, e.DiffRow())
 	}
 	if _, err := e.Withdraw("claude", p.ID); err == nil {
 		t.Error("superseding a proposal the user is editing should fail")
@@ -97,5 +108,25 @@ func TestEditsAroundTweakedHunk(t *testing.T) {
 	}
 	if got := string(e.Buf.Text.Slice(p.Start, p.End)); got != "XB\n" {
 		t.Errorf("region = %q", got)
+	}
+	keys(e, "j j j g h i Z esc") // down past the old line and the hunk, then type at the start of "c"
+	if got := e.Buf.Text.String(); got != "Ya\nXB\nZc\n" {
+		t.Fatalf("buffer %q", got)
+	}
+	if got := string(e.Buf.Text.Slice(p.Start, p.End)); got != "XB\n" {
+		t.Errorf("typing on the next line joined the hunk: region = %q", got)
+	}
+}
+
+func TestRedoTweak(t *testing.T) {
+	e := newEditor(t, "a\nb\nc\n")
+	p := propose(t, e, "b\n", "B1\nB2\n")
+	keys(e, "j j i X esc u u U")
+	if got := e.Buf.Text.String(); got != "a\nB1\nB2\nc\n" || !p.Tweaked || p.Status != Pending {
+		t.Fatalf("after redo: %q, tweaked %v, status %s", got, p.Tweaked, p.Status)
+	}
+	keys(e, "U +")
+	if p.Status != Accepted || p.Final != "XB1\nB2\n" {
+		t.Errorf("status %s, final %q", p.Status, p.Final)
 	}
 }

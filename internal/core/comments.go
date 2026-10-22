@@ -63,8 +63,9 @@ func (e *Editor) comment(text string) {
 		line := e.line()
 		lineText := string(e.Buf.Text.Slice(e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)))
 		switch r := e.DiffRow(); {
-		case r > 0 && h.Tweaked: // an old line, which was buffer line First+r
-			c.At, c.Line = fmt.Sprintf("-%d", h.First+r), "- "+h.Removed[r-1]
+		case r < 0: // a tweaked hunk's old line i, which was buffer line First+i
+			i := len(h.Removed) + r
+			c.At, c.Line = fmt.Sprintf("-%d", h.First+i+1), "- "+h.Removed[i]
 		case r > 0:
 			c.At, c.Line = fmt.Sprintf("+%d", r), "+ "+h.Added[r-1]
 		case h.Tweaked:

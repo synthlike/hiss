@@ -393,6 +393,7 @@ func (e *Editor) redoOnce() {
 		return
 	}
 	b.undo = append(b.undo, snapshot{b.Text, e.Sel})
+	e.retweakRedone()
 	e.restore(&b.redo)
 }
 

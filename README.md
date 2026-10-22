@@ -75,7 +75,7 @@ Typing `:` lists the commands, each with a short and a long name (`ha` /
 
 To adjust a proposal before accepting it, edit its `+` lines (`i`, `c`, `d`, `o`,
 `p`, `x` …): the proposed text moves into the buffer, with the old lines shown
-below it, and `+` accepts it as you left it. The agent is told about your edits and
+above it, and `+` accepts it as you left it. The agent is told about your edits and
 given the saved text; `-` restores the old text, and undoing past the first edit
 turns it back into a plain proposal. Editing the old (`-`) lines of a pending hunk
 instead makes it stale; the agent is told to re-read.
