@@ -59,6 +59,7 @@ type Editor struct {
 	Msg    string // one-line message for the user
 	Menu   *Menu  // open prefix menu, if any
 	Splash string // shown on an empty scratch buffer
+	Toast  Toast  // notice in the top-right corner
 	Quit   bool
 
 	goal      int // preferred column for vertical moves, -1 if none
@@ -68,6 +69,7 @@ type Editor struct {
 	sessions  map[string]*Session
 	caller    string           // session ID of the latest hiss tool call
 	now       func() time.Time // replaced in tests
+	notices   []Toast          // raised since the UI last took them
 }
 
 func New(b *Buffer) *Editor {

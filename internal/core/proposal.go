@@ -136,7 +136,7 @@ func (e *Editor) announce(agent string, b *Buffer, n int) {
 	if n > 1 {
 		s = "s"
 	}
-	e.Msg = fmt.Sprintf("%s proposed %d edit%s in %s (]h to review)", agent, n, s, b.Name)
+	e.notify(agent, fmt.Sprintf("proposed %d edit%s in %s (]h to review)", n, s, b.Name))
 }
 
 // Proposal returns the proposal with id, or nil.

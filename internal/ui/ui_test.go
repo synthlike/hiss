@@ -95,7 +95,8 @@ func TestDrawHunk(t *testing.T) {
 	if err := ed.Reply("claude", 1, "spelled out"); err != nil {
 		t.Fatal(err)
 	}
-	ed.HandleKey("j") // also clears the "replied" message
+	ed.Toast = core.Toast{} // the "replied" toast would cover the top rows
+	ed.HandleKey("j")
 	g := newGrid(30, 8)
 	Draw(g, ed)
 	want := []string{"  one", "- two", "+ 2", "+ TWO", "┆ claude: spelled out", "  three"}

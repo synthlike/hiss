@@ -39,7 +39,14 @@ var (
 func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 	tick := time.NewTicker(time.Second) // redraw time-based state such as agent status
 	defer tick.Stop()
+	scr.EnableFocus()
+	focused := true
 	for !ed.Quit {
+		for _, n := range ed.TakeNotices() {
+			if !focused { // the toast is enough when the user is looking
+				scr.ShowNotification("hiss: "+n.Title, n.Text)
+			}
+		}
 		scr.Clear()
 		Draw(scr, ed)
 		scr.Show()
@@ -47,6 +54,8 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 		case <-tick.C:
 		case ev := <-scr.EventQ():
 			switch ev := ev.(type) {
+			case *tcell.EventFocus:
+				focused = ev.Focused
 			case *tcell.EventResize:
 				ed.Resize(ev.Size())
 				scr.Sync()
@@ -196,6 +205,9 @@ func Draw(s Screen, ed *core.Editor) {
 			}
 			putString(s, 0, h-1, info+"  (space a accept, space r reject, space c comment)", styleDim)
 		}
+	}
+	if t := ed.ActiveToast(); t != nil {
+		drawToast(s, w, t)
 	}
 	if ed.Menu != nil {
 		drawMenu(s, w, h-2, ed.Menu)

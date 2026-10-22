@@ -71,6 +71,7 @@ func (e *Editor) Hook(ev HookEvent) {
 		case "auth_success", "elicitation_complete", "elicitation_response":
 		default:
 			s.State, s.Note = Waiting, ev.Message
+			e.notify("claude", ev.Message)
 		}
 	case "Stop":
 		s.State, s.Note = Idle, ""

@@ -52,7 +52,7 @@ func (e *Editor) Reply(agent string, id int, text string) error {
 		return fmt.Errorf("empty reply")
 	}
 	p.Thread = append(p.Thread, Comment{Author: agent, Text: text})
-	e.Msg = fmt.Sprintf("%s replied on #%d", agent, id)
+	e.notify(agent, fmt.Sprintf("replied on #%d: %s", id, text))
 	return nil
 }
 
@@ -115,7 +115,7 @@ func (e *Editor) Withdraw(agent string, id int) (undo func(), err error) {
 func (e *Editor) Supersede(old, p *Proposal) {
 	old.Status, old.Reason = Superseded, fmt.Sprintf("revised as #%d", p.ID)
 	p.Thread = append(old.Thread, p.Thread...)
-	e.Msg = fmt.Sprintf("%s revised #%d as #%d (]h to review)", p.Agent, old.ID, p.ID)
+	e.notify(p.Agent, fmt.Sprintf("revised #%d as #%d (]h to review)", old.ID, p.ID))
 }
 
 // threadLines wraps a thread to width columns, each comment led by its author.
