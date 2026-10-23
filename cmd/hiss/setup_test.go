@@ -44,7 +44,7 @@ func TestSetupWriteMerges(t *testing.T) {
 	if s.Model != "opus" {
 		t.Errorf("other settings lost: %s", got)
 	}
-	if !slices.Equal(s.Permissions.Allow, []string{"Bash(go test:*)", "mcp__hiss"}) || len(s.Permissions.Deny) != 4 {
+	if !slices.Equal(s.Permissions.Allow, []string{"Bash(go test:*)", "mcp__hiss"}) || len(s.Permissions.Deny) != 3 {
 		t.Errorf("permissions = %+v", s.Permissions)
 	}
 	stop := s.Hooks["Stop"]

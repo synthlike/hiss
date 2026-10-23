@@ -106,7 +106,7 @@ func TestSetupIsValidSettings(t *testing.T) {
 			t.Errorf("%s must be synchronous to deliver comments: %+v", ev, h)
 		}
 	}
-	if len(s.Hooks) != 7 || len(s.Permissions.Deny) != 4 {
+	if len(s.Hooks) != 7 || len(s.Permissions.Deny) != 3 {
 		t.Errorf("hooks=%d deny=%v", len(s.Hooks), s.Permissions.Deny)
 	}
 }

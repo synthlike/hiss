@@ -40,7 +40,7 @@ func setupSettings() (settings map[string]any, exe string, err error) {
 	settings = map[string]any{
 		"permissions": map[string]any{
 			"allow": []any{"mcp__hiss"},
-			"deny":  []any{"Edit", "Write", "MultiEdit", "NotebookEdit"},
+			"deny":  []any{"Edit", "Write", "NotebookEdit"},
 		},
 		"hooks": map[string]any{
 			"SessionStart": group("", true),
