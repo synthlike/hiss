@@ -42,9 +42,8 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 	tick := time.NewTicker(time.Second) // redraw time-based state such as agent status
 	defer tick.Stop()
 	scr.EnableFocus()
-	focused := true
 	for !ed.Quit {
-		if notices := ed.TakeNotices(); len(notices) > 0 && !focused { // the toast is enough when the user is looking
+		if notices := ed.TakeNotices(); len(notices) > 0 && ed.Unfocused { // the toast is enough when the user is looking
 			for _, n := range notices {
 				scr.ShowNotification("hiss: "+n.Title, n.Text)
 			}
@@ -60,7 +59,7 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 		case ev := <-scr.EventQ():
 			switch ev := ev.(type) {
 			case *tcell.EventFocus:
-				focused = ev.Focused
+				ed.SetFocused(ev.Focused)
 			case *tcell.EventResize:
 				ed.Resize(ev.Size())
 				scr.Sync()

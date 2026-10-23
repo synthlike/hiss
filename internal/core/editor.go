@@ -62,9 +62,11 @@ type Editor struct {
 	Menu   *Menu  // open prefix menu, if any
 	Splash string // shown on an empty scratch buffer
 	Toast  Toast  // notice in the top-right corner
-	Quit   bool
-	Picker *Picker   // open fuzzy picker, if any
-	Asking *Question // open question popup, if any
+	// Unfocused is set while the terminal reports that hiss isn't focused.
+	Unfocused bool
+	Quit      bool
+	Picker    *Picker   // open fuzzy picker, if any
+	Asking    *Question // open question popup, if any
 
 	goal      int  // preferred column for vertical moves, -1 if none
 	row       int  // n>0: the cursor is on the n-th proposed line below its hunk
