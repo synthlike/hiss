@@ -6,6 +6,32 @@ Claude doesn't write your files: it proposes edits, and you review them inline,
 accept or reject each one, tweak it before accepting, or comment and let Claude
 revise. Navigation is inspired by Helix.
 
+## In action
+
+Review proposed changes and discuss them inline.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/review-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/review-light.png">
+  <img alt="An inline review in hiss: Claude proposes a JSON response, and the user discusses its shape in a comment thread." src="docs/screenshots/review-light.png" width="1000">
+</picture>
+
+Follow a guided code tour, with notes anchored to the relevant lines.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/code-tour-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/code-tour-light.png">
+  <img alt="A guided code tour in hiss: Claude explains how a request becomes a response in three inline steps." src="docs/screenshots/code-tour-light.png" width="1000">
+</picture>
+
+Find the change you want to review with the fuzzy hunk picker (`space h`).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/fuzzy-finder-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/fuzzy-finder-light.png">
+  <img alt="The fuzzy hunk picker in hiss: typing json filters five pending changes to three matching proposals across files." src="docs/screenshots/fuzzy-finder-light.png" width="1000">
+</picture>
+
 ## Install
 
 Requires Go 1.27 or later.
