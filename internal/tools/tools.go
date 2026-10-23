@@ -37,7 +37,10 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
 - To walk the user through code (a flow, call sites, affected places), use
   show_trail rather than listing file:line in chat. Keep notes to one line and
   don't number them. The user may comment on a step; answer with reply (step).
-- Use get_selection to see what the user is pointing at.`
+- Use get_selection to see what the user is pointing at.
+- When you need the user to decide or confirm something, ask with the ask
+  tool rather than in chat or with AskUserQuestion: it pops up in the editor
+  and waits for the answer. Offer short options when the answers are predictable.`
 
 // Forward sends a tool call to the editor and returns its JSON result.
 type Forward func(ctx context.Context, agent, tool string, args any) (json.RawMessage, error)
@@ -119,6 +122,8 @@ var all = []tool{
 	awaitPoll,
 	replyTool,
 	showTrailTool,
+	askTool,
+	askPoll,
 	watchComments,
 	hook,
 	define(&mcp.Tool{

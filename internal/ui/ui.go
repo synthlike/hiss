@@ -240,6 +240,9 @@ func Draw(s Screen, ed *core.Editor) {
 	if n := ed.PendingCount(); n > 0 {
 		right = fmt.Sprintf("%d pending  ", n) + right
 	}
+	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
+		right = fmt.Sprintf("%d asked (:answer)  ", n) + right
+	}
 	if a := agentStatus(ed); a != "" {
 		right = a + "  " + right
 	}
@@ -284,6 +287,9 @@ func Draw(s Screen, ed *core.Editor) {
 	}
 	if ed.Picker != nil {
 		drawPicker(s, w, h, ed.Picker)
+	}
+	if ed.Asking != nil {
+		drawAsk(s, w, h, ed.Asking)
 	}
 }
 

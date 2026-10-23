@@ -63,7 +63,8 @@ type Editor struct {
 	Splash string // shown on an empty scratch buffer
 	Toast  Toast  // notice in the top-right corner
 	Quit   bool
-	Picker *Picker // open fuzzy picker, if any
+	Picker *Picker   // open fuzzy picker, if any
+	Asking *Question // open question popup, if any
 
 	goal      int  // preferred column for vertical moves, -1 if none
 	row       int  // n>0: the cursor is on the n-th proposed line below its hunk
@@ -78,6 +79,8 @@ type Editor struct {
 	trail     *Trail           // the trail an agent shared, if any
 	search    searchState
 	jumps     jumpList
+	questions []*Question // agents' questions, oldest first, until their agents collect the answers
+	nextQ     int
 }
 
 func New(b *Buffer) *Editor {
@@ -102,8 +105,11 @@ func (e *Editor) HandleKey(k string) {
 			e.row = 0 // any other motion or edit leaves the proposed lines
 		}
 		e.scroll()
+		e.openQuestion() // a question that arrived while the user was busy
 	}()
 	switch {
+	case e.Asking != nil:
+		e.askKey(k)
 	case e.Picker != nil:
 		e.pickerKey(k)
 	case e.Menu != nil:
