@@ -37,6 +37,8 @@ var commands = []command{
 	{[]string{"hra", "hunk-reject-all"}, "[reason]", "reject every pending hunk", func(e *Editor, arg string) { e.reviewAll(false, arg) }},
 	{[]string{"c", "comment"}, "<text>", "comment on the hunk, line or trail step", (*Editor).comment},
 	{[]string{"tc", "trail-clear"}, "", "stop showing the trail", func(e *Editor, _ string) { e.clearTrail() }},
+	{[]string{"ts", "trail-save"}, "<path>", "save the trail as JSON", (*Editor).saveTrail},
+	{[]string{"tl", "trail-load"}, "<path>", "load a trail saved with :ts", (*Editor).loadTrail},
 	{[]string{"an", "answer"}, "", "reopen an agent's question", func(e *Editor, _ string) { e.reopenQuestions() }},
 }
 

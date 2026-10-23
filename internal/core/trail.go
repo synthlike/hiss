@@ -17,11 +17,12 @@ type Trail struct {
 
 // Step is one stop on a trail.
 type Step struct {
-	N      int // 1-based position in the trail
-	Buf    *Buffer
-	at     *anchor // start of the step's line
-	Note   string
-	Thread []Comment
+	N       int // 1-based position in the trail
+	Buf     *Buffer
+	at      *anchor // start of the step's line
+	Note    string
+	Thread  []Comment
+	Changed bool // loaded from a file whose saved line text no longer matches
 }
 
 // StepInput is a step as an agent describes it.
@@ -34,28 +35,40 @@ type StepInput struct {
 // Line returns the step's current 0-based line.
 func (s *Step) Line() int { return s.Buf.Text.LineOf(s.at.off) }
 
-// ShowTrail replaces the current trail with one from an agent, opening the
-// files it visits in the background.
+// ShowTrail replaces the current trail with one from an agent.
 func (e *Editor) ShowTrail(agent, title string, steps []StepInput) error {
-	t := &Trail{Agent: agent, Title: title, current: -1}
+	t, err := e.newTrail(agent, title, steps)
+	if err != nil {
+		return err
+	}
 	if s := e.Caller(); s != nil {
 		t.Session = s.ID
 	}
+	e.setTrail(t)
+	e.notify(agent, fmt.Sprintf("shared a trail: %s, %d steps (]s to walk it)", title, len(steps)))
+	return nil
+}
+
+// newTrail builds a trail, opening the files it visits in the background.
+func (e *Editor) newTrail(agent, title string, steps []StepInput) (*Trail, error) {
+	t := &Trail{Agent: agent, Title: title, current: -1}
 	for i, in := range steps {
 		b, err := e.OpenBuffer(in.Path)
 		if err != nil {
 			t.release()
-			return err
+			return nil, err
 		}
 		line := min(max(in.Line-1, 0), b.Text.LineCount()-1)
 		t.Steps = append(t.Steps, &Step{N: i + 1, Buf: b, at: b.anchor(b.Text.LineStart(line)), Note: in.Note})
 	}
+	return t, nil
+}
+
+func (e *Editor) setTrail(t *Trail) {
 	if e.trail != nil {
 		e.trail.release()
 	}
 	e.trail = t
-	e.notify(agent, fmt.Sprintf("shared a trail: %s, %d steps (]s to walk it)", title, len(steps)))
-	return nil
 }
 
 func (t *Trail) release() {
@@ -86,8 +99,11 @@ func (e *Editor) TrailRows() map[int][]NoteLine {
 		if rows == nil {
 			rows = map[int][]NoteLine{}
 		}
-		l := s.Line()
-		rows[l] = append(rows[l], NoteLine{Note: true, Text: fmt.Sprintf("%d. %s", s.N, s.Note)})
+		l, note := s.Line(), fmt.Sprintf("%d. %s", s.N, s.Note)
+		if s.Changed {
+			note += " (changed since saved)"
+		}
+		rows[l] = append(rows[l], NoteLine{Note: true, Text: note})
 		rows[l] = append(rows[l], threadLines(s.Thread, e.Width-2)...)
 	}
 	return rows
@@ -131,16 +147,34 @@ func (e *Editor) goToStep(i int) {
 	e.SwitchTo(s.Buf)
 	line := s.Line()
 	e.setHead(s.Buf.Text.LineStart(line))
-	e.Top, e.TopSub = max(line-2, 0), 0
+	e.centerOn(line)
 	e.Msg = fmt.Sprintf("step %d/%d: %s", s.N, len(t.Steps), s.Note)
+}
+
+// centerOn scrolls so that line, with the rows drawn around it, sits in the
+// middle of the screen, or as near as the start of the file allows.
+func (e *Editor) centerOn(line int) {
+	_, block := e.lineRows()
+	room := (e.Height - block(line)) / 2
+	e.Top, e.TopSub = line, 0
+	for e.Top > 0 && block(e.Top-1) <= room {
+		e.Top--
+		room -= block(e.Top)
+	}
 }
 
 // relName names a buffer relative to the project root when it's inside it.
 func (e *Editor) relName(b *Buffer) string {
-	if rel, err := filepath.Rel(e.Root, b.Path); err == nil && e.Root != "" && !strings.HasPrefix(rel, "..") {
+	if rel, ok := e.underRoot(b.Path); ok {
 		return rel
 	}
 	return b.Name
+}
+
+// underRoot returns path relative to the project root, if it's inside it.
+func (e *Editor) underRoot(path string) (string, bool) {
+	rel, err := filepath.Rel(e.Root, path)
+	return rel, err == nil && e.Root != "" && !strings.HasPrefix(rel, "..")
 }
 
 func (e *Editor) stepAtCursor() *Step {

@@ -231,13 +231,12 @@ func (e *Editor) prevRune(off int) int {
 	return off - n
 }
 
-// scroll keeps the cursor line inside the visible rows.
-func (e *Editor) scroll() {
-	if e.Height <= 0 {
-		return
-	}
-	above := map[int]int{} // rows drawn above a line: hunk rationales and a tweaked hunk's old lines
-	extra := map[int]int{} // rows drawn below a line for pending hunks
+// lineRows returns the rows drawn above each line (hunk rationales and a
+// tweaked hunk's old lines) and a func counting every row drawn for a line,
+// including pending hunks and trail notes below it.
+func (e *Editor) lineRows() (above map[int]int, block func(int) int) {
+	above = map[int]int{}
+	extra := map[int]int{}
 	for _, h := range e.Hunks() {
 		above[h.First] += h.RowsAbove()
 		extra[h.Last] += h.Rows()
@@ -245,7 +244,15 @@ func (e *Editor) scroll() {
 	for l, rows := range e.TrailRows() {
 		extra[l] += len(rows)
 	}
-	block := func(l int) int { return above[l] + 1 + extra[l] } // rows drawn for line l
+	return above, func(l int) int { return above[l] + 1 + extra[l] }
+}
+
+// scroll keeps the cursor line inside the visible rows.
+func (e *Editor) scroll() {
+	if e.Height <= 0 {
+		return
+	}
+	above, block := e.lineRows()
 	line := e.line()
 	sub := above[line] + e.DiffRow() // the cursor's row within its line's block
 	e.TopSub = min(e.TopSub, block(e.Top)-1)

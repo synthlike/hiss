@@ -44,7 +44,8 @@ func TestCompleteCommand(t *testing.T) {
 	cases := []struct{ typed, want string }{
 		{"hunk-acc", "hunk-accept"}, // hunk-accept or hunk-accept-all
 		{"co", "comment "},          // takes an argument
-		{"trail", "trail-clear"},
+		{"trail", "trail-"},         // trail-clear, trail-save or trail-load
+		{"trail-c", "trail-clear"},
 		{"h", "h"},
 		{"zz", "zz"},
 	}
