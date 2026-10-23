@@ -17,6 +17,9 @@ const (
 	String
 	Number
 	Keyword
+	Heading
+	Strong
+	Emphasis
 )
 
 // Span is a highlighted byte range [Start, End).
@@ -33,6 +36,8 @@ type Lang struct {
 	Quotes       string    // characters that open strings
 	RawQuotes    string    // quotes without escapes that may span lines, e.g. "`" in Go
 	Keywords     map[string]bool
+
+	lex func(src []byte) []Span // replaces the rules above, if set
 }
 
 func words(s string) map[string]bool {
@@ -67,6 +72,7 @@ var byExt = map[string]*Lang{
 	".py": Hash, ".sh": Hash, ".bash": Hash, ".zsh": Hash, ".fish": Hash, ".rb": Hash, ".yml": Hash,
 	".yaml": Hash, ".toml": Hash,
 	".json": JSON,
+	".md":   Markdown, ".markdown": Markdown,
 }
 
 // ForPath picks a language by file extension, or returns nil.
@@ -74,6 +80,9 @@ func ForPath(path string) *Lang { return byExt[strings.ToLower(filepath.Ext(path
 
 // Lex returns the highlighted spans of src in order.
 func (l *Lang) Lex(src []byte) []Span {
+	if l.lex != nil {
+		return l.lex(src)
+	}
 	var out []Span
 	for i := 0; i < len(src); {
 		c := src[i]

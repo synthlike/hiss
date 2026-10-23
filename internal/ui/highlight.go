@@ -12,10 +12,13 @@ import (
 const maxLexPrefix = 512 << 10
 
 var syntaxStyles = map[syntax.Kind]tcell.Style{
-	syntax.Comment: tcell.StyleDefault.Foreground(tcell.ColorGray),
-	syntax.String:  tcell.StyleDefault.Foreground(tcell.ColorOlive),
-	syntax.Number:  tcell.StyleDefault.Foreground(tcell.ColorPurple),
-	syntax.Keyword: tcell.StyleDefault.Foreground(tcell.ColorBlue),
+	syntax.Comment:  tcell.StyleDefault.Foreground(tcell.ColorGray),
+	syntax.String:   tcell.StyleDefault.Foreground(tcell.ColorOlive),
+	syntax.Number:   tcell.StyleDefault.Foreground(tcell.ColorPurple),
+	syntax.Keyword:  tcell.StyleDefault.Foreground(tcell.ColorBlue),
+	syntax.Heading:  tcell.StyleDefault.Foreground(tcell.ColorBlue).Bold(true),
+	syntax.Strong:   tcell.StyleDefault.Bold(true),
+	syntax.Emphasis: tcell.StyleDefault.Italic(true),
 }
 
 // highlight lexes t from the top of the file (or of the screen, for very
