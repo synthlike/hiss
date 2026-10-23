@@ -44,10 +44,13 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 	scr.EnableFocus()
 	focused := true
 	for !ed.Quit {
-		for _, n := range ed.TakeNotices() {
-			if !focused { // the toast is enough when the user is looking
+		if notices := ed.TakeNotices(); len(notices) > 0 && !focused { // the toast is enough when the user is looking
+			for _, n := range notices {
 				scr.ShowNotification("hiss: "+n.Title, n.Text)
 			}
+			// The bell is what terminals make noticeable: Ghostty bounces the
+			// dock icon and marks the tab with 🔔 until it is focused again.
+			scr.Beep()
 		}
 		scr.Clear()
 		Draw(scr, ed)
