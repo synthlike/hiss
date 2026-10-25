@@ -94,8 +94,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 
 ## Status
 
-v0.1: early and small. Next up (v0.2): LSP diagnostics, go to definition and
-references.
+v0.2: early and small, now with gopls diagnostics and navigation. Next up
+(v0.3): run the SQL query, HTTP request or Go test under the cursor.
 
 ## License
 
