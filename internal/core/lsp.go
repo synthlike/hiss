@@ -18,7 +18,10 @@ import (
 type langServer interface {
 	Open(path, lang string, version int, t text.Text)
 	Change(path string, version int, t text.Text)
+	Definition(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error)
+	References(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error)
 	Shutdown(timeout time.Duration)
+	UTF8() bool
 	Err() error
 }
 

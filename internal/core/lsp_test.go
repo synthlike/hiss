@@ -17,7 +17,11 @@ type sent struct {
 	text    string
 }
 
-type fakeServer struct{ sent []sent }
+type fakeServer struct {
+	sent  []sent
+	locs  []lsp.Location // the answer to Definition and References
+	asked []lsp.Position
+}
 
 func (f *fakeServer) Open(path, lang string, version int, t text.Text) {
 	f.sent = append(f.sent, sent{"open", version, t.String()})
@@ -28,6 +32,17 @@ func (f *fakeServer) Change(path string, version int, t text.Text) {
 }
 
 func (f *fakeServer) Shutdown(time.Duration) { f.sent = append(f.sent, sent{op: "shutdown"}) }
+
+func (f *fakeServer) Definition(_ string, pos lsp.Position, _ time.Duration) ([]lsp.Location, error) {
+	f.asked = append(f.asked, pos)
+	return f.locs, nil
+}
+
+func (f *fakeServer) References(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error) {
+	return f.Definition(path, pos, timeout)
+}
+
+func (f *fakeServer) UTF8() bool { return true }
 
 func (f *fakeServer) Err() error { return nil }
 

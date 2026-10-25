@@ -188,6 +188,65 @@ func TestShutdownGivesUp(t *testing.T) {
 	}
 }
 
+func TestLocations(t *testing.T) {
+	c, s := newFake(t, nil)
+	s.initialize("utf-8")
+	type result struct {
+		locs []Location
+		err  error
+	}
+	got := make(chan result, 1)
+	go func() {
+		locs, err := c.Definition("/proj/a.go", Position{1, 2}, 2*time.Second)
+		got <- result{locs, err}
+	}()
+	m := s.expect("textDocument/definition")
+	if !strings.Contains(string(m.Params), `"position":{"line":1,"character":2}`) {
+		t.Errorf("definition params = %s", m.Params)
+	}
+	rng := map[string]any{"start": map[string]any{"line": 4, "character": 5}, "end": map[string]any{"line": 4, "character": 6}}
+	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": []any{
+		map[string]any{"targetUri": "file:///proj/b.go", "targetRange": rng, "targetSelectionRange": rng},
+		map[string]any{"uri": "https://example.com/x", "range": rng}}})
+	r := <-got
+	if r.err != nil || len(r.locs) != 1 || r.locs[0].Path != "/proj/b.go" || r.locs[0].Range.Start != (Position{4, 5}) {
+		t.Errorf("Definition = %+v, %v", r.locs, r.err)
+	}
+
+	go func() {
+		locs, err := c.References("/proj/a.go", Position{0, 0}, 2*time.Second)
+		got <- result{locs, err}
+	}()
+	m = s.expect("textDocument/references")
+	if !strings.Contains(string(m.Params), `"includeDeclaration":true`) {
+		t.Errorf("references params = %s", m.Params)
+	}
+	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": 0, "message": "no identifier"}})
+	if r := <-got; r.err == nil || r.err.Error() != "no identifier" {
+		t.Errorf("References error = %v, want the server's", r.err)
+	}
+}
+
+func TestLocationsTimeOut(t *testing.T) {
+	c, s := newFake(t, nil)
+	s.initialize("utf-8")
+	if _, err := c.Definition("/proj/a.go", Position{}, 50*time.Millisecond); err == nil {
+		t.Error("Definition without an answer returned no error")
+	}
+}
+
+func TestParseLocations(t *testing.T) {
+	for _, res := range []string{"", "null", " []"} {
+		if locs, err := parseLocations(json.RawMessage(res)); err != nil || len(locs) != 0 {
+			t.Errorf("parseLocations(%q) = %v, %v", res, locs, err)
+		}
+	}
+	locs, err := parseLocations(json.RawMessage(`{"uri":"file:///a.go","range":{"start":{"line":3,"character":0},"end":{"line":3,"character":1}}}`))
+	if err != nil || len(locs) != 1 || locs[0].Path != "/a.go" || locs[0].Range.Start.Line != 3 {
+		t.Errorf("single Location = %+v, %v", locs, err)
+	}
+}
+
 func TestURIRoundTrip(t *testing.T) {
 	for _, p := range []string{"/a/b.go", "/with space/ü.go", "/x#y?.go"} {
 		if got := Path(URI(p)); got != p {
@@ -230,5 +289,35 @@ func TestGopls(t *testing.T) {
 		case <-deadline:
 			t.Fatalf("no diagnostics from gopls (err %v)", c.Err())
 		}
+	}
+}
+
+// TestGoplsDefinition asks the real server for a definition, when it is installed.
+func TestGoplsDefinition(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts gopls")
+	}
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls not installed")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.go")
+	src := "package a\n\nfunc f() int { return g() }\n\nfunc g() int { return 1 }\n"
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module a\n\ngo 1.21\n"), 0o600)
+	os.WriteFile(path, []byte(src), 0o600)
+	srv, _ := For(path)
+	c, err := Start(srv, dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Shutdown(5 * time.Second)
+	c.Open(path, srv.Lang, 1, text.New([]byte(src), text.Origin{}))
+	locs, err := c.Definition(path, Position{2, 22}, 30*time.Second) // the g in "return g()"
+	if err != nil || len(locs) != 1 || locs[0].Path != path || locs[0].Range.Start != (Position{4, 5}) {
+		t.Errorf("Definition = %+v, %v", locs, err)
+	}
+	locs, err = c.References(path, Position{4, 5}, 30*time.Second)
+	if err != nil || len(locs) != 2 {
+		t.Errorf("References = %+v, %v", locs, err)
 	}
 }

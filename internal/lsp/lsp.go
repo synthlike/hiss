@@ -1,10 +1,12 @@
 // Package lsp is a small Language Server Protocol client. It starts a server,
-// keeps open documents in sync by sending their full text, and reports the
-// diagnostics the server publishes. Nothing else: no completion, no rename.
+// keeps open documents in sync by sending their full text, reports the
+// diagnostics the server publishes, and asks for definitions and references.
+// Nothing else: no completion, no rename.
 package lsp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -65,6 +67,12 @@ type Diagnostic struct {
 	Message  string `json:"message"`
 }
 
+// Location is a range in a file.
+type Location struct {
+	Path  string
+	Range Range
+}
+
 // Diagnostics replaces all earlier diagnostics for a file.
 type Diagnostics struct {
 	Path    string
@@ -88,10 +96,16 @@ type Client struct {
 
 	mu    sync.Mutex
 	queue []outgoing
-	calls map[int]chan json.RawMessage
+	calls map[int]chan reply
 	next  int
 	utf8  bool
 	err   error
+}
+
+// reply is the answer to a request.
+type reply struct {
+	result json.RawMessage
+	err    error
 }
 
 // outgoing is a queued message. build runs on the writer goroutine, so a
@@ -130,7 +144,7 @@ func Start(srv Server, root string, diags func(Diagnostics)) (*Client, error) {
 
 func newClient(r io.Reader, w io.Writer, root string, diags func(Diagnostics)) *Client {
 	c := &Client{w: w, diags: diags, root: root, wake: make(chan struct{}, 1),
-		dead: make(chan struct{}), calls: map[int]chan json.RawMessage{}, kill: func() {}}
+		dead: make(chan struct{}), calls: map[int]chan reply{}, kill: func() {}}
 	go c.readLoop(r)
 	go c.writeLoop()
 	return c
@@ -177,6 +191,73 @@ func (c *Client) Close(path string) {
 	}})
 }
 
+// Definition asks where the symbol at pos in path is defined, waiting up to
+// timeout for the answer.
+func (c *Client) Definition(path string, pos Position, timeout time.Duration) ([]Location, error) {
+	return c.locations("textDocument/definition", map[string]any{
+		"textDocument": map[string]any{"uri": URI(path)}, "position": pos}, timeout)
+}
+
+// References asks where the symbol at pos in path is used, its declaration
+// included, waiting up to timeout for the answer.
+func (c *Client) References(path string, pos Position, timeout time.Duration) ([]Location, error) {
+	return c.locations("textDocument/references", map[string]any{
+		"textDocument": map[string]any{"uri": URI(path)}, "position": pos,
+		"context": map[string]any{"includeDeclaration": true}}, timeout)
+}
+
+func (c *Client) locations(method string, params any, timeout time.Duration) ([]Location, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	var r reply
+	select {
+	case r = <-c.call(method, params):
+	case <-c.dead:
+		return nil, c.Err()
+	case <-ctx.Done():
+		return nil, errors.New("no answer from the language server")
+	}
+	if r.err != nil {
+		return nil, r.err
+	}
+	return parseLocations(r.result)
+}
+
+// parseLocations reads a result that is null, a Location, or a list of
+// Locations or LocationLinks. Locations in other kinds of URI are left out.
+func parseLocations(res json.RawMessage) ([]Location, error) {
+	type loc struct {
+		URI                  string `json:"uri"`
+		Range                Range  `json:"range"`
+		TargetURI            string `json:"targetUri"`
+		TargetSelectionRange Range  `json:"targetSelectionRange"`
+	}
+	var ls []loc
+	switch res = bytes.TrimSpace(res); {
+	case len(res) == 0 || string(res) == "null":
+		return nil, nil
+	case res[0] == '{':
+		ls = make([]loc, 1)
+		if err := json.Unmarshal(res, &ls[0]); err != nil {
+			return nil, err
+		}
+	default:
+		if err := json.Unmarshal(res, &ls); err != nil {
+			return nil, err
+		}
+	}
+	var out []Location
+	for _, l := range ls {
+		if l.TargetURI != "" {
+			l.URI, l.Range = l.TargetURI, l.TargetSelectionRange
+		}
+		if p := Path(l.URI); p != "" {
+			out = append(out, Location{p, l.Range})
+		}
+	}
+	return out, nil
+}
+
 // Shutdown asks the server to exit, waiting up to timeout before killing it.
 func (c *Client) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout) // stays done, unlike a time.After channel
@@ -218,9 +299,9 @@ func (c *Client) send(m outgoing) {
 	}
 }
 
-// call queues a request and returns a channel that receives its result.
-func (c *Client) call(method string, params any) <-chan json.RawMessage {
-	ch := make(chan json.RawMessage, 1)
+// call queues a request and returns a channel that receives its reply.
+func (c *Client) call(method string, params any) <-chan reply {
+	ch := make(chan reply, 1)
 	c.mu.Lock()
 	c.next++
 	id := c.next
@@ -266,7 +347,7 @@ func (c *Client) writeLoop() {
 // handshake sends initialize directly, ahead of anything queued, and
 // initialized once the server has answered.
 func (c *Client) handshake() error {
-	ch := make(chan json.RawMessage, 1)
+	ch := make(chan reply, 1)
 	c.mu.Lock()
 	c.next++
 	id := c.next
@@ -283,15 +364,17 @@ func (c *Client) handshake() error {
 			"textDocument": map[string]any{
 				"synchronization":    map[string]any{},
 				"publishDiagnostics": map[string]any{"versionSupport": true},
+				"definition":         map[string]any{},
+				"references":         map[string]any{},
 			},
 		},
 	}))
 	if err != nil {
 		return err
 	}
-	var res json.RawMessage
+	var r reply
 	select {
-	case res = <-ch:
+	case r = <-ch:
 	case <-c.dead:
 		return c.Err()
 	}
@@ -300,7 +383,7 @@ func (c *Client) handshake() error {
 			PositionEncoding string `json:"positionEncoding"`
 		} `json:"capabilities"`
 	}
-	json.Unmarshal(res, &init)
+	json.Unmarshal(r.result, &init)
 	c.mu.Lock()
 	c.utf8 = init.Capabilities.PositionEncoding == "utf-8"
 	c.mu.Unlock()
@@ -356,7 +439,11 @@ func (c *Client) readLoop(r io.Reader) {
 			delete(c.calls, id)
 			c.mu.Unlock()
 			if ch != nil {
-				ch <- m.Result // an error reply gives a nil result
+				r := reply{result: m.Result}
+				if m.Error != nil {
+					r.err = errors.New(m.Error.Message)
+				}
+				ch <- r
 			}
 		}
 	}

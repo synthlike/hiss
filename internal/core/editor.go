@@ -186,6 +186,8 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 	{"e", "file end", func(e *Editor) { e.pushJump(); e.setHead(e.Buf.Text.LineStart(e.Buf.Text.LineCount() - 1)) }},
 	{"h", "line start", func(e *Editor) { e.setHead(e.Buf.Text.LineStart(e.line())) }},
 	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.LineEnd(e.line())) }},
+	{"d", "definition", (*Editor).gotoDefinition},
+	{"r", "references", (*Editor).findReferences},
 }}
 
 var nextMenu = Menu{Title: "next", Items: []MenuItem{
