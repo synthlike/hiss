@@ -80,6 +80,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 - `/` searches as you type, `n` / `N` repeat, `*` searches for the selection.
 - `:<line>` goes to a line; `C-o` / `C-i` jump back and forward.
 - `:` shows the commands as you type; `tab` completes them.
+- In Go files, gopls's diagnostics are marked in the gutter and underlined; the
+  cursor line's message shows below, and `]d` / `[d` go to the next / previous.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

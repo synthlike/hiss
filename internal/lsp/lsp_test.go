@@ -144,9 +144,19 @@ func TestDiagnosticsAndServerRequests(t *testing.T) {
 			"severity": Error, "message": "undefined: x"}}}})
 	select {
 	case d := <-got:
-		if d.Path != "/proj/a b.go" || d.Version != 4 || len(d.Diags) != 1 ||
+		if d.Path != "/proj/a b.go" || d.Version != 4 || !d.UTF8 || len(d.Diags) != 1 ||
 			d.Diags[0].Message != "undefined: x" || d.Diags[0].Range.Start != (Position{2, 1}) {
 			t.Errorf("diagnostics = %+v", d)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no diagnostics")
+	}
+	s.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+		"params": map[string]any{"uri": "file:///proj/a.go", "diagnostics": []any{}}})
+	select {
+	case d := <-got:
+		if d.Version != -1 {
+			t.Errorf("Version = %d without one from the server, want -1", d.Version)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no diagnostics")
@@ -161,6 +171,7 @@ func TestShutdown(t *testing.T) {
 	m := s.expect("shutdown")
 	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": nil})
 	s.expect("exit")
+	s.w.(io.Closer).Close() // the server exits
 	<-done
 	if c.Err() == nil {
 		t.Error("Err() = nil after Shutdown")

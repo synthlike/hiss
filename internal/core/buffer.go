@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/synthlike/hiss/internal/lsp"
 	"github.com/synthlike/hiss/internal/text"
 )
 
@@ -24,10 +23,10 @@ type Buffer struct {
 	pending []*Proposal // pending proposals, kept in step with edits
 	anchors []*anchor   // offsets other things point at, kept in step with edits
 
-	Diags       []lsp.Diagnostic // the language server's latest, for DiagVersion
-	DiagVersion int              // 0 if the server didn't say
-	lspOpen     bool             // the language server has the buffer open
-	lspVersion  int              // Version last sent to the language server
+	diags      []*Diag    // the language server's latest, by start
+	lspOpen    bool       // the language server has the buffer open
+	lspVersion int        // Version last sent to the language server
+	sent       []sentText // texts sent to the server, oldest first, for placing its diagnostics
 
 	sel        Selection
 	top        int
@@ -148,6 +147,16 @@ func (b *Buffer) ChangedSince(version, start, end int) bool {
 		}
 	}
 	return false
+}
+
+// mapFrom maps an offset in the text at version to the current text.
+func (b *Buffer) mapFrom(version, off int, after bool) int {
+	for _, l := range b.log {
+		if l.version > version {
+			off = l.edit.Map(off, after)
+		}
+	}
+	return off
 }
 
 // overlaps reports whether range [a, b) touches [s, e). An empty range is a

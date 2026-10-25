@@ -67,7 +67,8 @@ type Diagnostic struct {
 // Diagnostics replaces all earlier diagnostics for a file.
 type Diagnostics struct {
 	Path    string
-	Version int // document version they were computed for; 0 if the server didn't say
+	Version int  // document version they were computed for; -1 if the server didn't say
+	UTF8    bool // positions count bytes, not UTF-16 code units
 	Diags   []Diagnostic
 }
 
@@ -184,11 +185,13 @@ func (c *Client) Shutdown(timeout time.Duration) {
 	case <-c.dead:
 	case <-deadline:
 	}
-	if c.exited != nil {
-		select {
-		case <-c.exited:
-		case <-deadline:
-		}
+	gone := c.exited // the process, or without one the server closing the connection
+	if gone == nil {
+		gone = c.dead
+	}
+	select {
+	case <-gone:
+	case <-deadline:
 	}
 	c.kill()
 	c.fail(errors.New("shut down"))
@@ -330,11 +333,15 @@ func (c *Client) readLoop(r io.Reader) {
 		case m.Method == "textDocument/publishDiagnostics":
 			var p struct {
 				URI         string       `json:"uri"`
-				Version     int          `json:"version"`
+				Version     *int         `json:"version"`
 				Diagnostics []Diagnostic `json:"diagnostics"`
 			}
 			if json.Unmarshal(m.Params, &p) == nil && c.diags != nil {
-				c.diags(Diagnostics{Path: Path(p.URI), Version: p.Version, Diags: p.Diagnostics})
+				d := Diagnostics{Path: Path(p.URI), Version: -1, UTF8: c.UTF8(), Diags: p.Diagnostics}
+				if p.Version != nil {
+					d.Version = *p.Version
+				}
+				c.diags(d)
 			}
 		case m.Method != "": // other notifications, such as log messages
 		default:

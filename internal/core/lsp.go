@@ -2,8 +2,11 @@ package core
 
 import (
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf16"
 
 	"github.com/synthlike/hiss/internal/lsp"
 	"github.com/synthlike/hiss/internal/text"
@@ -48,8 +51,39 @@ func (e *Editor) SyncLSP() {
 			b.lspOpen = true
 		}
 		b.lspVersion = b.Version
+		b.sent = append(b.sent, sentText{b.Version, b.Text})
+		if len(b.sent) > maxSent { // the server is far behind; its diagnostics for these won't be placed
+			b.sent = b.sent[len(b.sent)-maxSent:]
+		}
 	}
 }
+
+// maxSent caps the texts kept for placing diagnostics.
+const maxSent = 32
+
+type sentText struct {
+	version int
+	text    text.Text
+}
+
+// Diag is a diagnostic placed in a buffer. Its range moves with edits.
+type Diag struct {
+	start, end *anchor
+	Severity   int // lsp.Error and so on; never 0
+	Message    string
+}
+
+// Range returns the diagnostic's byte range in the current text.
+func (d *Diag) Range() (start, end int) { return d.start.off, max(d.start.off, d.end.off) }
+
+// Summary is the first line of the message.
+func (d *Diag) Summary() string {
+	s, _, _ := strings.Cut(d.Message, "\n")
+	return s
+}
+
+// Diags returns the buffer's diagnostics, ordered by start.
+func (b *Buffer) Diags() []*Diag { return b.diags }
 
 // langServer returns the running server for srv's language, starting it on
 // first use. A server that fails to start is not retried.
@@ -65,7 +99,7 @@ func (e *Editor) langServer(srv lsp.Server, b *Buffer) langServer {
 		root = filepath.Dir(b.Path)
 	}
 	c, err := startServer(srv, root, func(d lsp.Diagnostics) {
-		e.Post(func(e *Editor) { e.setDiagnostics(d) })
+		e.Post(func(e *Editor) { e.SetDiagnostics(d) })
 	})
 	if err != nil {
 		e.Msg = srv.Cmd[0] + ": " + err.Error()
@@ -76,10 +110,106 @@ func (e *Editor) langServer(srv lsp.Server, b *Buffer) langServer {
 	return c
 }
 
-func (e *Editor) setDiagnostics(d lsp.Diagnostics) {
-	if b := e.Find(d.Path); b != nil {
-		b.Diags, b.DiagVersion = d.Diags, d.Version
+// SetDiagnostics replaces a buffer's diagnostics with the server's. They are
+// placed in the text the server saw, then mapped through later edits.
+// Diagnostics for a text no longer kept are dropped; newer ones will follow.
+func (e *Editor) SetDiagnostics(d lsp.Diagnostics) {
+	b := e.Find(d.Path)
+	if b == nil {
+		return
 	}
+	t, version := b.Text, b.Version
+	if d.Version >= 0 {
+		i := slices.IndexFunc(b.sent, func(s sentText) bool { return s.version == d.Version })
+		if i < 0 {
+			return
+		}
+		t, version = b.sent[i].text, d.Version
+		b.sent = b.sent[i:] // the server is done with older texts
+	}
+	for _, x := range b.diags {
+		b.release(x.start)
+		b.release(x.end)
+	}
+	b.diags = nil
+	for _, x := range d.Diags {
+		start := b.mapFrom(version, offset(t, x.Range.Start, d.UTF8), false)
+		end := b.mapFrom(version, offset(t, x.Range.End, d.UTF8), true)
+		sev := x.Severity
+		if sev == 0 {
+			sev = lsp.Error // the spec leaves it to the client
+		}
+		b.diags = append(b.diags, &Diag{start: b.anchor(start), end: b.anchor(end), Severity: sev, Message: x.Message})
+	}
+	slices.SortStableFunc(b.diags, func(x, y *Diag) int { return x.start.off - y.start.off })
+}
+
+// offset converts an LSP position in t to a byte offset, clamping it to the text.
+func offset(t text.Text, p lsp.Position, utf8 bool) int {
+	if p.Line >= t.LineCount() {
+		return t.Len()
+	}
+	start := t.LineStart(p.Line)
+	end := t.Len()
+	if p.Line+1 < t.LineCount() {
+		end = t.LineStart(p.Line+1) - 1
+	}
+	if utf8 {
+		return start + min(max(p.Character, 0), end-start)
+	}
+	units := 0
+	for i, r := range string(t.Slice(start, end)) {
+		if units >= p.Character {
+			return start + i
+		}
+		units += max(utf16.RuneLen(r), 1)
+	}
+	return end
+}
+
+// DiagAtCursor returns the diagnostic to show for the cursor: one whose range
+// holds it, else the most severe one starting on its line.
+func (e *Editor) DiagAtCursor() *Diag {
+	var best *Diag
+	line, head := e.line(), e.Sel.Head
+	for _, d := range e.Buf.diags {
+		start, end := d.Range()
+		if start <= head && head < max(end, start+1) {
+			return d
+		}
+		if e.Buf.Text.LineOf(start) == line && (best == nil || d.Severity < best.Severity) {
+			best = d
+		}
+	}
+	return best
+}
+
+// jumpDiag moves to the start of the next (dir > 0) or previous diagnostic
+// in the buffer, wrapping around.
+func (e *Editor) jumpDiag(dir int) {
+	ds := e.Buf.diags
+	if len(ds) == 0 {
+		e.Msg = "no diagnostics"
+		return
+	}
+	line := e.line()
+	target := ds[0]
+	if dir < 0 {
+		target = ds[len(ds)-1]
+	}
+	for i := range ds {
+		d := ds[i]
+		if dir < 0 {
+			d = ds[len(ds)-1-i]
+		}
+		l := e.Buf.Text.LineOf(d.start.off)
+		if dir > 0 && l > line || dir < 0 && l < line {
+			target = d
+			break
+		}
+	}
+	e.pushJump()
+	e.setHead(target.start.off)
 }
 
 // StopLSP shuts the language servers down, together taking at most about a second.
@@ -96,7 +226,7 @@ func (e *Editor) StopLSP() {
 
 // DiagCounts returns the number of errors and warnings in the buffer.
 func (b *Buffer) DiagCounts() (errors, warnings int) {
-	for _, d := range b.Diags {
+	for _, d := range b.diags {
 		switch d.Severity {
 		case lsp.Error:
 			errors++

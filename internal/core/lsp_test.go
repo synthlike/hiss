@@ -91,7 +91,85 @@ func TestDiagnostics(t *testing.T) {
 		t.Errorf("DiagCounts() = %d, %d; want 2, 1", errs, warns)
 	}
 	(*diags)(lsp.Diagnostics{Path: e.Buf.Path})
-	if len(e.Buf.Diags) != 0 {
-		t.Errorf("empty diagnostics didn't clear the old ones: %+v", e.Buf.Diags)
+	if n := len(e.Buf.Diags()); n != 0 || len(e.Buf.anchors) != 0 {
+		t.Errorf("empty diagnostics left %d diagnostics and %d anchors", n, len(e.Buf.anchors))
+	}
+}
+
+func at(line, char int) lsp.Range {
+	return lsp.Range{Start: lsp.Position{Line: line, Character: char}, End: lsp.Position{Line: line, Character: char + 1}}
+}
+
+func diagText(e *Editor, d *Diag) string {
+	start, end := d.Range()
+	return string(e.Buf.Text.Slice(start, end))
+}
+
+func TestDiagnosticsFollowEdits(t *testing.T) {
+	e := newGoEditor(t, "package a\nvar x = y\n")
+	_, diags := fakeLSP(t, e)
+	e.SyncLSP() // the server has version 0
+	keys(e, "O / / space n e w esc")
+	e.SyncLSP() // and the edited text, but answers for version 0 first
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 0, UTF8: true, Diags: []lsp.Diagnostic{{Range: at(1, 8), Message: "undefined: y"}}})
+	ds := e.Buf.Diags()
+	if len(ds) != 1 || diagText(e, ds[0]) != "y" || ds[0].Severity != lsp.Error {
+		t.Fatalf("diagnostics %+v, want one error on y", ds)
+	}
+	keys(e, "g g i z z esc") // edits after placing move it too
+	if got := diagText(e, ds[0]); got != "y" {
+		t.Errorf("after another edit the diagnostic covers %q", got)
+	}
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 99, Diags: []lsp.Diagnostic{{Range: at(0, 0)}}})
+	if got := e.Buf.Diags(); len(got) != 1 || got[0] != ds[0] {
+		t.Errorf("diagnostics for an unknown version replaced the old ones: %+v", got)
+	}
+}
+
+func TestDiagnosticsInUTF16(t *testing.T) {
+	e := newGoEditor(t, "é😀x\n")
+	_, diags := fakeLSP(t, e)
+	e.SyncLSP()
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: -1, Diags: []lsp.Diagnostic{
+		{Range: at(0, 3)}, {Range: at(5, 0)}}}) // é is one unit, 😀 two; line 5 is past the end
+	ds := e.Buf.Diags()
+	if len(ds) != 2 || diagText(e, ds[0]) != "x" {
+		t.Fatalf("diagnostics %+v, want the first on x", ds)
+	}
+	if start, _ := ds[1].Range(); start != e.Buf.Text.Len() {
+		t.Errorf("a position past the end starts at %d, want %d", start, e.Buf.Text.Len())
+	}
+}
+
+func TestDiagAtCursorAndJumps(t *testing.T) {
+	e := newGoEditor(t, "a b\nc\nd e\n")
+	_, diags := fakeLSP(t, e)
+	e.SyncLSP()
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 0, UTF8: true, Diags: []lsp.Diagnostic{
+		{Range: at(2, 2), Severity: lsp.Warning, Message: "warn e\nmore"},
+		{Range: at(0, 2), Severity: lsp.Hint, Message: "hint b"},
+		{Range: at(2, 0), Severity: lsp.Error, Message: "error d"}}})
+	if d := e.DiagAtCursor(); d == nil || d.Message != "hint b" {
+		t.Errorf("on line 0: %+v, want the hint on its line", d)
+	}
+	keys(e, "] d")
+	if line, col := e.Cursor(); line != 2 || col != 0 {
+		t.Errorf("]d went to %d:%d, want 2:0", line, col)
+	}
+	keys(e, "l l") // onto e
+	if d := e.DiagAtCursor(); d == nil || d.Summary() != "warn e" {
+		t.Errorf("on e: %+v, want the warning under the cursor", d)
+	}
+	keys(e, "] d") // wraps
+	if line, _ := e.Cursor(); line != 0 {
+		t.Errorf("]d from the last line went to line %d, want 0", line)
+	}
+	keys(e, "[ d")
+	if line, _ := e.Cursor(); line != 2 {
+		t.Errorf("[d from the first line went to line %d, want 2", line)
+	}
+	keys(e, "C-o")
+	if line, _ := e.Cursor(); line != 0 {
+		t.Errorf("C-o after [d went to line %d, want 0", line)
 	}
 }

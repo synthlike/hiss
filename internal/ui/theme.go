@@ -22,6 +22,7 @@ func UseLightTheme() {
 	styleMenu = tcell.StyleDefault.Background(tcell.NewRGBColor(0xe4, 0xe4, 0xe4)).Foreground(tcell.ColorBlack)
 	styleMenuKey = styleMenu.Bold(true).Foreground(tcell.NewRGBColor(0x1d, 0x4e, 0xd8))
 	styleYourNote = tcell.StyleDefault.Foreground(tcell.NewRGBColor(0x9a, 0x67, 0x00))
+	styleWarning = styleYourNote // terminal yellow is unreadable on white
 }
 
 // LightBackground reports whether the terminal has a light background.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gdamore/tcell/v3"
 	"github.com/synthlike/hiss/internal/core"
+	"github.com/synthlike/hiss/internal/lsp"
 )
 
 const (
@@ -35,7 +36,30 @@ var (
 	styleAdded     = tcell.StyleDefault.Foreground(tcell.ColorGreen)
 	styleYourNote  = tcell.StyleDefault.Foreground(tcell.ColorYellow)
 	styleAgentNote = tcell.StyleDefault.Foreground(tcell.ColorTeal)
+	styleError     = tcell.StyleDefault.Foreground(tcell.ColorRed)
+	styleWarning   = tcell.StyleDefault.Foreground(tcell.ColorYellow)
+	styleInfo      = tcell.StyleDefault.Foreground(tcell.ColorTeal)
 )
+
+func diagStyle(severity int) tcell.Style {
+	switch severity {
+	case lsp.Error:
+		return styleError
+	case lsp.Warning:
+		return styleWarning
+	}
+	return styleInfo
+}
+
+// underline marks text in a diagnostic: curly for errors and warnings,
+// dotted for the rest.
+func underline(st tcell.Style, severity int) tcell.Style {
+	u := tcell.UnderlineStyleCurly
+	if severity > lsp.Warning {
+		u = tcell.UnderlineStyleDotted
+	}
+	return st.Underline(u, diagStyle(severity).GetForeground())
+}
 
 // Run draws and handles events until the editor quits. Work sent on reqs runs on
 // this goroutine, which owns the editor.
@@ -128,6 +152,28 @@ func Draw(s Screen, ed *core.Editor) {
 		i := sort.Search(len(matches), func(i int) bool { return matches[i][1] > off })
 		return i < len(matches) && matches[i][0] <= off
 	}
+	diags := ed.Buf.Diags()
+	lineSeverity := map[int]int{} // the most severe diagnostic starting on each line
+	for _, d := range diags {
+		start, _ := d.Range()
+		if l := t.LineOf(start); lineSeverity[l] == 0 || d.Severity < lineSeverity[l] {
+			lineSeverity[l] = d.Severity
+		}
+	}
+	// diagAt returns the most severe diagnostic over off, or 0.
+	diagAt := func(off int) int {
+		sev := 0
+		for _, d := range diags {
+			start, end := d.Range()
+			if start > off {
+				break
+			}
+			if off < max(end, start+1) && (sev == 0 || d.Severity < sev) {
+				sev = d.Severity
+			}
+		}
+		return sev
+	}
 	row, line := 0, ed.Top
 	for row < h-2 {
 		if line >= t.LineCount() {
@@ -176,20 +222,32 @@ func Draw(s Screen, ed *core.Editor) {
 			base, mark = styleAdded, "+"
 		}
 		if visible() {
-			s.Put(0, row, mark, base)
+			if sev := lineSeverity[line]; sev != 0 && mark == " " {
+				mark = "•"
+				if sev <= lsp.Warning {
+					mark = "●"
+				}
+				s.Put(0, row, mark, diagStyle(sev))
+			} else {
+				s.Put(0, row, mark, base)
+			}
 			start, end := t.LineStart(line), ed.Buf.LineEnd(line)
 			x := drawText(s, gutter, row, w, string(t.Slice(start, end)), start, func(off int) tcell.Style {
+				st := base
 				switch {
 				case off == cursor:
-					return styleCursor
+					st = styleCursor
 				case off >= from && off < to:
-					return styleSel
+					st = styleSel
 				case inMatch(off):
-					return styleMatch
+					st = styleMatch
 				case base == styleText:
-					return syn(off) // plain lines get syntax colours; diff lines keep theirs
+					st = syn(off) // plain lines get syntax colours; diff lines keep theirs
 				}
-				return base
+				if sev := diagAt(off); sev != 0 {
+					st = underline(st, sev)
+				}
+				return st
 			})
 			if end == cursor && x < w { // cursor on the newline or end of file
 				s.Put(x, row, " ", styleCursor)
@@ -264,6 +322,10 @@ func Draw(s Screen, ed *core.Editor) {
 	default:
 		if ss := ed.Sessions(); len(ss) > 0 && ss[0].State == core.Waiting && ss[0].Note != "" {
 			putString(s, 0, h-1, "claude: "+ss[0].Note, styleDim)
+		}
+		if d := ed.DiagAtCursor(); d != nil {
+			fill(s, 0, h-1, w, styleText)
+			putString(s, 0, h-1, d.Summary(), diagStyle(d.Severity))
 		}
 		if hk := ed.HunkAtCursor(); hk != nil {
 			fill(s, 0, h-1, w, styleText)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gdamore/tcell/v3"
 	"github.com/synthlike/hiss/internal/core"
+	"github.com/synthlike/hiss/internal/lsp"
 	"github.com/synthlike/hiss/internal/syntax"
 	"github.com/synthlike/hiss/internal/text"
 )
@@ -58,6 +59,38 @@ func TestDraw(t *testing.T) {
 	}
 	if got := g.row(4); !strings.HasPrefix(got, " NOR  a.go") || !strings.HasSuffix(got, "2:2") {
 		t.Errorf("status = %q", got)
+	}
+}
+
+func TestDrawDiagnostics(t *testing.T) {
+	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go", Text: text.New([]byte("ok\nvar x = y\n"), text.Origin{})})
+	ed.Resize(30, 6)
+	rng := lsp.Range{Start: lsp.Position{Line: 1, Character: 8}, End: lsp.Position{Line: 1, Character: 9}}
+	ed.SetDiagnostics(lsp.Diagnostics{Path: "/p/a.go", Version: -1, UTF8: true, Diags: []lsp.Diagnostic{
+		{Range: rng, Severity: lsp.Error, Message: "undefined: y\ndetails"}}})
+	g := newGrid(30, 6)
+	Draw(g, ed)
+	if got := g.row(1); got != "● var x = y" {
+		t.Errorf("row 1 = %q, want a mark in the gutter", got)
+	}
+	if st := g.styles[1][10]; st.GetUnderlineStyle() != tcell.UnderlineStyleCurly {
+		t.Error("y isn't underlined")
+	}
+	if g.styles[1][8].HasUnderline() {
+		t.Error("= is underlined")
+	}
+	if got := g.row(4); !strings.HasSuffix(got, "1 error  1:1") {
+		t.Errorf("status = %q", got)
+	}
+	if got := g.row(5); got != "" {
+		t.Errorf("message line = %q away from the diagnostic", got)
+	}
+
+	ed.HandleKey("j")
+	g = newGrid(30, 6)
+	Draw(g, ed)
+	if got := g.row(5); got != "undefined: y" {
+		t.Errorf("message line = %q, want the first line of the message", got)
 	}
 }
 
