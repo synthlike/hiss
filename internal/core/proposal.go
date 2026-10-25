@@ -361,7 +361,7 @@ func (e *Editor) jumpHunk(dir int) {
 	type pos struct {
 		b    int
 		line int
-		buf  *Buffer
+		p    *Proposal
 	}
 	var all []pos
 	cur := 0
@@ -370,7 +370,7 @@ func (e *Editor) jumpHunk(dir int) {
 			cur = i
 		}
 		for _, p := range b.pending {
-			all = append(all, pos{i, b.Text.LineOf(p.Start), b})
+			all = append(all, pos{i, b.Text.LineOf(p.Start), p})
 		}
 	}
 	if len(all) == 0 {
@@ -394,7 +394,6 @@ func (e *Editor) jumpHunk(dir int) {
 		}
 	}
 	e.pushJump()
-	e.SwitchTo(target.buf)
-	e.setHead(e.Buf.Text.LineStart(target.line))
-	e.Top, e.TopSub = max(target.line-2, 0), 0
+	e.SwitchTo(target.p.Buf)
+	e.showHunk(target.p)
 }

@@ -1,6 +1,10 @@
 package core
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
 
 func TestJKThroughProposedLines(t *testing.T) {
 	e := newEditor(t, "a\nb\nc\n")
@@ -85,6 +89,30 @@ func TestScrollKeepsRationaleAboveHunk(t *testing.T) {
 		keys(e, s.key)
 		if got := (view{e.Top, e.TopSub}); got != s.want {
 			t.Errorf("step %d (%s): view %v, want %v", i, s.key, got, s.want)
+		}
+	}
+}
+
+func TestHunkJumpPlacesHunk(t *testing.T) {
+	var lines []string
+	for i := range 40 {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	for _, c := range []struct {
+		name  string
+		added int // lines replacing "line 20"
+		top   int
+	}{
+		{"short: centred", 2, 20 - (20-3)/2},              // 3 rows in the middle of 20
+		{"nearly the screen: clear of the toast", 18, 19}, // 19 rows: 1 spare row goes above
+		{"taller than the screen: a quarter down", 25, 20 - 20/4},
+	} {
+		e := newEditor(t, strings.Join(lines, "\n")+"\n")
+		e.Resize(80, 22) // 20 text rows
+		propose(t, e, "line 20\n", strings.Repeat("new\n", c.added))
+		keys(e, "] h")
+		if l, _ := e.Cursor(); l != 20 || e.Top != c.top || e.TopSub != 0 {
+			t.Errorf("%s: cursor line %d, top %d+%d; want line 20, top %d", c.name, l, e.Top, e.TopSub, c.top)
 		}
 	}
 }

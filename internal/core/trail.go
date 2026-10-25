@@ -153,10 +153,25 @@ func (e *Editor) goToStep(i int) {
 
 // centerOn scrolls so that line, with the rows drawn around it, sits in the
 // middle of the screen, or as near as the start of the file allows.
-func (e *Editor) centerOn(line int) {
+func (e *Editor) centerOn(line int) { e.showLines(line, line) }
+
+// toastRows is the height of the toast in the top-right corner.
+const toastRows = 2
+
+// showLines scrolls lines first..last, with the rows drawn around them, to
+// the middle of the screen, clear of the toast when there is room. A block
+// taller than the screen starts a quarter of the way down instead.
+func (e *Editor) showLines(first, last int) {
 	_, block := e.lineRows()
-	room := (e.Height - block(line)) / 2
-	e.Top, e.TopSub = line, 0
+	rows := 0
+	for l := first; l <= last; l++ {
+		rows += block(l)
+	}
+	room := max((e.Height-rows)/2, min(toastRows, e.Height-rows))
+	if rows > e.Height {
+		room = e.Height / 4
+	}
+	e.Top, e.TopSub = first, 0
 	for e.Top > 0 && block(e.Top-1) <= room {
 		e.Top--
 		room -= block(e.Top)

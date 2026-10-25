@@ -139,9 +139,16 @@ func (e *Editor) jumpToProposal(p *Proposal) {
 		e.Msg = fmt.Sprintf("#%d is %s", p.ID, p.Status)
 		return
 	}
-	line := p.Buf.Text.LineOf(p.Start)
 	e.pushJump()
 	e.SwitchTo(p.Buf)
-	e.setHead(p.Buf.Text.LineStart(line))
-	e.Top, e.TopSub = max(line-2, 0), 0
+	e.showHunk(p)
+}
+
+// showHunk puts the cursor on p's first line and scrolls its hunk into view
+// (see showLines).
+func (e *Editor) showHunk(p *Proposal) {
+	t := p.Buf.Text
+	first := t.LineOf(p.Start)
+	e.setHead(t.LineStart(first))
+	e.showLines(first, t.LineOf(max(p.End-1, p.Start)))
 }
