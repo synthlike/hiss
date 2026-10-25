@@ -4,6 +4,7 @@ package ui
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v3"
@@ -51,6 +52,7 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 			// dock icon and marks the tab with 🔔 until it is focused again.
 			scr.Beep()
 		}
+		ed.SyncLSP()
 		scr.Clear()
 		Draw(scr, ed)
 		scr.Show()
@@ -236,6 +238,9 @@ func Draw(s Screen, ed *core.Editor) {
 	left := fmt.Sprintf(" %s  %s%s", ed.Mode, ed.Buf.Name, dirty)
 	line, col := ed.Cursor()
 	right := fmt.Sprintf("%d:%d ", line+1, col+1)
+	if errs, warns := ed.Buf.DiagCounts(); errs+warns > 0 {
+		right = diagSummary(errs, warns) + "  " + right
+	}
 	if n := ed.PendingCount(); n > 0 {
 		right = fmt.Sprintf("%d pending  ", n) + right
 	}
@@ -314,6 +319,23 @@ func drawHunkNote(s Screen, row int, n core.NoteLine) {
 	}
 	s.Put(0, row, mark, styleDim)
 	putString(s, gutter, row, n.Text, style)
+}
+
+// diagSummary reads like "2 errors, 1 warning".
+func diagSummary(errs, warns int) string {
+	var parts []string
+	for _, c := range []struct {
+		n    int
+		name string
+	}{{errs, "error"}, {warns, "warning"}} {
+		switch {
+		case c.n == 1:
+			parts = append(parts, "1 "+c.name)
+		case c.n > 1:
+			parts = append(parts, fmt.Sprintf("%d %ss", c.n, c.name))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // agentStatus describes the most recently active agent session.

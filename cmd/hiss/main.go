@@ -86,7 +86,14 @@ func runEditor(path string) error {
 
 	reqs := make(chan func(*core.Editor))
 	done := make(chan struct{})
+	defer ed.StopLSP() // after close(done), so a server's last diagnostics can't block on the loop
 	defer close(done)
+	ed.Post = func(f func(*core.Editor)) {
+		select {
+		case reqs <- f:
+		case <-done:
+		}
+	}
 	if sock, err := rpc.SocketPath(ed.Root); err != nil {
 		ed.Msg = "agents disabled: " + err.Error()
 	} else if ln, err := rpc.Listen(sock); err != nil {

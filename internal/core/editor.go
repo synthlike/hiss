@@ -67,6 +67,9 @@ type Editor struct {
 	Quit      bool
 	Picker    *Picker   // open fuzzy picker, if any
 	Asking    *Question // open question popup, if any
+	// Post runs work on the editor goroutine; background goroutines such as
+	// language servers use it to hand results back.
+	Post func(func(*Editor))
 
 	goal      int  // preferred column for vertical moves, -1 if none
 	row       int  // n>0: the cursor is on the n-th proposed line below its hunk
@@ -83,6 +86,7 @@ type Editor struct {
 	jumps     jumpList
 	questions []*Question // agents' questions, oldest first, until their agents collect the answers
 	nextQ     int
+	servers   map[string]langServer // by language; nil if it failed to start
 }
 
 func New(b *Buffer) *Editor {

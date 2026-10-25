@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/synthlike/hiss/internal/lsp"
 	"github.com/synthlike/hiss/internal/text"
 )
 
@@ -22,6 +23,11 @@ type Buffer struct {
 	log     []logged    // every edit, for checking proposals against old versions
 	pending []*Proposal // pending proposals, kept in step with edits
 	anchors []*anchor   // offsets other things point at, kept in step with edits
+
+	Diags       []lsp.Diagnostic // the language server's latest, for DiagVersion
+	DiagVersion int              // 0 if the server didn't say
+	lspOpen     bool             // the language server has the buffer open
+	lspVersion  int              // Version last sent to the language server
 
 	sel        Selection
 	top        int
