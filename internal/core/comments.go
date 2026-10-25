@@ -195,7 +195,7 @@ func threadLines(thread []Comment, width int) []NoteLine {
 		}
 		indent := strings.Repeat(" ", utf8.RuneCountInString(label)+1)
 		line, empty := label+":", true
-		for _, w := range strings.Fields(c.Text) {
+		for w := range strings.FieldsSeq(c.Text) {
 			if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
 				out = append(out, NoteLine{Mine: mine, Text: line})
 				line = indent

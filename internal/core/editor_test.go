@@ -26,7 +26,7 @@ func newEditor(t *testing.T, content string) *Editor {
 
 // keys feeds space-separated key names.
 func keys(e *Editor, ks string) {
-	for _, k := range strings.Fields(ks) {
+	for k := range strings.FieldsSeq(ks) {
 		e.HandleKey(k)
 	}
 }

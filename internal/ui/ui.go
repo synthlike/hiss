@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v3"
+	"github.com/gdamore/tcell/v3/color"
 	"github.com/synthlike/hiss/internal/core"
 	"github.com/synthlike/hiss/internal/lsp"
 )
@@ -28,17 +29,17 @@ var (
 	styleCursor    = tcell.StyleDefault.Reverse(true)
 	styleStatus    = tcell.StyleDefault.Reverse(true)
 	styleDim       = tcell.StyleDefault.Dim(true)
-	styleSel       = tcell.StyleDefault.Background(tcell.ColorNavy)
-	styleMatch     = tcell.StyleDefault.Background(tcell.ColorOlive).Foreground(tcell.ColorBlack)
-	styleMenu      = tcell.StyleDefault.Background(tcell.ColorDarkSlateGray)
-	styleMenuKey   = styleMenu.Bold(true).Foreground(tcell.ColorYellow)
-	styleRemoved   = tcell.StyleDefault.Foreground(tcell.ColorRed)
-	styleAdded     = tcell.StyleDefault.Foreground(tcell.ColorGreen)
-	styleYourNote  = tcell.StyleDefault.Foreground(tcell.ColorYellow)
-	styleAgentNote = tcell.StyleDefault.Foreground(tcell.ColorTeal)
-	styleError     = tcell.StyleDefault.Foreground(tcell.ColorRed)
-	styleWarning   = tcell.StyleDefault.Foreground(tcell.ColorYellow)
-	styleInfo      = tcell.StyleDefault.Foreground(tcell.ColorTeal)
+	styleSel       = tcell.StyleDefault.Background(color.Navy)
+	styleMatch     = tcell.StyleDefault.Background(color.Olive).Foreground(color.Black)
+	styleMenu      = tcell.StyleDefault.Background(color.DarkSlateGray)
+	styleMenuKey   = styleMenu.Bold(true).Foreground(color.Yellow)
+	styleRemoved   = tcell.StyleDefault.Foreground(color.Red)
+	styleAdded     = tcell.StyleDefault.Foreground(color.Green)
+	styleYourNote  = tcell.StyleDefault.Foreground(color.Yellow)
+	styleAgentNote = tcell.StyleDefault.Foreground(color.Teal)
+	styleError     = tcell.StyleDefault.Foreground(color.Red)
+	styleWarning   = tcell.StyleDefault.Foreground(color.Yellow)
+	styleInfo      = tcell.StyleDefault.Foreground(color.Teal)
 )
 
 func diagStyle(severity int) tcell.Style {

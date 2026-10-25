@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/gdamore/tcell/v3"
+	"github.com/gdamore/tcell/v3/color"
 	"github.com/synthlike/hiss/internal/syntax"
 	"github.com/synthlike/hiss/internal/text"
 )
@@ -12,11 +13,11 @@ import (
 const maxLexPrefix = 512 << 10
 
 var syntaxStyles = map[syntax.Kind]tcell.Style{
-	syntax.Comment:  tcell.StyleDefault.Foreground(tcell.ColorGray),
-	syntax.String:   tcell.StyleDefault.Foreground(tcell.ColorOlive),
-	syntax.Number:   tcell.StyleDefault.Foreground(tcell.ColorPurple),
-	syntax.Keyword:  tcell.StyleDefault.Foreground(tcell.ColorBlue),
-	syntax.Heading:  tcell.StyleDefault.Foreground(tcell.ColorBlue).Bold(true),
+	syntax.Comment:  tcell.StyleDefault.Foreground(color.Gray),
+	syntax.String:   tcell.StyleDefault.Foreground(color.Olive),
+	syntax.Number:   tcell.StyleDefault.Foreground(color.Purple),
+	syntax.Keyword:  tcell.StyleDefault.Foreground(color.Blue),
+	syntax.Heading:  tcell.StyleDefault.Foreground(color.Blue).Bold(true),
 	syntax.Strong:   tcell.StyleDefault.Bold(true),
 	syntax.Emphasis: tcell.StyleDefault.Italic(true),
 }

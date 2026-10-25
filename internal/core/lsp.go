@@ -109,8 +109,7 @@ func (b *Buffer) shadow() sentText {
 			s.spans = append(s.spans, span{p, p.Start, p.End, len(p.New)})
 		}
 	}
-	for i := len(s.spans) - 1; i >= 0; i-- { // from the end, so earlier offsets hold
-		sp := s.spans[i]
+	for _, sp := range slices.Backward(s.spans) { // from the end, so earlier offsets hold
 		s.text = s.text.Replace(sp.start, sp.end, []byte(sp.p.New), text.Origin{})
 	}
 	return s

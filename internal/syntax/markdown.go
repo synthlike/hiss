@@ -51,10 +51,10 @@ func lexMarkdown(src []byte) []Span {
 // lexInline appends the inline spans of src[i:end], a single line.
 func lexInline(src []byte, i, end int, out []Span) []Span {
 	for i < end {
-		switch c := src[i]; {
-		case c == '\\':
+		switch c := src[i]; c {
+		case '\\':
 			i += 2
-		case c == '`':
+		case '`':
 			n := run(src, i, end)
 			close := bytes.Index(src[i+n:end], src[i:i+n])
 			if close < 0 {
@@ -63,7 +63,7 @@ func lexInline(src []byte, i, end int, out []Span) []Span {
 			}
 			out = append(out, Span{i, i + n + close + n, String})
 			i += n + close + n
-		case c == '*' || c == '_':
+		case '*', '_':
 			n := min(run(src, i, end), 2)
 			delim := src[i : i+n]
 			close := bytes.Index(src[i+n:end], delim)
@@ -78,7 +78,7 @@ func lexInline(src []byte, i, end int, out []Span) []Span {
 			}
 			out = append(out, Span{i, i + n + close + n, kind})
 			i += n + close + n
-		case c == '[':
+		case '[':
 			mid := bytes.Index(src[i:end], []byte("]("))
 			if mid < 0 {
 				i++

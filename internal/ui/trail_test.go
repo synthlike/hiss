@@ -37,7 +37,7 @@ func TestDrawTrail(t *testing.T) {
 		}
 	}
 
-	for _, k := range strings.Fields(": t c enter") {
+	for k := range strings.FieldsSeq(": t c enter") {
 		ed.HandleKey(k)
 	}
 	g = newGrid(40, 8)

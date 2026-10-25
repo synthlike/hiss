@@ -64,9 +64,9 @@ func drawAsk(s Screen, w, h int, q *core.Question) {
 // wrap breaks text into lines of at most width characters, at spaces.
 func wrap(text string, width int) []string {
 	var out []string
-	for _, para := range strings.Split(text, "\n") {
+	for para := range strings.SplitSeq(text, "\n") {
 		line := ""
-		for _, word := range strings.Fields(para) {
+		for word := range strings.FieldsSeq(para) {
 			switch {
 			case line == "":
 				line = word
