@@ -20,6 +20,7 @@ type sent struct {
 type fakeServer struct {
 	sent  []sent
 	locs  []lsp.Location // the answer to Definition and References
+	hls   []lsp.Range    // the answer to Highlights
 	asked []lsp.Position
 }
 
@@ -40,6 +41,11 @@ func (f *fakeServer) Definition(_ string, pos lsp.Position, _ time.Duration) ([]
 
 func (f *fakeServer) References(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error) {
 	return f.Definition(path, pos, timeout)
+}
+
+func (f *fakeServer) Highlights(_ string, pos lsp.Position, _ time.Duration) ([]lsp.Range, error) {
+	f.asked = append(f.asked, pos)
+	return f.hls, nil
 }
 
 func (f *fakeServer) UTF8() bool { return true }

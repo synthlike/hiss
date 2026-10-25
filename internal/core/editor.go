@@ -87,6 +87,7 @@ type Editor struct {
 	questions []*Question // agents' questions, oldest first, until their agents collect the answers
 	nextQ     int
 	servers   map[string]langServer // by language; nil if it failed to start
+	related   relatedState
 }
 
 func New(b *Buffer) *Editor {

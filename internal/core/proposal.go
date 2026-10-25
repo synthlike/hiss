@@ -190,6 +190,7 @@ type Hunk struct {
 	Above       []NoteLine
 	Notes       []NoteLine
 	AddedDiags  []AddedDiag // problems on Added lines
+	Related     []AddedSpan // related highlights on Added lines
 }
 
 // Below returns the number of diff lines drawn after the hunk's last line.
@@ -220,7 +221,11 @@ func (e *Editor) hunk(p *Proposal) Hunk {
 		h.Tweaked, h.Removed = true, diffLines(p, first, last, p.oldText())
 	} else {
 		h.Removes, h.Added = p.End > p.Start, diffLines(p, first, last, p.New)
-		h.AddedDiags = addedDiags(p, p.Start-t.LineStart(first), len(h.Added))
+		prefix := p.Start - t.LineStart(first)
+		h.AddedDiags = addedDiags(p, prefix, len(h.Added))
+		for _, r := range e.relatedIn(p) {
+			h.Related = append(h.Related, addedSpan(p, prefix, len(h.Added), r[0], r[1]))
+		}
 	}
 	return h
 }

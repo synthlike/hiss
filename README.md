@@ -86,6 +86,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 - In Go files, gopls's diagnostics are marked in the gutter and underlined; the
   cursor line's message shows below, and `]d` / `[d` go to the next / previous.
   `gd` goes to a definition and `gr` lists references, also from proposed lines.
+  Resting the cursor on a name highlights its other uses; on `func` or
+  `return`, the function's returns.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

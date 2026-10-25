@@ -206,7 +206,40 @@ func (c *Client) References(path string, pos Position, timeout time.Duration) ([
 		"context": map[string]any{"includeDeclaration": true}}, timeout)
 }
 
+// Highlights asks which ranges in path relate to the symbol or keyword at
+// pos: other uses of an identifier, or a function's results and returns.
+// It waits up to timeout for the answer.
+func (c *Client) Highlights(path string, pos Position, timeout time.Duration) ([]Range, error) {
+	r, err := c.wait("textDocument/documentHighlight", map[string]any{
+		"textDocument": map[string]any{"uri": URI(path)}, "position": pos}, timeout)
+	if err != nil {
+		return nil, err
+	}
+	var hs []struct {
+		Range Range `json:"range"`
+	}
+	if res := bytes.TrimSpace(r); len(res) > 0 && string(res) != "null" {
+		if err := json.Unmarshal(res, &hs); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]Range, len(hs))
+	for i, h := range hs {
+		out[i] = h.Range
+	}
+	return out, nil
+}
+
 func (c *Client) locations(method string, params any, timeout time.Duration) ([]Location, error) {
+	r, err := c.wait(method, params, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return parseLocations(r)
+}
+
+// wait sends a request and waits up to timeout for its result.
+func (c *Client) wait(method string, params any, timeout time.Duration) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var r reply
@@ -217,10 +250,7 @@ func (c *Client) locations(method string, params any, timeout time.Duration) ([]
 	case <-ctx.Done():
 		return nil, errors.New("no answer from the language server")
 	}
-	if r.err != nil {
-		return nil, r.err
-	}
-	return parseLocations(r.result)
+	return r.result, r.err
 }
 
 // parseLocations reads a result that is null, a Location, or a list of
@@ -366,6 +396,7 @@ func (c *Client) handshake() error {
 				"publishDiagnostics": map[string]any{"versionSupport": true},
 				"definition":         map[string]any{},
 				"references":         map[string]any{},
+				"documentHighlight":  map[string]any{},
 			},
 		},
 	}))

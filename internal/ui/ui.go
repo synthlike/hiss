@@ -31,6 +31,7 @@ var (
 	styleDim       = tcell.StyleDefault.Dim(true)
 	styleSel       = tcell.StyleDefault.Background(color.Navy)
 	styleMatch     = tcell.StyleDefault.Background(color.Olive).Foreground(color.Black)
+	styleRelated   = tcell.StyleDefault.Background(tcell.NewRGBColor(0x44, 0x44, 0x44)) // only its background is used
 	styleMenu      = tcell.StyleDefault.Background(color.DarkSlateGray)
 	styleMenuKey   = styleMenu.Bold(true).Foreground(color.Yellow)
 	styleRemoved   = tcell.StyleDefault.Foreground(color.Red)
@@ -78,6 +79,7 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 			scr.Beep()
 		}
 		ed.SyncLSP()
+		ed.UpdateRelated()
 		scr.Clear()
 		Draw(scr, ed)
 		scr.Show()
@@ -149,10 +151,8 @@ func Draw(s Screen, ed *core.Editor) {
 	}
 	from, to := ed.SelRange()
 	matches := ed.Matches(t.LineStart(ed.Top), ed.Buf.LineEnd(min(ed.Top+h, t.LineCount()-1)))
-	inMatch := func(off int) bool {
-		i := sort.Search(len(matches), func(i int) bool { return matches[i][1] > off })
-		return i < len(matches) && matches[i][0] <= off
-	}
+	inMatch := func(off int) bool { return inSpans(matches, off) }
+	related := ed.Related()
 	diags := ed.Buf.Diags()
 	lineSeverity := map[int]int{} // the most severe diagnostic starting on each line
 	for _, d := range diags {
@@ -203,7 +203,7 @@ func Draw(s Screen, ed *core.Editor) {
 				for i, a := range hk.Removed { // a tweaked hunk's old lines
 					if visible() {
 						onIt := line == curLine && i-len(hk.Removed) == diffRow
-						drawDiffLine(s, row, w, "-", a, styleRemoved, onIt, nil)
+						drawDiffLine(s, row, w, "-", a, styleRemoved, onIt, nil, nil)
 						row++
 					}
 				}
@@ -238,8 +238,13 @@ func Draw(s Screen, ed *core.Editor) {
 					st = styleSel
 				case inMatch(off):
 					st = styleMatch
-				case base == styleText:
-					st = syn(off) // plain lines get syntax colours; diff lines keep theirs
+				default:
+					if base == styleText {
+						st = syn(off) // plain lines get syntax colours; diff lines keep theirs
+					}
+					if inSpans(related, off) {
+						st = st.Background(styleRelated.GetBackground())
+					}
 				}
 				if sev := diagAt(off); sev != 0 {
 					st = underline(st, sev)
@@ -254,7 +259,8 @@ func Draw(s Screen, ed *core.Editor) {
 		if hunk != nil && line == hunk.Last {
 			for i, a := range hunk.Added {
 				if visible() {
-					drawDiffLine(s, row, w, "+", a, styleAdded, line == curLine && i+1 == diffRow, rowDiags(hunk.AddedDiags, i))
+					drawDiffLine(s, row, w, "+", a, styleAdded, line == curLine && i+1 == diffRow,
+						rowDiags(hunk.AddedDiags, i), rowSpans(hunk.Related, i))
 					row++
 				}
 			}
@@ -362,8 +368,9 @@ func Draw(s Screen, ed *core.Editor) {
 
 // drawDiffLine draws a diff line that isn't in the buffer, reversed when the
 // cursor is on it.
-// diags are the line's problems, marked after mark and underlined.
-func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, cursor bool, diags []core.AddedDiag) {
+// diags are the line's problems, marked after mark and underlined; related
+// are the columns of its related highlights.
+func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, cursor bool, diags []core.AddedDiag, related [][2]int) {
 	if cursor {
 		st = st.Reverse(true)
 	}
@@ -386,11 +393,33 @@ func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, curso
 		s.Put(1, row, diagMark(sev), diagStyle(sev)) // the mark column holds the + already
 	}
 	drawText(s, gutter, row, w, text, 0, func(col int) tcell.Style {
+		st := st
+		if !cursor && inSpans(related, col) {
+			st = st.Background(styleRelated.GetBackground())
+		}
 		if sev := sevAt(col); sev != 0 {
 			return underline(st, sev)
 		}
 		return st
 	})
+}
+
+// inSpans reports whether off is in one of the sorted [start, end) ranges.
+func inSpans(spans [][2]int, off int) bool {
+	i := sort.Search(len(spans), func(i int) bool { return spans[i][1] > off })
+	return i < len(spans) && spans[i][0] <= off
+}
+
+// rowSpans returns the columns of the spans on Added line row, sorted.
+func rowSpans(ss []core.AddedSpan, row int) [][2]int {
+	var out [][2]int
+	for _, s := range ss {
+		if s.Row == row {
+			out = append(out, [2]int{s.Start, s.End})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i][0] < out[j][0] })
+	return out
 }
 
 // rowDiags returns the problems on Added line row.

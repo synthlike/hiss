@@ -227,6 +227,35 @@ func TestLocations(t *testing.T) {
 	}
 }
 
+func TestHighlights(t *testing.T) {
+	c, s := newFake(t, nil)
+	s.initialize("utf-8")
+	type result struct {
+		hs  []Range
+		err error
+	}
+	got := make(chan result, 1)
+	go func() {
+		hs, err := c.Highlights("/proj/a.go", Position{1, 2}, 2*time.Second)
+		got <- result{hs, err}
+	}()
+	m := s.expect("textDocument/documentHighlight")
+	rng := map[string]any{"start": map[string]any{"line": 4, "character": 5}, "end": map[string]any{"line": 4, "character": 6}}
+	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": []any{map[string]any{"range": rng, "kind": 2}}})
+	if r := <-got; r.err != nil || len(r.hs) != 1 || r.hs[0].Start != (Position{4, 5}) {
+		t.Errorf("Highlights = %+v, %v", r.hs, r.err)
+	}
+	go func() {
+		hs, err := c.Highlights("/proj/a.go", Position{}, 2*time.Second)
+		got <- result{hs, err}
+	}()
+	m = s.expect("textDocument/documentHighlight")
+	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": nil})
+	if r := <-got; r.err != nil || len(r.hs) != 0 {
+		t.Errorf("Highlights for null = %+v, %v", r.hs, r.err)
+	}
+}
+
 func TestLocationsTimeOut(t *testing.T) {
 	c, s := newFake(t, nil)
 	s.initialize("utf-8")
@@ -319,5 +348,9 @@ func TestGoplsDefinition(t *testing.T) {
 	locs, err = c.References(path, Position{4, 5}, 30*time.Second)
 	if err != nil || len(locs) != 2 {
 		t.Errorf("References = %+v, %v", locs, err)
+	}
+	hs, err := c.Highlights(path, Position{2, 0}, 30*time.Second) // func: itself and its return
+	if err != nil || len(hs) != 2 {
+		t.Errorf("Highlights = %+v, %v", hs, err)
 	}
 }

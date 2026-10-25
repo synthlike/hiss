@@ -20,6 +20,7 @@ type langServer interface {
 	Change(path string, version int, t text.Text)
 	Definition(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error)
 	References(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error)
+	Highlights(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Range, error)
 	Shutdown(timeout time.Duration)
 	UTF8() bool
 	Err() error
@@ -278,26 +279,35 @@ func offset(t text.Text, p lsp.Position, utf8 bool) int {
 
 // addedDiags places p's diagnostics on its hunk's Added lines, which start
 // with the first line's text before p (prefix bytes) and hold rows lines.
-// A diagnostic running over several lines is marked on its first.
 func addedDiags(p *Proposal, prefix, rows int) []AddedDiag {
 	var out []AddedDiag
 	for _, d := range p.diags {
-		before := p.New[:d.start]
-		row := strings.Count(before, "\n")
-		col := d.start - (strings.LastIndex(before, "\n") + 1)
-		if row == 0 {
-			col += prefix
-		}
-		if row >= rows {
-			row, col = rows-1, 0 // on a final newline the hunk doesn't draw
-		}
-		n := d.end - d.start
-		if i := strings.IndexByte(p.New[d.start:d.end], '\n'); i >= 0 {
-			n = i
-		}
-		out = append(out, AddedDiag{d.Problem, row, col, col + n})
+		s := addedSpan(p, prefix, rows, d.start, d.end)
+		out = append(out, AddedDiag{d.Problem, s.Row, s.Start, s.End})
 	}
 	return out
+}
+
+// AddedSpan is byte columns [Start, End) of a hunk's Added line Row.
+type AddedSpan struct{ Row, Start, End int }
+
+// addedSpan places [start, end) of p's new text on its hunk's Added lines,
+// as addedDiags does. A range running over several lines is marked on its first.
+func addedSpan(p *Proposal, prefix, rows, start, end int) AddedSpan {
+	before := p.New[:start]
+	row := strings.Count(before, "\n")
+	col := start - (strings.LastIndex(before, "\n") + 1)
+	if row == 0 {
+		col += prefix
+	}
+	if row >= rows {
+		row, col = rows-1, 0 // on a final newline the hunk doesn't draw
+	}
+	n := end - start
+	if i := strings.IndexByte(p.New[start:end], '\n'); i >= 0 {
+		n = i
+	}
+	return AddedSpan{row, col, col + n}
 }
 
 // DiagAtCursor returns the problem to show for the cursor. On a proposed
