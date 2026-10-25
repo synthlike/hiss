@@ -208,6 +208,7 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"b", "buffers", (*Editor).openBufferPicker},
 	{"h", "hunks", (*Editor).openHunkPicker},
 	{"t", "steps", (*Editor).openTrailPicker},
+	{"s", "symbols", (*Editor).openSymbolPicker},
 }}
 
 func (e *Editor) toggleSelect() {

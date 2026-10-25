@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -106,6 +107,41 @@ func TestLookupDroppedWhenMovedOn(t *testing.T) {
 	run()
 	if e.Picker != nil {
 		t.Error("a late answer opened a picker after the cursor moved")
+	}
+}
+
+func TestSymbolPicker(t *testing.T) {
+	e := newGoEditor(t, "package a\n\ntype T struct{ A int }\n\nfunc f() {}\n// end\n")
+	f, run := lookupLSP(t, e)
+	p := propose(t, e, "// end\n", "// end\n\nfunc g() {}\n")
+	f.syms = []lsp.Symbol{
+		{Name: "T", Kind: 23, Range: rng(2, 5, 6)},
+		{Name: "T.A", Kind: 8, Range: rng(2, 16, 17)},
+		{Name: "f", Kind: 12, Range: rng(4, 5, 6)},
+		{Name: "g", Kind: 12, Range: rng(7, 5, 6)}, // only in the proposal
+	}
+	keys(e, "space s")
+	run()
+	if e.Picker == nil {
+		t.Fatalf("no picker; msg %q", e.Msg)
+	}
+	ms := e.Picker.Matches()
+	want := []string{"T struct", "T.A field", "f function", fmt.Sprintf("g function (#%d)", p.ID)}
+	if len(ms) != len(want) {
+		t.Fatalf("items %+v", ms)
+	}
+	for i, m := range ms {
+		if got := m.Label + " " + m.Detail; got != want[i] {
+			t.Errorf("item %d = %q, want %q", i, got, want[i])
+		}
+	}
+	keys(e, "down enter")
+	if e.Sel.Head != 27 {
+		t.Errorf("cursor at %d, want 27 (A)", e.Sel.Head)
+	}
+	keys(e, "C-o")
+	if e.Sel.Head != 0 {
+		t.Errorf("C-o went to %d, want 0", e.Sel.Head)
 	}
 }
 

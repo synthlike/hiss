@@ -21,6 +21,7 @@ type langServer interface {
 	Definition(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error)
 	References(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Location, error)
 	Highlights(path string, pos lsp.Position, timeout time.Duration) ([]lsp.Range, error)
+	Symbols(path string, timeout time.Duration) ([]lsp.Symbol, error)
 	Shutdown(timeout time.Duration)
 	UTF8() bool
 	Err() error

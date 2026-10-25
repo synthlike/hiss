@@ -1,7 +1,8 @@
 // Package lsp is a small Language Server Protocol client. It starts a server,
 // keeps open documents in sync by sending their full text, reports the
-// diagnostics the server publishes, and asks for definitions and references.
-// Nothing else: no completion, no rename.
+// diagnostics the server publishes, and asks about symbols: definitions,
+// references, highlights and a file's outline. Nothing else: no completion,
+// no rename.
 package lsp
 
 import (
@@ -71,6 +72,27 @@ type Diagnostic struct {
 type Location struct {
 	Path  string
 	Range Range
+}
+
+// Symbol is a named thing in a document, such as a function or a field.
+// Name includes its containers' names, as in T.Field; Range is the name's.
+type Symbol struct {
+	Name  string
+	Kind  int
+	Range Range
+}
+
+var kinds = [...]string{"", "file", "module", "namespace", "package", "class", "method",
+	"property", "field", "constructor", "enum", "interface", "function", "variable",
+	"constant", "string", "number", "boolean", "array", "object", "key", "null",
+	"enum member", "struct", "event", "operator", "type parameter"}
+
+// KindName names a symbol kind, such as "function"; "" if it is unknown.
+func KindName(kind int) string {
+	if kind < 0 || kind >= len(kinds) {
+		return ""
+	}
+	return kinds[kind]
 }
 
 // Diagnostics replaces all earlier diagnostics for a file.
@@ -227,6 +249,59 @@ func (c *Client) Highlights(path string, pos Position, timeout time.Duration) ([
 	for i, h := range hs {
 		out[i] = h.Range
 	}
+	return out, nil
+}
+
+// Symbols asks for the symbols in path, in the order the server lists them,
+// waiting up to timeout for the answer.
+func (c *Client) Symbols(path string, timeout time.Duration) ([]Symbol, error) {
+	r, err := c.wait("textDocument/documentSymbol", map[string]any{
+		"textDocument": map[string]any{"uri": URI(path)}}, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return parseSymbols(r)
+}
+
+// parseSymbols reads a result that is null or a list of DocumentSymbols,
+// which nest, or of SymbolInformation, which name their container.
+func parseSymbols(res json.RawMessage) ([]Symbol, error) {
+	type sym struct {
+		Name           string `json:"name"`
+		Kind           int    `json:"kind"`
+		SelectionRange *Range `json:"selectionRange"`
+		Children       []sym  `json:"children"`
+		Location       struct {
+			Range Range `json:"range"`
+		} `json:"location"`
+		ContainerName string `json:"containerName"`
+	}
+	var ss []sym
+	if res = bytes.TrimSpace(res); len(res) > 0 && string(res) != "null" {
+		if err := json.Unmarshal(res, &ss); err != nil {
+			return nil, err
+		}
+	}
+	var out []Symbol
+	var walk func(parent string, ss []sym)
+	walk = func(parent string, ss []sym) {
+		for _, s := range ss {
+			name, container := s.Name, parent
+			if container == "" {
+				container = s.ContainerName
+			}
+			if container != "" {
+				name = container + "." + name
+			}
+			r := s.Location.Range
+			if s.SelectionRange != nil {
+				r = *s.SelectionRange
+			}
+			out = append(out, Symbol{name, s.Kind, r})
+			walk(name, s.Children)
+		}
+	}
+	walk("", ss)
 	return out, nil
 }
 
@@ -397,6 +472,7 @@ func (c *Client) handshake() error {
 				"definition":         map[string]any{},
 				"references":         map[string]any{},
 				"documentHighlight":  map[string]any{},
+				"documentSymbol":     map[string]any{"hierarchicalDocumentSymbolSupport": true},
 			},
 		},
 	}))

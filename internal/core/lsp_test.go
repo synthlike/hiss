@@ -21,6 +21,7 @@ type fakeServer struct {
 	sent  []sent
 	locs  []lsp.Location // the answer to Definition and References
 	hls   []lsp.Range    // the answer to Highlights
+	syms  []lsp.Symbol   // the answer to Symbols
 	asked []lsp.Position
 }
 
@@ -47,6 +48,8 @@ func (f *fakeServer) Highlights(_ string, pos lsp.Position, _ time.Duration) ([]
 	f.asked = append(f.asked, pos)
 	return f.hls, nil
 }
+
+func (f *fakeServer) Symbols(string, time.Duration) ([]lsp.Symbol, error) { return f.syms, nil }
 
 func (f *fakeServer) UTF8() bool { return true }
 

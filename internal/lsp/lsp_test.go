@@ -256,6 +256,28 @@ func TestHighlights(t *testing.T) {
 	}
 }
 
+func TestParseSymbols(t *testing.T) {
+	sel := `"selectionRange":{"start":{"line":6,"character":5},"end":{"line":6,"character":6}}`
+	tree := `[{"name":"T","kind":23,` + sel + `,"children":[{"name":"A","kind":8,` + sel + `}]},{"name":"f","kind":12,` + sel + `}]`
+	syms, err := parseSymbols(json.RawMessage(tree))
+	if err != nil || len(syms) != 3 || syms[0].Name != "T" || syms[1].Name != "T.A" || syms[1].Kind != 8 ||
+		syms[2].Name != "f" || syms[0].Range.Start != (Position{6, 5}) {
+		t.Errorf("DocumentSymbols = %+v, %v", syms, err)
+	}
+	loc := `"location":{"uri":"file:///a.go","range":{"start":{"line":3,"character":1},"end":{"line":3,"character":2}}}`
+	flat := `[{"name":"A","kind":8,"containerName":"T",` + loc + `},{"name":"f","kind":12,` + loc + `}]`
+	syms, err = parseSymbols(json.RawMessage(flat))
+	if err != nil || len(syms) != 2 || syms[0].Name != "T.A" || syms[1].Name != "f" || syms[1].Range.Start != (Position{3, 1}) {
+		t.Errorf("SymbolInformation = %+v, %v", syms, err)
+	}
+	if syms, err := parseSymbols(json.RawMessage("null")); err != nil || len(syms) != 0 {
+		t.Errorf("null = %+v, %v", syms, err)
+	}
+	if KindName(12) != "function" || KindName(26) != "type parameter" || KindName(99) != "" {
+		t.Error("KindName is off")
+	}
+}
+
 func TestLocationsTimeOut(t *testing.T) {
 	c, s := newFake(t, nil)
 	s.initialize("utf-8")
@@ -352,5 +374,9 @@ func TestGoplsDefinition(t *testing.T) {
 	hs, err := c.Highlights(path, Position{2, 0}, 30*time.Second) // func: itself and its return
 	if err != nil || len(hs) != 2 {
 		t.Errorf("Highlights = %+v, %v", hs, err)
+	}
+	syms, err := c.Symbols(path, 30*time.Second)
+	if err != nil || len(syms) != 2 || syms[0].Name != "f" || KindName(syms[1].Kind) != "function" {
+		t.Errorf("Symbols = %+v, %v", syms, err)
 	}
 }

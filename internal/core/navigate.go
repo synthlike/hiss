@@ -14,9 +14,9 @@ import (
 )
 
 // gd and gr ask the language server about the symbol under the cursor, which
-// may be on a proposed line. The server sees buffers with their pending
-// proposals applied (see SyncLSP), so positions are mapped into the sent text
-// and the answers back out of it. Waiting happens on a goroutine; the answer
+// may be on a proposed line; space s lists the file's symbols. The server
+// sees buffers with their pending proposals applied (see SyncLSP), so
+// positions are mapped into the sent text and the answers back out of it. Waiting happens on a goroutine; the answer
 // is dropped if the user has moved on by the time it arrives.
 
 // lookupTimeout bounds the wait; gopls can be slow while it loads a workspace.
@@ -25,27 +25,48 @@ const lookupTimeout = 10 * time.Second
 func (e *Editor) gotoDefinition() { e.lookup("definition") }
 func (e *Editor) findReferences() { e.lookup("references") }
 
-func (e *Editor) lookup(what string) {
+// bufServer syncs the buffer on screen with its language server and returns
+// the server and the text it now has. Without a server it says why and
+// returns nil.
+func (e *Editor) bufServer() (langServer, sentText) {
 	b := e.Buf
 	srv, ok := lsp.For(b.Path)
 	if b.Path == "" || !ok {
 		e.Msg = "no language server for this file"
-		return
+		return nil, sentText{}
 	}
 	if e.Post == nil {
-		return
+		return nil, sentText{}
 	}
 	e.SyncLSP()
 	c := e.servers[srv.Lang]
 	if c == nil || !b.lspOpen {
 		e.Msg = srv.Cmd[0] + " isn't available"
-		return
+		return nil, sentText{}
 	}
 	if err := c.Err(); err != nil {
 		e.Msg = "the language server stopped: " + err.Error()
+		return nil, sentText{}
+	}
+	return c, b.sent[len(b.sent)-1]
+}
+
+// unmoved returns a check that the user is still where they were: same
+// buffer, cursor and mode, and nothing open over the text.
+func (e *Editor) unmoved() func(*Editor) bool {
+	b, sel, row, mode := e.Buf, e.Sel, e.row, e.Mode
+	return func(e *Editor) bool {
+		return e.Buf == b && e.Sel == sel && e.row == row && e.Mode == mode &&
+			e.Picker == nil && e.Menu == nil && e.Asking == nil
+	}
+}
+
+func (e *Editor) lookup(what string) {
+	c, s := e.bufServer()
+	if c == nil {
 		return
 	}
-	s := b.sent[len(b.sent)-1] // the buffer as it is now, after SyncLSP
+	b := e.Buf
 	off, ok := e.sentCursor(s)
 	if !ok {
 		e.Msg = "old lines aren't in the file the language server sees"
@@ -59,7 +80,7 @@ func (e *Editor) lookup(what string) {
 			sent[x.Path] = x.sent[len(x.sent)-1]
 		}
 	}
-	sel, row, mode := e.Sel, e.row, e.Mode
+	still := e.unmoved()
 	go func() {
 		var locs []lsp.Location
 		var err error
@@ -69,10 +90,9 @@ func (e *Editor) lookup(what string) {
 			locs, err = c.Definition(b.Path, pos, lookupTimeout)
 		}
 		e.Post(func(e *Editor) {
-			if e.Buf != b || e.Sel != sel || e.row != row || e.Mode != mode || e.Picker != nil || e.Menu != nil || e.Asking != nil {
-				return // the user moved on
+			if still(e) {
+				e.showLocations(what, locs, err, sent, utf8)
 			}
-			e.showLocations(what, locs, err, sent, utf8)
 		})
 	}()
 }
@@ -241,6 +261,47 @@ func (e *Editor) showLocations(what string, locs []lsp.Location, err error, sent
 	if len(p.Items) == 0 {
 		e.Msg = "no " + what + " found"
 		return
+	}
+	e.Picker = p
+}
+
+// openSymbolPicker lists the buffer's symbols as the server sees them, with
+// pending proposals applied; enter jumps to one.
+func (e *Editor) openSymbolPicker() {
+	c, s := e.bufServer()
+	if c == nil {
+		return
+	}
+	path, utf8, still := e.Buf.Path, c.UTF8(), e.unmoved()
+	sent := map[string]sentText{path: s}
+	go func() {
+		syms, err := c.Symbols(path, lookupTimeout)
+		e.Post(func(e *Editor) {
+			if still(e) {
+				e.showSymbols(path, syms, err, sent, utf8)
+			}
+		})
+	}()
+}
+
+func (e *Editor) showSymbols(path string, syms []lsp.Symbol, err error, sent map[string]sentText, utf8 bool) {
+	switch {
+	case err != nil:
+		e.Msg = "symbols: " + err.Error()
+		return
+	case len(syms) == 0:
+		e.Msg = "no symbols"
+		return
+	}
+	p := &Picker{Title: "symbols"}
+	for _, sym := range syms {
+		l := lsp.Location{Path: path, Range: sym.Range}
+		detail := lsp.KindName(sym.Kind)
+		if pl := e.where(l, sent, utf8, nil); pl.prop != nil {
+			detail += fmt.Sprintf(" (#%d)", pl.prop.ID)
+		}
+		p.Items = append(p.Items, PickItem{Label: sym.Name, Detail: detail,
+			Run: func(e *Editor) { e.goPlace(e.where(l, sent, utf8, nil)) }})
 	}
 	e.Picker = p
 }
