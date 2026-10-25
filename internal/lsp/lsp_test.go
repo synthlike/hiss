@@ -178,6 +178,16 @@ func TestShutdown(t *testing.T) {
 	}
 }
 
+func TestShutdownGivesUp(t *testing.T) {
+	c, s := newFake(t, nil)
+	s.initialize("utf-8")
+	start := time.Now()
+	c.Shutdown(100 * time.Millisecond) // the server never answers
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("Shutdown took %v with a 100ms timeout", d)
+	}
+}
+
 func TestURIRoundTrip(t *testing.T) {
 	for _, p := range []string{"/a/b.go", "/with space/ü.go", "/x#y?.go"} {
 		if got := Path(URI(p)); got != p {

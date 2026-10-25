@@ -94,6 +94,47 @@ func TestDrawDiagnostics(t *testing.T) {
 	}
 }
 
+func TestDrawDiagnosticsOnHunk(t *testing.T) {
+	dir := t.TempDir()
+	b, err := core.Open(dir + "/a.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Text = text.New([]byte("package a\nfunc f() {}\n"), text.Origin{})
+	ed := core.New(b)
+	ed.Resize(40, 10)
+	if _, err := ed.ProposeEdit("claude", b.Path, "func f() {}", "func f() { x }", false, nil, "use x"); err != nil {
+		t.Fatal(err)
+	}
+	rng := lsp.Range{Start: lsp.Position{Line: 1, Character: 11}, End: lsp.Position{Line: 1, Character: 12}}
+	ed.SetDiagnostics(lsp.Diagnostics{Path: b.Path, Version: -1, UTF8: true, Diags: []lsp.Diagnostic{
+		{Range: rng, Severity: lsp.Error, Message: "undefined: x"}}})
+	ed.HandleKey("j")
+	g := newGrid(40, 10)
+	Draw(g, ed)
+	var plus int
+	for y := range 10 {
+		if strings.HasPrefix(g.row(y), "+") {
+			plus = y
+		}
+	}
+	if got := g.row(plus); got != "+●func f() { x }" {
+		t.Fatalf("proposed line = %q, want a mark after the +", got)
+	}
+	if g.styles[plus][13].GetUnderlineStyle() != tcell.UnderlineStyleCurly || g.styles[plus][12].HasUnderline() {
+		t.Error("only x should be underlined")
+	}
+	if got := g.row(9); !strings.HasPrefix(got, "#1 claude: use x") {
+		t.Errorf("message line on the old line = %q, want the hunk's info", got)
+	}
+	ed.HandleKey("j")
+	g = newGrid(40, 10)
+	Draw(g, ed)
+	if got := g.row(9); got != "undefined: x" {
+		t.Errorf("message line on the proposed line = %q, want its problem", got)
+	}
+}
+
 func TestKeyName(t *testing.T) {
 	cases := []struct {
 		ev   *tcell.EventKey

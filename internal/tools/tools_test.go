@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,7 +19,19 @@ import (
 // a bridge server, mirroring `hiss` plus `hiss mcp`.
 func setup(t *testing.T, content string) (*mcp.ClientSession, chan<- func(*core.Editor)) {
 	t.Helper()
+	return setupWith(t, content, false)
+}
+
+// setupWith is setup, optionally running gopls on the project as hiss does:
+// main.go is in a module, and the loop syncs buffers after every request.
+func setupWith(t *testing.T, content string, withLSP bool) (*mcp.ClientSession, chan<- func(*core.Editor)) {
+	t.Helper()
 	root := t.TempDir()
+	if withLSP {
+		if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module m\n\ngo 1.21\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	path := filepath.Join(root, "main.go")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
@@ -32,13 +45,25 @@ func setup(t *testing.T, content string) (*mcp.ClientSession, chan<- func(*core.
 
 	reqs := make(chan func(*core.Editor))
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	stopped := make(chan struct{})
+	t.Cleanup(func() { cancel(); <-stopped })
+	if withLSP {
+		ed.Post = func(f func(*core.Editor)) {
+			select {
+			case reqs <- f:
+			case <-ctx.Done():
+			}
+		}
+	}
 	go func() { // the editor's event loop
+		defer close(stopped)
 		for {
 			select {
 			case f := <-reqs:
 				f(ed)
+				ed.SyncLSP()
 			case <-ctx.Done():
+				ed.StopLSP()
 				return
 			}
 		}
@@ -283,5 +308,40 @@ func TestStaleBaseVersionReachesAgent(t *testing.T) {
 	})
 	if !res.IsError || !strings.Contains(text(res), "changed this text") {
 		t.Errorf("IsError=%v %s", res.IsError, text(res))
+	}
+}
+
+func TestGetDiagnostics(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts gopls")
+	}
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls not installed")
+	}
+	cs, _ := setupWith(t, "package main\n\nfunc main() {\n\tprintln(1)\n}\n", true)
+	res := call(t, cs, "get_diagnostics", map[string]any{"path": "main.go"})
+	if out := structured[DiagnosticsOut](t, res); !out.UpToDate || len(out.Diagnostics) != 0 {
+		t.Fatalf("before proposing: %s", text(res))
+	}
+	call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "println(1)", "new_string": "println(1)\n\tundefinedThing()"})
+	res = call(t, cs, "get_diagnostics", map[string]any{"path": "main.go"})
+	out := structured[DiagnosticsOut](t, res)
+	if !out.UpToDate || len(out.Diagnostics) != 1 {
+		t.Fatalf("after proposing: %s", text(res))
+	}
+	d := out.Diagnostics[0]
+	if d.Proposal != 1 || d.Line != 2 || d.Column != 2 || d.Severity != "error" || !strings.Contains(d.Message, "undefinedThing") {
+		t.Errorf("diagnostic = %+v, want an error in proposal #1 at 2:2", d)
+	}
+	if !strings.Contains(text(res), "proposal #1, 2:2 error:") {
+		t.Errorf("text = %q", text(res))
+	}
+}
+
+func TestGetDiagnosticsWithoutServer(t *testing.T) {
+	cs, _ := setup(t, "")
+	res := call(t, cs, "get_diagnostics", map[string]any{"path": "notes.txt"})
+	if !res.IsError || !strings.Contains(text(res), "no language server for .txt") {
+		t.Errorf("got %s", text(res))
 	}
 }

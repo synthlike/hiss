@@ -2,6 +2,8 @@ package core
 
 import (
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +28,8 @@ func (f *fakeServer) Change(path string, version int, t text.Text) {
 }
 
 func (f *fakeServer) Shutdown(time.Duration) { f.sent = append(f.sent, sent{op: "shutdown"}) }
+
+func (f *fakeServer) Err() error { return nil }
 
 // fakeLSP makes the editor start f for every language, and runs posted work
 // right away.
@@ -61,7 +65,7 @@ func TestSyncLSP(t *testing.T) {
 	e.SyncLSP() // nothing changed
 	keys(e, "i x y esc")
 	e.SyncLSP()
-	want := []sent{{"open", 0, "package a\n"}, {"change", 2, "xypackage a\n"}}
+	want := []sent{{"open", 1, "package a\n"}, {"change", 2, "xypackage a\n"}}
 	if len(f.sent) != len(want) || f.sent[0] != want[0] || f.sent[1] != want[1] {
 		t.Errorf("sent %+v, want %+v", f.sent, want)
 	}
@@ -84,13 +88,13 @@ func TestDiagnostics(t *testing.T) {
 	e := newGoEditor(t, "package a\n")
 	_, diags := fakeLSP(t, e)
 	e.SyncLSP()
-	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Diags: []lsp.Diagnostic{
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 1, Diags: []lsp.Diagnostic{
 		{Severity: lsp.Error, Message: "a"}, {Severity: lsp.Error, Message: "b"},
 		{Severity: lsp.Warning, Message: "c"}, {Severity: lsp.Hint, Message: "d"}}})
 	if errs, warns := e.Buf.DiagCounts(); errs != 2 || warns != 1 {
 		t.Errorf("DiagCounts() = %d, %d; want 2, 1", errs, warns)
 	}
-	(*diags)(lsp.Diagnostics{Path: e.Buf.Path})
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 1})
 	if n := len(e.Buf.Diags()); n != 0 || len(e.Buf.anchors) != 0 {
 		t.Errorf("empty diagnostics left %d diagnostics and %d anchors", n, len(e.Buf.anchors))
 	}
@@ -108,10 +112,10 @@ func diagText(e *Editor, d *Diag) string {
 func TestDiagnosticsFollowEdits(t *testing.T) {
 	e := newGoEditor(t, "package a\nvar x = y\n")
 	_, diags := fakeLSP(t, e)
-	e.SyncLSP() // the server has version 0
+	e.SyncLSP() // the server has the text as 1
 	keys(e, "O / / space n e w esc")
-	e.SyncLSP() // and the edited text, but answers for version 0 first
-	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 0, UTF8: true, Diags: []lsp.Diagnostic{{Range: at(1, 8), Message: "undefined: y"}}})
+	e.SyncLSP() // and the edited text, but answers for 1 first
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 1, UTF8: true, Diags: []lsp.Diagnostic{{Range: at(1, 8), Message: "undefined: y"}}})
 	ds := e.Buf.Diags()
 	if len(ds) != 1 || diagText(e, ds[0]) != "y" || ds[0].Severity != lsp.Error {
 		t.Fatalf("diagnostics %+v, want one error on y", ds)
@@ -145,7 +149,7 @@ func TestDiagAtCursorAndJumps(t *testing.T) {
 	e := newGoEditor(t, "a b\nc\nd e\n")
 	_, diags := fakeLSP(t, e)
 	e.SyncLSP()
-	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 0, UTF8: true, Diags: []lsp.Diagnostic{
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 1, UTF8: true, Diags: []lsp.Diagnostic{
 		{Range: at(2, 2), Severity: lsp.Warning, Message: "warn e\nmore"},
 		{Range: at(0, 2), Severity: lsp.Hint, Message: "hint b"},
 		{Range: at(2, 0), Severity: lsp.Error, Message: "error d"}}})
@@ -171,5 +175,76 @@ func TestDiagAtCursorAndJumps(t *testing.T) {
 	keys(e, "C-o")
 	if line, _ := e.Cursor(); line != 0 {
 		t.Errorf("C-o after [d went to line %d, want 0", line)
+	}
+}
+
+func TestDiagnosticsOnPendingHunks(t *testing.T) {
+	e := newGoEditor(t, "package a\n\nfunc f() {}\n\nvar v = w\n")
+	f, diags := fakeLSP(t, e)
+	ps, err := e.ProposeEdit("claude", e.Buf.Path, "func f() {}", "func f() {\n\tx()\n}", false, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.SyncLSP()
+	shadow := "package a\n\nfunc f() {\n\tx()\n}\n\nvar v = w\n"
+	if got := f.sent[0].text; got != shadow {
+		t.Fatalf("the server got %q, want the text with the proposal applied", got)
+	}
+	if _, fresh, _ := e.Diagnostics(e.Buf.Path); fresh {
+		t.Error("fresh before the server answered")
+	}
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 1, UTF8: true, Diags: []lsp.Diagnostic{
+		{Range: at(3, 1), Severity: lsp.Error, Message: "undefined: x"},
+		{Range: at(6, 8), Severity: lsp.Error, Message: "undefined: w"}}})
+
+	if got := e.Buf.Diags(); len(got) != 1 || diagText(e, got[0]) != "w" {
+		t.Fatalf("buffer diagnostics %+v, want one on w, placed in the text without the proposal", got)
+	}
+	h := e.Hunks()[0]
+	if len(h.AddedDiags) != 1 || h.AddedDiags[0].Row != 1 || h.AddedDiags[0].Start != 1 || h.AddedDiags[0].End != 2 {
+		t.Fatalf("hunk diagnostics %+v, want one on x in the second proposed line", h.AddedDiags)
+	}
+	if errs, _ := e.Buf.DiagCounts(); errs != 2 {
+		t.Errorf("DiagCounts() errors = %d, want 2", errs)
+	}
+	keys(e, "] h")
+	if d := e.DiagAtCursor(); d != nil {
+		t.Errorf("on the hunk's old line: %+v, want none", d)
+	}
+	keys(e, "j j") // onto the second proposed line
+	if d := e.DiagAtCursor(); d == nil || d.Message != "undefined: x" {
+		t.Errorf("on the proposed line: %+v, want undefined: x", d)
+	}
+
+	ds, fresh, err := e.Diagnostics(e.Buf.Path)
+	if err != nil || !fresh {
+		t.Fatalf("Diagnostics: fresh %v, err %v", fresh, err)
+	}
+	want := []Diagnostic{
+		{Problem{lsp.Error, "undefined: w"}, 0, 5, 9},
+		{Problem{lsp.Error, "undefined: x"}, ps[0].ID, 2, 2},
+	}
+	if !slices.Equal(ds, want) {
+		t.Errorf("Diagnostics = %+v, want %+v", ds, want)
+	}
+
+	e.resolve(ps[0], false, "")
+	if _, fresh, _ := e.Diagnostics(e.Buf.Path); fresh {
+		t.Error("fresh after a rejection changed what the server should see")
+	}
+	e.SyncLSP()
+	if got := f.sent[len(f.sent)-1].text; got != "package a\n\nfunc f() {}\n\nvar v = w\n" {
+		t.Errorf("after rejecting, the server got %q", got)
+	}
+	(*diags)(lsp.Diagnostics{Path: e.Buf.Path, Version: 1, UTF8: true, Diags: []lsp.Diagnostic{{Range: at(3, 1)}}})
+	if n := len(e.Buf.Diags()); n != 0 {
+		t.Errorf("a late diagnostic in the rejected proposal landed in the buffer (%d)", n)
+	}
+}
+
+func TestDiagnosticsWithoutServer(t *testing.T) {
+	e := newEditor(t, "hello\n")
+	if _, _, err := e.Diagnostics(e.Buf.Path); err == nil || !strings.Contains(err.Error(), ".txt") {
+		t.Errorf("err = %v, want no server for .txt", err)
 	}
 }

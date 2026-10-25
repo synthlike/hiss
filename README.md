@@ -60,6 +60,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 - **Review it.** `+` accepts and saves. `-` rejects, asking for an optional reason
   to tell Claude.
 - **Tweak it.** Edit the green lines, then `+`. Claude is told what you changed.
+- **See what it breaks.** In Go files, gopls checks the code as if the pending
+  hunks were accepted: problems in a hunk show on its green lines, ones it
+  causes elsewhere on those lines. Claude can check its own with get_diagnostics.
 - **Discuss it.** `#` comments on the hunk or the line under the cursor; Claude
   replies inline or sends a revision, even after its turn has ended.
 - **Get a tour.** Ask "walk me through the auth flow": Claude shares a trail of

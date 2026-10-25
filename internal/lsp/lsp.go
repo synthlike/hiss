@@ -5,6 +5,7 @@ package lsp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -178,12 +179,13 @@ func (c *Client) Close(path string) {
 
 // Shutdown asks the server to exit, waiting up to timeout before killing it.
 func (c *Client) Shutdown(timeout time.Duration) {
-	deadline := time.After(timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout) // stays done, unlike a time.After channel
+	defer cancel()
 	select {
 	case <-c.call("shutdown", nil):
 		c.send(outgoing{build: func() any { return notification("exit", nil) }})
 	case <-c.dead:
-	case <-deadline:
+	case <-ctx.Done():
 	}
 	gone := c.exited // the process, or without one the server closing the connection
 	if gone == nil {
@@ -191,7 +193,7 @@ func (c *Client) Shutdown(timeout time.Duration) {
 	}
 	select {
 	case <-gone:
-	case <-deadline:
+	case <-ctx.Done():
 	}
 	c.kill()
 	c.fail(errors.New("shut down"))

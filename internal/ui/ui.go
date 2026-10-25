@@ -202,7 +202,7 @@ func Draw(s Screen, ed *core.Editor) {
 				for i, a := range hk.Removed { // a tweaked hunk's old lines
 					if visible() {
 						onIt := line == curLine && i-len(hk.Removed) == diffRow
-						drawDiffLine(s, row, w, "-", a, styleRemoved, onIt)
+						drawDiffLine(s, row, w, "-", a, styleRemoved, onIt, nil)
 						row++
 					}
 				}
@@ -223,11 +223,7 @@ func Draw(s Screen, ed *core.Editor) {
 		}
 		if visible() {
 			if sev := lineSeverity[line]; sev != 0 && mark == " " {
-				mark = "•"
-				if sev <= lsp.Warning {
-					mark = "●"
-				}
-				s.Put(0, row, mark, diagStyle(sev))
+				s.Put(0, row, diagMark(sev), diagStyle(sev))
 			} else {
 				s.Put(0, row, mark, base)
 			}
@@ -257,7 +253,7 @@ func Draw(s Screen, ed *core.Editor) {
 		if hunk != nil && line == hunk.Last {
 			for i, a := range hunk.Added {
 				if visible() {
-					drawDiffLine(s, row, w, "+", a, styleAdded, line == curLine && i+1 == diffRow)
+					drawDiffLine(s, row, w, "+", a, styleAdded, line == curLine && i+1 == diffRow, rowDiags(hunk.AddedDiags, i))
 					row++
 				}
 			}
@@ -323,11 +319,15 @@ func Draw(s Screen, ed *core.Editor) {
 		if ss := ed.Sessions(); len(ss) > 0 && ss[0].State == core.Waiting && ss[0].Note != "" {
 			putString(s, 0, h-1, "claude: "+ss[0].Note, styleDim)
 		}
-		if d := ed.DiagAtCursor(); d != nil {
+		d, hk := ed.DiagAtCursor(), ed.HunkAtCursor()
+		if hk != nil && d != nil && ed.DiffRow() <= 0 {
+			d = nil // on a hunk's own lines, its info wins; on its proposed lines, their problems
+		}
+		switch {
+		case d != nil:
 			fill(s, 0, h-1, w, styleText)
 			putString(s, 0, h-1, d.Summary(), diagStyle(d.Severity))
-		}
-		if hk := ed.HunkAtCursor(); hk != nil {
+		case hk != nil:
 			fill(s, 0, h-1, w, styleText)
 			info := fmt.Sprintf("#%d %s", hk.P.ID, hk.P.Agent)
 			if hk.P.Rationale != "" {
@@ -361,13 +361,54 @@ func Draw(s Screen, ed *core.Editor) {
 
 // drawDiffLine draws a diff line that isn't in the buffer, reversed when the
 // cursor is on it.
-func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, cursor bool) {
+// diags are the line's problems, marked after mark and underlined.
+func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, cursor bool, diags []core.AddedDiag) {
 	if cursor {
 		st = st.Reverse(true)
 	}
 	fill(s, 0, row, w, st)
 	s.Put(0, row, mark, st)
-	drawText(s, gutter, row, w, text, 0, func(int) tcell.Style { return st })
+	sevAt := func(col int) int {
+		sev := 0
+		for _, d := range diags {
+			if col >= d.Start && col < max(d.End, d.Start+1) && (sev == 0 || d.Severity < sev) {
+				sev = d.Severity
+			}
+		}
+		return sev
+	}
+	if len(diags) > 0 {
+		sev := diags[0].Severity
+		for _, d := range diags[1:] {
+			sev = min(sev, d.Severity)
+		}
+		s.Put(1, row, diagMark(sev), diagStyle(sev)) // the mark column holds the + already
+	}
+	drawText(s, gutter, row, w, text, 0, func(col int) tcell.Style {
+		if sev := sevAt(col); sev != 0 {
+			return underline(st, sev)
+		}
+		return st
+	})
+}
+
+// rowDiags returns the problems on Added line row.
+func rowDiags(ds []core.AddedDiag, row int) []core.AddedDiag {
+	var out []core.AddedDiag
+	for _, d := range ds {
+		if d.Row == row {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// diagMark is the gutter mark for a line's most severe problem.
+func diagMark(severity int) string {
+	if severity <= lsp.Warning {
+		return "●"
+	}
+	return "•"
 }
 
 // drawHunkNote draws a hunk's rationale or a comment in its review thread.

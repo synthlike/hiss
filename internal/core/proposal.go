@@ -39,8 +39,9 @@ type Proposal struct {
 	Edited    bool      // accepted after the user changed the proposed text
 	Final     string    // the accepted text, when Edited
 
-	old       []oldSpan // the text a tweak replaced
-	tweakUndo int       // undo depth just after the tweak's checkpoint
+	old       []oldSpan  // the text a tweak replaced
+	tweakUndo int        // undo depth just after the tweak's checkpoint
+	diags     []hunkDiag // the language server's problems in New
 }
 
 func (p *Proposal) origin() text.Origin {
@@ -188,6 +189,7 @@ type Hunk struct {
 	Removed     []string
 	Above       []NoteLine
 	Notes       []NoteLine
+	AddedDiags  []AddedDiag // problems on Added lines
 }
 
 // Below returns the number of diff lines drawn after the hunk's last line.
@@ -218,6 +220,7 @@ func (e *Editor) hunk(p *Proposal) Hunk {
 		h.Tweaked, h.Removed = true, diffLines(p, first, last, p.oldText())
 	} else {
 		h.Removes, h.Added = p.End > p.Start, diffLines(p, first, last, p.New)
+		h.AddedDiags = addedDiags(p, p.Start-t.LineStart(first), len(h.Added))
 	}
 	return h
 }

@@ -23,10 +23,12 @@ type Buffer struct {
 	pending []*Proposal // pending proposals, kept in step with edits
 	anchors []*anchor   // offsets other things point at, kept in step with edits
 
-	diags      []*Diag    // the language server's latest, by start
-	lspOpen    bool       // the language server has the buffer open
-	lspVersion int        // Version last sent to the language server
-	sent       []sentText // texts sent to the server, oldest first, for placing its diagnostics
+	diags   []*Diag    // the language server's latest outside pending proposals, by start
+	lspOpen bool       // the language server has the buffer open
+	lspKey  string     // syncKey when last sent
+	lspSeq  int        // document version last sent
+	diagSeq int        // document version the diagnostics are for
+	sent    []sentText // texts sent to the server, oldest first, for placing its diagnostics
 
 	sel        Selection
 	top        int

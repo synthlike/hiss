@@ -28,6 +28,8 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
   await_review before depending on a change (running tests, building on it).
   Accepted changes are saved to disk; for rejected ones, read the reason and
   adjust. A stale proposal means the user edited that text: re-read and retry.
+- After proposing code changes, check them with get_diagnostics; fix what they
+  break with a revision (supersedes) before the user reviews them.
 - If you end your turn with proposals still pending, you are woken when the
   user has reviewed them all; continue the task then.
 - The user may comment on a pending proposal. Comments arrive through
@@ -120,6 +122,7 @@ var all = []tool{
 	}, getProposals),
 	awaitReview,
 	awaitPoll,
+	diagnosticsTool,
 	replyTool,
 	showTrailTool,
 	askTool,
