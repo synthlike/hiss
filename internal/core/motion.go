@@ -268,6 +268,9 @@ func (e *Editor) cursorSub(above int) int {
 
 // scroll keeps the cursor line inside the visible rows.
 func (e *Editor) scroll() {
+	if e.screen > 0 {
+		e.Height = max(e.screen-2-e.PanelRows(), 1) // the status and message lines, and the output panel
+	}
 	if e.Height <= 0 {
 		return
 	}

@@ -126,7 +126,6 @@ func TestRuleParagraph(t *testing.T) {
 		t.Errorf("msg %q", e.Msg)
 	}
 
-	keys(e, "C-o")
 	gotoText(t, e, "lect")
 	if got := runOutput(t, e, ch, "v l l enter"); !strings.HasPrefix(got, "LEC\n") { // the selection, ending in a newline
 		t.Errorf("selection: %q", got)
@@ -135,7 +134,6 @@ func TestRuleParagraph(t *testing.T) {
 		t.Errorf("mode %s after running the selection", e.Mode)
 	}
 
-	keys(e, "C-o")
 	e.setHead(e.Buf.Text.LineStart(1)) // the blank line
 	keys(e, "enter")
 	if e.Msg != "no paragraph under the cursor" || e.runs.going != nil {
@@ -167,7 +165,7 @@ func TestRuleFind(t *testing.T) {
 	if h := e.runs.out.Text.String(); !strings.Contains(h, "  # $1=Alpha  # $2=n\n") {
 		t.Errorf("header: %q", h)
 	}
-	keys(e, "C-o g g enter")
+	keys(e, "g g enter")
 	if !strings.HasPrefix(e.Msg, "[found]: nothing above the cursor matches") {
 		t.Errorf("above every func: msg %q", e.Msg)
 	}
@@ -181,7 +179,6 @@ func TestRuleFences(t *testing.T) {
 	if !strings.HasPrefix(got, "HELLO\n\nWORLD\nline=6 name=n.md") {
 		t.Errorf("fence: %q", got)
 	}
-	keys(e, "C-o")
 	gotoText(t, e, "```go")
 	keys(e, "enter")
 	if e.Msg != "no rule in .hissrun for ```go blocks" {
@@ -255,7 +252,6 @@ func TestRuleSharesOnlyWhenAsked(t *testing.T) {
 		t.Errorf("reported a rule without share: %+v", r)
 	}
 	os.WriteFile(filepath.Join(e.Root, rulesFile), []byte("[s]\nmatch = *.txt\nshare = true\ncmd = cat\n"), 0o600)
-	keys(e, "C-o")
 	runOutput(t, e, ch, "enter")
 	if r := e.TakeRun("s1"); r == nil || r.Title != "s" || r.Tail != "a\n" {
 		t.Errorf("report %+v", r)

@@ -57,6 +57,7 @@ type Editor struct {
 	TopSub int    // rows of the Top line's block (notes above it, the line, its diff) scrolled past
 	Width  int    // columns, for wrapping review threads
 	Height int    // rows available for text
+	screen int    // rows of the whole screen
 	Cmd    string // command line contents in Command mode
 	Msg    string // one-line message for the user
 	Menu   *Menu  // open prefix menu, if any
@@ -98,8 +99,7 @@ func New(b *Buffer) *Editor {
 
 // Resize records the text area height and keeps the cursor visible.
 func (e *Editor) Resize(width, height int) {
-	e.Width = width
-	e.Height = max(height-2, 1) // status line and message line
+	e.Width, e.screen = width, height
 	e.scroll()
 }
 
@@ -152,7 +152,7 @@ var normalKeys = map[string]func(*Editor){
 	"x":   (*Editor).selectLine,
 	";":   func(e *Editor) { e.Sel.Anchor = e.Sel.Head },
 	"v":   (*Editor).toggleSelect,
-	"esc": func(e *Editor) { e.Mode, e.search.shown = Normal, false },
+	"esc": func(e *Editor) { e.Mode, e.search.shown, e.runs.panel = Normal, false, false },
 	"/":   (*Editor).startSearch,
 	"n":   func(e *Editor) { e.searchNext(1) },
 	"N":   func(e *Editor) { e.searchNext(-1) },
@@ -215,6 +215,7 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"s", "symbols", (*Editor).openSymbolPicker},
 	{"n", "notes", (*Editor).openNotePicker},
 	{"r", "saved runs", (*Editor).openRunPicker},
+	{"o", "output", (*Editor).openOutput},
 }}
 
 func (e *Editor) toggleSelect() {

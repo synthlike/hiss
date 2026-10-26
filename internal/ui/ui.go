@@ -171,8 +171,10 @@ func Draw(s Screen, ed *core.Editor) {
 		return sev
 	}
 	g := ed.Gutter() // a mark column, the line number and a space
+	panel := ed.PanelRows()
+	textH := h - 2 - panel // rows for text, above the panel and the status and message lines
 	row, line := 0, ed.Top
-	for row < h-2 {
+	for row < textH {
 		if line >= t.LineCount() {
 			s.Put(0, row, "~", styleDim)
 			row, line = row+1, line+1
@@ -186,7 +188,7 @@ func Draw(s Screen, ed *core.Editor) {
 		// visible reports whether to draw the block's next row.
 		visible := func() bool {
 			k++
-			return k > skip && row < h-2
+			return k > skip && row < textH
 		}
 		for _, hk := range hunks {
 			if hk.First == line {
@@ -304,6 +306,9 @@ func Draw(s Screen, ed *core.Editor) {
 			row++
 		}
 		line++
+	}
+	if panel > 0 {
+		drawPanel(s, w, textH, panel, ed)
 	}
 	if ed.Splash != "" && ed.Buf.Path == "" && t.Len() == 0 {
 		drawSplash(s, w, h-2, ed.Splash)
@@ -465,6 +470,25 @@ func diagMark(severity int) string {
 		return "●"
 	}
 	return "•"
+}
+
+// drawPanel draws the output panel's title on row y and the end of *out*
+// on the rows below it, rows in all.
+func drawPanel(s Screen, w, y, rows int, ed *core.Editor) {
+	title := " *out*"
+	if r := ed.Running(); r != "" {
+		title += "  " + r
+	}
+	keys := "space o opens, esc hides "
+	fill(s, 0, y, w, styleMenu)
+	putString(s, 0, y, title, styleMenu.Bold(true))
+	if len(title)+len(keys)+2 <= w {
+		putString(s, w-len(keys), y, keys, styleMenu)
+	}
+	for i, l := range ed.OutTail(rows - 1) {
+		fill(s, 0, y+1+i, w, styleText)
+		drawText(s, 1, y+1+i, w, l, 0, style(styleText))
+	}
 }
 
 // drawHunkNote draws a hunk's rationale or a comment in its review thread.

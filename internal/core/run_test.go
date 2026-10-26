@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -129,11 +130,11 @@ func TestRunGoTest(t *testing.T) {
 	e, ch := runEditor(t)
 	gotoText(t, e, `t.Log("fine")`)
 	keys(e, "enter")
-	if e.Buf.Name != outName || e.Running() != "running TestPass (C-c)" {
-		t.Fatalf("after enter: on %s, running %q, msg %q", e.Buf.Name, e.Running(), e.Msg)
+	if e.Buf.Name != "x_test.go" || e.Running() != "running TestPass (C-c)" || !e.runs.panel {
+		t.Fatalf("after enter: on %s, running %q, panel %v, msg %q", e.Buf.Name, e.Running(), e.runs.panel, e.Msg)
 	}
 	pump(t, e, ch, finished(e))
-	out := e.Buf.Text.String()
+	out := e.runs.out.Text.String()
 	for _, want := range []string{"$ go test -run '^TestPass$' -v .\n", "--- PASS: TestPass", "[ok, "} {
 		if !strings.Contains(out, want) {
 			t.Errorf("*out* lacks %q:\n%s", want, out)
@@ -142,17 +143,17 @@ func TestRunGoTest(t *testing.T) {
 	if !strings.HasPrefix(e.Msg, "TestPass: ok (") {
 		t.Errorf("msg %q", e.Msg)
 	}
-	if e.Buf.Dirty() {
+	if e.runs.out.Dirty() {
 		t.Error("*out* is dirty")
 	}
 
-	keys(e, "C-o") // back to the test file
 	gotoText(t, e, `t.Error("broken")`)
 	keys(e, "enter")
 	pump(t, e, ch, finished(e))
 	if !strings.HasPrefix(e.Msg, "TestFail: exit status 1 (") {
 		t.Errorf("msg %q", e.Msg)
 	}
+	keys(e, "space o")
 	gotoText(t, e, "x_test.go:13:")
 	keys(e, "enter")
 	if e.Buf.Name != "x_test.go" || e.line() != 12 {
@@ -160,12 +161,12 @@ func TestRunGoTest(t *testing.T) {
 	}
 
 	keys(e, ": r r enter") // from anywhere
-	if e.Buf.Name != outName || e.Running() == "" {
+	if e.Buf.Name != "x_test.go" || e.Running() == "" {
 		t.Fatalf(":rr: on %s, running %q, msg %q", e.Buf.Name, e.Running(), e.Msg)
 	}
 	pump(t, e, ch, finished(e))
-	if !strings.HasPrefix(e.Msg, "TestFail: exit status 1") || strings.Count(e.Buf.Text.String(), "$ go test") != 1 {
-		t.Errorf("rerun: msg %q, *out*:\n%s", e.Msg, e.Buf.Text.String())
+	if out := e.runs.out.Text.String(); !strings.HasPrefix(e.Msg, "TestFail: exit status 1") || strings.Count(out, "$ go test") != 1 {
+		t.Errorf("rerun: msg %q, *out*:\n%s", e.Msg, out)
 	}
 }
 
@@ -193,8 +194,8 @@ func TestRunWarnsAboutUnsavedFiles(t *testing.T) {
 	keys(e, "enter")
 	pump(t, e, ch, finished(e))
 	const w = "ran on disk, without 1 unsaved file"
-	if !strings.Contains(e.Buf.Text.String(), "# "+w+"\n") || !strings.HasSuffix(e.Msg, "; "+w) {
-		t.Errorf("msg %q, *out*:\n%s", e.Msg, e.Buf.Text.String())
+	if out := e.runs.out.Text.String(); !strings.Contains(out, "# "+w+"\n") || !strings.HasSuffix(e.Msg, "; "+w) {
+		t.Errorf("msg %q, *out*:\n%s", e.Msg, out)
 	}
 }
 
@@ -254,5 +255,49 @@ func TestRunReportTail(t *testing.T) {
 	r := e.TakeRun("s")
 	if !strings.HasPrefix(r.Tail, "line 10\n") || !strings.HasSuffix(r.Tail, "line 29\n") {
 		t.Errorf("tail %q", r.Tail)
+	}
+}
+
+func TestOutputPanel(t *testing.T) {
+	e := newEditor(t, strings.Repeat("line\n", 40))
+	e.Resize(80, 32) // 30 rows above the status and message lines
+	keys(e, "space o")
+	if e.Msg != "nothing run yet" {
+		t.Errorf("space o before a run: msg %q", e.Msg)
+	}
+	f := e.Buf
+	e.outBuffer()
+	e.appendOut("$ cmd\none\ntwo\nthree\n")
+	e.runs.panel = true
+	keys(e, "j")
+	if p := e.PanelRows(); p != 10 || e.Height != 20 {
+		t.Errorf("panel %d rows, text %d, want 10 and 20", p, e.Height)
+	}
+	if got := e.OutTail(2); !slices.Equal(got, []string{"two", "three"}) {
+		t.Errorf("tail %q", got)
+	}
+	keys(e, ": 4 0 enter") // the cursor stays above the panel
+	if rows := e.line() - e.Top + 1; e.line() != 39 || rows > e.Height {
+		t.Errorf("cursor line %d with top %d is under the panel", e.line(), e.Top)
+	}
+
+	keys(e, "space o")
+	if e.Buf != e.runs.out || e.PanelRows() != 0 || e.line() != 4 {
+		t.Errorf("space o: on %s line %d, panel %d", e.Buf.Name, e.line(), e.PanelRows())
+	}
+	keys(e, "C-o")
+	if e.Buf != f || e.PanelRows() != 0 || e.Height != 30 {
+		t.Errorf("back: on %s, panel %d, text %d; space o should have closed the panel", e.Buf.Name, e.PanelRows(), e.Height)
+	}
+	e.runs.panel = true
+	keys(e, "esc")
+	if e.PanelRows() != 0 || e.Height != 30 {
+		t.Errorf("esc: panel %d, text %d", e.PanelRows(), e.Height)
+	}
+
+	e.Resize(80, 7) // a short screen keeps three text rows
+	e.runs.panel = true
+	if p := e.PanelRows(); p != 2 {
+		t.Errorf("short screen: panel %d rows, want 2", p)
 	}
 }

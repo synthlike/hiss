@@ -20,7 +20,8 @@ import (
 // .hissrun says (see rules.go), or else the Go test it's in. The command runs
 // on a worker goroutine, and its output streams into the *out* buffer, where
 // Enter on a file:line goes there. One run at a time; C-c cancels it and
-// :rerun repeats the last.
+// :rerun repeats the last. The cursor stays put: the end of *out* shows in a
+// panel below the text until esc, and space o opens *out* itself.
 
 // outName names the buffer runs write to.
 const outName = "*out*"
@@ -43,7 +44,8 @@ type runState struct {
 	cancel context.CancelFunc // stops going
 	start  time.Time
 	out    *Buffer
-	header int // bytes of *out* before the output
+	header int  // bytes of *out* before the output
+	panel  bool // show the end of *out* below the text
 
 	report *RunReport     // the latest shared run
 	told   map[string]int // the Seq of the report each session was given
@@ -117,7 +119,7 @@ func (e *Editor) rerun() {
 	e.startRun(e.runs.last)
 }
 
-// startRun shows *out* and runs r into it.
+// startRun runs r into *out*, showing the panel unless *out* is on screen.
 func (e *Editor) startRun(r *run) {
 	if g := e.runs.going; g != nil {
 		e.Msg = g.title + " is still running (C-c cancels)"
@@ -138,12 +140,12 @@ func (e *Editor) startRun(r *run) {
 	out.Replace(0, out.Text.Len(), []byte(header), text.Origin{})
 	e.runs.header = len(header)
 	out.undo, out.redo = nil, nil
-	if e.Buf != out {
-		e.pushJump()
-		e.SwitchTo(out)
+	if e.Buf == out {
+		e.setHead(out.Text.LineStart(out.Text.LineCount() - 1))
+		e.Top, e.TopSub = 0, 0
+	} else {
+		e.runs.panel = true
 	}
-	e.setHead(out.Text.LineStart(out.Text.LineCount() - 1))
-	e.Top, e.TopSub = 0, 0
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e.runs.last, e.runs.going, e.runs.cancel, e.runs.start = r, r, cancel, e.now()
@@ -278,6 +280,46 @@ func (e *Editor) Running() string {
 		return "running " + g.title + " (C-c)"
 	}
 	return ""
+}
+
+// openOutput shows *out* in place of the panel, at its end.
+func (e *Editor) openOutput() {
+	out := e.runs.out
+	if out == nil {
+		e.Msg = "nothing run yet"
+		return
+	}
+	e.runs.panel = false
+	if e.Buf != out {
+		e.pushJump()
+		e.SwitchTo(e.outBuffer())
+	}
+	e.setHead(out.Text.LineStart(out.Text.LineCount() - 1))
+}
+
+// minText is the fewest text rows the panel leaves.
+const minText = 3
+
+// PanelRows returns the rows of the output panel, its title included, or 0
+// when it's hidden or *out* is on screen.
+func (e *Editor) PanelRows() int {
+	if !e.runs.panel || e.Buf == e.runs.out {
+		return 0
+	}
+	rows := min(max((e.screen-2)/3, 4), e.screen-2-minText)
+	if rows < 2 {
+		return 0
+	}
+	return rows
+}
+
+// OutTail returns *out*'s last n lines.
+func (e *Editor) OutTail(n int) []string {
+	if e.runs.out == nil || n <= 0 {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(e.runs.out.Text.String(), "\n"), "\n")
+	return lines[max(len(lines)-n, 0):]
 }
 
 // outBuffer returns *out*, creating it or putting it back in the buffer list.
