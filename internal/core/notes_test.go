@@ -4,9 +4,65 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
+
+func TestParseNote(t *testing.T) {
+	cases := []struct {
+		in   string
+		want noteLine
+	}{
+		{"2026-10-26  d372d90+  a/b.go:12  slow  here", noteLine{"2026-10-26", "d372d90+", "a/b.go", 12, "slow  here"}},
+		{"2026-10-26  b.go:3  no commit", noteLine{date: "2026-10-26", path: "b.go", line: 3, text: "no commit"}},
+		{"2026-10-26  d372d90  no location", noteLine{date: "2026-10-26", commit: "d372d90", text: "no location"}},
+		{"written by hand", noteLine{text: "written by hand"}},
+	}
+	for _, c := range cases {
+		if got := parseNote(c.in); got != c.want {
+			t.Errorf("%q: %+v, want %+v", c.in, got, c.want)
+		}
+	}
+}
+
+func TestNotePicker(t *testing.T) {
+	e := newEditor(t, "x\n")
+	e.Root = filepath.Dir(e.Buf.Path)
+	keys(e, "space n")
+	if e.Picker != nil || e.Msg != "no notes yet (:note <text> adds one)" {
+		t.Errorf("no notes: picker %v, msg %q", e.Picker != nil, e.Msg)
+	}
+	os.WriteFile(filepath.Join(e.Root, "g.go"), []byte("1\n2\n3\n"), 0o600)
+	os.MkdirAll(filepath.Join(e.Root, ".hiss"), 0o755)
+	notes := "2026-10-25  abcd123  g.go:2  older\n\n" +
+		"2026-10-26  abcd123+  g.go:9  past the end\n" +
+		"2026-10-26  gone.go:1  deleted\n"
+	os.WriteFile(filepath.Join(e.Root, notesFile), []byte(notes), 0o600)
+	keys(e, "space n")
+	if e.Picker == nil {
+		t.Fatalf("no picker: %q", e.Msg)
+	}
+	var got []string
+	for _, it := range e.Picker.Items {
+		got = append(got, it.Label+" "+it.Detail)
+	}
+	if want := []string{"gone.go:1 deleted", "g.go:9 past the end", "g.go:2 older"}; !slices.Equal(got, want) {
+		t.Errorf("items %q, want %q", got, want)
+	}
+	keys(e, "o l d enter")
+	if e.Buf.Name != "g.go" || e.line() != 1 {
+		t.Errorf("older: at %s line %d, want g.go line 1", e.Buf.Name, e.line())
+	}
+	keys(e, "space n p a s t enter")
+	if e.line() != 2 {
+		t.Errorf("past the end: line %d, want the last, 2", e.line())
+	}
+	keys(e, "space n d e l enter")
+	if e.Buf.Name != "g.go" || e.Msg != "gone.go doesn't exist any more" {
+		t.Errorf("deleted: at %s, msg %q", e.Buf.Name, e.Msg)
+	}
+}
 
 func readNotes(t *testing.T, e *Editor) string {
 	t.Helper()

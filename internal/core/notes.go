@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -81,4 +83,91 @@ func git(dir string, args ...string) (string, error) {
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
+}
+
+// noteLine is one line of the notes file, split into the fields :note writes.
+// Lines edited by hand keep whatever fields still parse; the rest is text.
+type noteLine struct {
+	date, commit, path string
+	line               int // 1-based; 0 without a location
+	text               string
+}
+
+func parseNote(s string) noteLine {
+	fs := strings.Split(s, "  ")
+	var n noteLine
+	if len(fs) > 1 {
+		n.date, fs = fs[0], fs[1:]
+	}
+	if len(fs) > 1 && isCommit(fs[0]) {
+		n.commit, fs = fs[0], fs[1:]
+	}
+	if len(fs) > 1 {
+		if i := strings.LastIndexByte(fs[0], ':'); i > 0 {
+			if l, err := strconv.Atoi(fs[0][i+1:]); err == nil && l > 0 {
+				n.path, n.line, fs = fs[0][:i], l, fs[1:]
+			}
+		}
+	}
+	n.text = strings.Join(fs, "  ")
+	return n
+}
+
+// isCommit reports whether s looks like a short hash, optionally with "+".
+func isCommit(s string) bool {
+	s = strings.TrimSuffix(s, "+")
+	return len(s) >= 4 && strings.Trim(s, "0123456789abcdef") == ""
+}
+
+// openNotePicker lists the notes file, newest first; enter goes to a note's
+// line as the file is now, which may have drifted since the note's commit.
+func (e *Editor) openNotePicker() {
+	if e.Root == "" {
+		e.Msg = "no project root"
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(e.Root, notesFile))
+	if err != nil && !os.IsNotExist(err) {
+		e.Msg = err.Error()
+		return
+	}
+	p := &Picker{Title: "notes"}
+	for _, s := range slices.Backward(strings.Split(string(data), "\n")) {
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
+		n := parseNote(s)
+		label := n.date
+		if n.line > 0 {
+			label = fmt.Sprintf("%s:%d", n.path, n.line)
+		}
+		p.Items = append(p.Items, PickItem{Label: label, Detail: n.text, Run: func(e *Editor) { e.goToNote(n) }})
+	}
+	if len(p.Items) == 0 {
+		e.Msg = "no notes yet (:note <text> adds one)"
+		return
+	}
+	e.Picker = p
+}
+
+func (e *Editor) goToNote(n noteLine) {
+	if n.line == 0 {
+		e.Msg = "this note has no location"
+		return
+	}
+	path := n.path
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(e.Root, path)
+	}
+	if _, err := os.Stat(path); err != nil && e.Find(path) == nil {
+		e.Msg = n.path + " doesn't exist any more"
+		return
+	}
+	e.openFile(path)
+	if e.Buf.Path != path {
+		return // it couldn't be opened; openFile said why
+	}
+	line := min(n.line-1, max(e.Buf.Lines()-1, 0))
+	e.setHead(e.Buf.Text.LineStart(line))
+	e.revealLine(line)
 }
