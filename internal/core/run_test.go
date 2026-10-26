@@ -117,6 +117,15 @@ func pump(t *testing.T, e *Editor, ch chan func(*Editor), done func() bool) {
 
 func finished(e *Editor) func() bool { return func() bool { return e.runs.going == nil } }
 
+// lastOut returns *out*'s last line: a finished run's status.
+func lastOut(e *Editor) string {
+	tail := e.OutTail(1)
+	if len(tail) == 0 {
+		return ""
+	}
+	return tail[0]
+}
+
 func gotoText(t *testing.T, e *Editor, s string) {
 	t.Helper()
 	i := strings.Index(e.Buf.Text.String(), s)
@@ -140,8 +149,8 @@ func TestRunGoTest(t *testing.T) {
 			t.Errorf("*out* lacks %q:\n%s", want, out)
 		}
 	}
-	if !strings.HasPrefix(e.Msg, "TestPass: ok (") {
-		t.Errorf("msg %q", e.Msg)
+	if !strings.HasPrefix(lastOut(e), "[ok, ") || e.Msg != "" { // the panel shows it
+		t.Errorf("status %q, msg %q", lastOut(e), e.Msg)
 	}
 	if e.runs.out.Dirty() {
 		t.Error("*out* is dirty")
@@ -150,8 +159,8 @@ func TestRunGoTest(t *testing.T) {
 	gotoText(t, e, `t.Error("broken")`)
 	keys(e, "enter")
 	pump(t, e, ch, finished(e))
-	if !strings.HasPrefix(e.Msg, "TestFail: exit status 1 (") {
-		t.Errorf("msg %q", e.Msg)
+	if !strings.HasPrefix(lastOut(e), "[exit status 1, ") {
+		t.Errorf("status %q", lastOut(e))
 	}
 	keys(e, "space o")
 	gotoText(t, e, "x_test.go:13:")
@@ -165,8 +174,8 @@ func TestRunGoTest(t *testing.T) {
 		t.Fatalf(":rr: on %s, running %q, msg %q", e.Buf.Name, e.Running(), e.Msg)
 	}
 	pump(t, e, ch, finished(e))
-	if out := e.runs.out.Text.String(); !strings.HasPrefix(e.Msg, "TestFail: exit status 1") || strings.Count(out, "$ go test") != 1 {
-		t.Errorf("rerun: msg %q, *out*:\n%s", e.Msg, out)
+	if out := e.runs.out.Text.String(); !strings.HasPrefix(lastOut(e), "[exit status 1, ") || strings.Count(out, "$ go test") != 1 {
+		t.Errorf("rerun: *out*:\n%s", out)
 	}
 }
 
@@ -182,8 +191,8 @@ func TestRunCancel(t *testing.T) {
 	start := time.Now()
 	keys(e, "C-c")
 	pump(t, e, ch, finished(e))
-	if !strings.HasPrefix(e.Msg, "TestSlow: cancelled") || time.Since(start) > 10*time.Second {
-		t.Errorf("msg %q after %s", e.Msg, time.Since(start))
+	if !strings.HasPrefix(lastOut(e), "[cancelled, ") || time.Since(start) > 10*time.Second {
+		t.Errorf("status %q after %s", lastOut(e), time.Since(start))
 	}
 }
 
@@ -194,8 +203,19 @@ func TestRunWarnsAboutUnsavedFiles(t *testing.T) {
 	keys(e, "enter")
 	pump(t, e, ch, finished(e))
 	const w = "ran on disk, without 1 unsaved file"
-	if out := e.runs.out.Text.String(); !strings.Contains(out, "# "+w+"\n") || !strings.HasSuffix(e.Msg, "; "+w) {
-		t.Errorf("msg %q, *out*:\n%s", e.Msg, out)
+	if out := e.runs.out.Text.String(); !strings.Contains(out, "# "+w+"\n") {
+		t.Errorf("*out*:\n%s", out)
+	}
+}
+
+func TestRunMessageWhenOutputIsHidden(t *testing.T) {
+	e, ch := runEditor(t)
+	gotoText(t, e, `t.Log("fine")`)
+	keys(e, "i x esc")   // unsaved, and still in TestPass
+	keys(e, "enter esc") // esc hides the panel while it runs
+	pump(t, e, ch, finished(e))
+	if !strings.HasPrefix(e.Msg, "TestPass: ok (") || !strings.HasSuffix(e.Msg, "; ran on disk, without 1 unsaved file") {
+		t.Errorf("msg %q", e.Msg)
 	}
 }
 

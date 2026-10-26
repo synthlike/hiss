@@ -224,9 +224,11 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 		e.report(r, status, took, string(out.Text.Slice(min(e.runs.header, out.Text.Len()), out.Text.Len())))
 	}
 	e.appendOut(fmt.Sprintf("[%s, %s]\n", status, took))
-	e.Msg = fmt.Sprintf("%s: %s (%s)", r.title, status, took)
-	if w := e.diskWarning(r.warnDir); w != "" {
-		e.Msg += "; " + w
+	if !e.runs.panel && e.Buf != out { // otherwise the line above is on screen
+		e.Msg = fmt.Sprintf("%s: %s (%s)", r.title, status, took)
+		if w := e.diskWarning(r.warnDir); w != "" {
+			e.Msg += "; " + w
+		}
 	}
 }
 

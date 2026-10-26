@@ -122,8 +122,8 @@ func TestRuleParagraph(t *testing.T) {
 	if h := e.runs.out.Text.String(); !strings.HasPrefix(h, "$ tr a-z A-Z;") || !strings.Contains(h, "  < q.txt:3-4\n") {
 		t.Errorf("header: %q", h)
 	}
-	if !strings.HasPrefix(e.Msg, "upper: ok (") {
-		t.Errorf("msg %q", e.Msg)
+	if !strings.HasPrefix(lastOut(e), "[ok, ") {
+		t.Errorf("status %q", lastOut(e))
 	}
 
 	gotoText(t, e, "lect")
