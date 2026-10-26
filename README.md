@@ -92,6 +92,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   `space s` lists the file's symbols.
   Resting the cursor on a name highlights its other uses; on `func` or
   `return`, the function's returns.
+- In a Go test, `enter` runs it with `go test -run` on the files as saved and
+  streams the output into `*out*`; `enter` on a `file:line` there goes to it.
+  `C-c` cancels, and `:rerun` (`:rr`) runs it again from anywhere.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

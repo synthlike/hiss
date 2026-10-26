@@ -87,6 +87,7 @@ func runEditor(path string) error {
 	reqs := make(chan func(*core.Editor))
 	done := make(chan struct{})
 	defer ed.StopLSP() // after close(done), so a server's last diagnostics can't block on the loop
+	defer ed.StopRuns()
 	defer close(done)
 	ed.Post = func(f func(*core.Editor)) {
 		select {

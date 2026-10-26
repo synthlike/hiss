@@ -88,6 +88,7 @@ type Editor struct {
 	nextQ     int
 	servers   map[string]langServer // by language; nil if it failed to start
 	related   relatedState
+	runs      runState
 }
 
 func New(b *Buffer) *Editor {
@@ -180,6 +181,9 @@ var normalKeys = map[string]func(*Editor){
 	"[":     func(e *Editor) { e.Menu = &prevMenu },
 	"space": func(e *Editor) { e.Menu = &spaceMenu },
 	":":     func(e *Editor) { e.Mode, e.Cmd = Command, "" },
+
+	"enter": (*Editor).runAtCursor,
+	"C-c":   (*Editor).cancelRun,
 }
 
 var gotoMenu = Menu{Title: "goto", Items: []MenuItem{

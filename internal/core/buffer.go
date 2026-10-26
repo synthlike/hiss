@@ -16,8 +16,9 @@ type Buffer struct {
 	Path    string // absolute
 	Name    string // as shown to the user
 	Text    text.Text
-	Version int // bumped on every change
-	saved   int // Version at the last load or save
+	Version int  // bumped on every change
+	saved   int  // Version at the last load or save
+	output  bool // a run's output (*out*): not a file, never unsaved
 
 	log     []logged    // every edit, for checking proposals against old versions
 	pending []*Proposal // pending proposals, kept in step with edits
@@ -62,7 +63,7 @@ func Open(path string) (*Buffer, error) {
 func (b *Buffer) PendingCount() int { return len(b.pending) }
 
 // Dirty reports whether the buffer has changes not written to disk.
-func (b *Buffer) Dirty() bool { return b.Version != b.saved }
+func (b *Buffer) Dirty() bool { return !b.output && b.Version != b.saved }
 
 // Replace edits the buffer and returns the edit for mapping positions.
 // Pending proposals whose text the edit touches become stale, unless tweaked.

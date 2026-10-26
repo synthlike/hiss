@@ -163,11 +163,5 @@ func (e *Editor) goToNote(n noteLine) {
 		e.Msg = n.path + " doesn't exist any more"
 		return
 	}
-	e.openFile(path)
-	if e.Buf.Path != path {
-		return // it couldn't be opened; openFile said why
-	}
-	line := min(n.line-1, max(e.Buf.Lines()-1, 0))
-	e.setHead(e.Buf.Text.LineStart(line))
-	e.revealLine(line)
+	e.openAt(path, n.line, 0)
 }

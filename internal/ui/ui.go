@@ -308,6 +308,9 @@ func Draw(s Screen, ed *core.Editor) {
 	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
 		right = fmt.Sprintf("%d asked (:answer)  ", n) + right
 	}
+	if r := ed.Running(); r != "" {
+		right = r + "  " + right
+	}
 	if a := agentStatus(ed); a != "" {
 		right = a + "  " + right
 	}
