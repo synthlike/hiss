@@ -244,6 +244,9 @@ var scenes = []scene{
 		s.keys("g", "g", "]", "h", "+", "esc") // accept the test; the handler is still pending
 		s.open(t, "server/hello_test.go")
 		s.keys("g", "g", "j", "j", "j", "j", "j", "j", "j", "j", "j")
+		if err := os.WriteFile(s.path(".hissrun"), []byte("[env]\nname = dev\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		ch := make(chan func(*core.Editor), 64)
 		s.ed.Post = func(f func(*core.Editor)) { ch <- f }
 		s.keys("enter")
