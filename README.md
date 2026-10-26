@@ -95,6 +95,23 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 - In a Go test, `enter` runs it with `go test -run` on the files as saved and
   streams the output into `*out*`; `enter` on a `file:line` there goes to it.
   `C-c` cancels, and `:rerun` (`:rr`) runs it again from anywhere.
+- `.hissrun` at the project root tells `enter` what to run in other files. The
+  paragraph under the cursor (or the selection, or with `input = file` the
+  whole file) goes to the command's stdin; with `find`, a regexp searched
+  upward from the cursor gives the command `$1`…. Commands run with `sh -c` in
+  the project root, with `$file`, `$dir`, `$line` and `$root` set. In
+  Markdown, a fenced block runs with the rule for its language.
+
+  ```ini
+  [sql]
+  match = *.sql
+  cmd   = psql "$DATABASE_URL" -X -f -
+
+  # requests.http holds curl commands; secrets stay in your shell's env
+  [http]
+  match = *.http
+  cmd   = sh
+  ```
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

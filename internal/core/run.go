@@ -16,19 +16,25 @@ import (
 	"github.com/synthlike/hiss/internal/text"
 )
 
-// Enter in normal mode runs the thing under the cursor: for now, the Go test
-// it's in. The command runs on a worker goroutine against the files on disk,
-// and its output streams into the *out* buffer, where Enter on a file:line
-// goes there. One run at a time; C-c cancels it and :rerun repeats the last.
+// Enter in normal mode runs the thing under the cursor: what a rule in
+// .hissrun says (see rules.go), or else the Go test it's in. The command runs
+// on a worker goroutine, and its output streams into the *out* buffer, where
+// Enter on a file:line goes there. One run at a time; C-c cancels it and
+// :rerun repeats the last.
 
 // outName names the buffer runs write to.
 const outName = "*out*"
 
 // run is a command Enter or :rerun starts.
 type run struct {
-	title string   // what the status line calls it, such as the test's name
-	dir   string   // working directory
-	argv  []string // the command; no shell
+	title   string   // what the status line calls it, such as the test's name
+	dir     string   // working directory
+	argv    []string // the command
+	env     []string // added to hiss's environment
+	stdin   string
+	show    string // the command as *out* shows it; "" to show argv
+	warnDir string // say if files here have changes that aren't on disk; "" not to
+	share   bool   // the agent may see the output
 }
 
 type runState struct {
@@ -47,6 +53,9 @@ func (e *Editor) runAtCursor() {
 		e.openOutputLocation()
 		return
 	}
+	if e.runByRule() {
+		return
+	}
 	if !strings.HasSuffix(e.Buf.Path, "_test.go") {
 		e.Msg = "nothing to run here"
 		return
@@ -56,7 +65,8 @@ func (e *Editor) runAtCursor() {
 		e.Msg = "not in a test function"
 		return
 	}
-	e.startRun(&run{title: name, dir: filepath.Dir(e.Buf.Path),
+	dir := filepath.Dir(e.Buf.Path)
+	e.startRun(&run{title: name, dir: dir, warnDir: dir, share: true,
 		argv: []string{"go", "test", "-run", "^" + name + "$", "-v", "."}})
 }
 
@@ -100,8 +110,12 @@ func (e *Editor) startRun(r *run) {
 		return
 	}
 	out := e.outBuffer()
-	header := "$ " + e.shellLine(r) + "\n"
-	if w := e.diskWarning(r.dir); w != "" {
+	show := r.show
+	if show == "" {
+		show = e.shellLine(r)
+	}
+	header := "$ " + show + "\n"
+	if w := e.diskWarning(r.warnDir); w != "" {
 		header += "# " + w + "\n"
 	}
 	out.Replace(0, out.Text.Len(), []byte(header), text.Origin{})
@@ -117,6 +131,12 @@ func (e *Editor) startRun(r *run) {
 	e.runs.last, e.runs.going, e.runs.cancel, e.runs.start = r, r, cancel, e.now()
 	cmd := exec.CommandContext(ctx, r.argv[0], r.argv[1:]...)
 	cmd.Dir = r.dir
+	if r.env != nil {
+		cmd.Env = append(os.Environ(), r.env...)
+	}
+	if r.stdin != "" {
+		cmd.Stdin = strings.NewReader(r.stdin)
+	}
 	// Its own process group, so cancelling also stops what it started (go test
 	// runs the test binary as a child).
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -139,7 +159,7 @@ type outWriter struct {
 }
 
 func (w outWriter) Write(p []byte) (int, error) {
-	s := string(p)
+	s := strings.ReplaceAll(string(p), "\r", "") // CRLF from HTTP headers; progress bars run together
 	w.post(func(e *Editor) {
 		if e.runs.going == w.r {
 			e.appendOut(s)
@@ -182,7 +202,7 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 	}
 	e.appendOut(fmt.Sprintf("[%s, %s]\n", status, took))
 	e.Msg = fmt.Sprintf("%s: %s (%s)", r.title, status, took)
-	if w := e.diskWarning(r.dir); w != "" {
+	if w := e.diskWarning(r.warnDir); w != "" {
 		e.Msg += "; " + w
 	}
 }
@@ -228,6 +248,9 @@ func (e *Editor) outBuffer() *Buffer {
 // diskWarning says what the run doesn't see: pending hunks and unsaved
 // changes in files under dir, since commands read the files on disk.
 func (e *Editor) diskWarning(dir string) string {
+	if dir == "" {
+		return ""
+	}
 	hunks, unsaved := 0, 0
 	for _, b := range e.Bufs {
 		if b.Path == "" || filepath.Dir(b.Path) != dir {
