@@ -240,7 +240,7 @@ func lineText(t text.Text, off int) string {
 func (e *Editor) showLocations(what string, locs []lsp.Location, err error, sent map[string]sentText, utf8 bool) {
 	switch {
 	case err != nil:
-		e.Msg = what + ": " + err.Error()
+		e.Msg = failed("finding "+what, err)
 		return
 	case len(locs) == 0:
 		e.Msg = "no " + what + " found"
@@ -303,7 +303,7 @@ func (e *Editor) openSymbolPicker() {
 func (e *Editor) showSymbols(path string, syms []lsp.Symbol, err error, sent map[string]sentText, utf8 bool) {
 	switch {
 	case err != nil:
-		e.Msg = "symbols: " + err.Error()
+		e.Msg = failed("listing symbols", err)
 		return
 	case len(syms) == 0:
 		e.Msg = "no symbols"
@@ -325,7 +325,7 @@ func (e *Editor) showSymbols(path string, syms []lsp.Symbol, err error, sent map
 func (e *Editor) goPlace(pl place) {
 	switch {
 	case pl.err != nil:
-		e.Msg = pl.err.Error()
+		e.Msg = failed("opening "+e.shortPath(pl.path), pl.err)
 		return
 	case pl.prop != nil:
 		e.jumpToProposal(pl.prop)

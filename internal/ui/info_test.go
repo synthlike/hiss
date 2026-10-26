@@ -24,7 +24,7 @@ func TestDrawWrappedHunkInfo(t *testing.T) {
 	ed.Toast = core.Toast{}
 	g := newGrid(40, 10)
 	Draw(g, ed)
-	if g.row(8) != "#1 claude: make it loud  (+ accept, -" || g.row(9) != "reject, # comment)" {
+	if g.row(8) != "#1 claude: make it loud  (+ accept · -" || g.row(9) != "reject · # comment)" {
 		t.Errorf("message rows %q %q", g.row(8), g.row(9))
 	}
 	if got := g.row(7); !strings.HasPrefix(got, " NOR") {

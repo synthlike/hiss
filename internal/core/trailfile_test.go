@@ -35,7 +35,7 @@ func TestTrailSaveLoad(t *testing.T) {
 	if tr == nil || len(tr.Steps) != 2 || tr.Title != "tour" || tr.Session != "" {
 		t.Fatalf("trail = %+v (msg %q)", tr, e.Msg)
 	}
-	if tr.Steps[0].Changed || !tr.Steps[1].Changed || !strings.HasSuffix(e.Msg, "changed since saved: steps 2") {
+	if tr.Steps[0].Changed || !tr.Steps[1].Changed || !strings.HasSuffix(e.Msg, "changed since saved: step 2") {
 		t.Errorf("changed = %v %v, msg %q", tr.Steps[0].Changed, tr.Steps[1].Changed, e.Msg)
 	}
 	if rows := e.TrailRows()[2]; len(rows) != 1 || rows[0].Text != "2. c (changed since saved)" {

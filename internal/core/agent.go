@@ -14,6 +14,10 @@ const (
 	Waiting AgentState = "waiting on you"
 )
 
+// HookAgent names the agent behind hook sessions: Claude Code, which sends
+// this as its MCP client name, so it matches the name on its proposals.
+const HookAgent = "claude-code"
+
 // Session is one agent conversation, as reported by Claude Code hooks.
 type Session struct {
 	ID       string
@@ -72,7 +76,7 @@ func (e *Editor) Hook(ev HookEvent) {
 		case "auth_success", "elicitation_complete", "elicitation_response":
 		default:
 			s.State, s.Note = Waiting, ev.Message
-			e.notify("claude", ev.Message)
+			e.notify(HookAgent, ev.Message)
 		}
 	case "Stop":
 		s.State, s.Note = Idle, ""

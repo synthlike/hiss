@@ -152,11 +152,7 @@ func (e *Editor) quit() {
 		}
 	}
 	if n := e.PendingCount(); n > 0 {
-		s := "s"
-		if n == 1 {
-			s = ""
-		}
-		e.Msg = fmt.Sprintf("%d pending hunk%s (:haa / :hra to review them all, :q! to discard)", n, s)
+		e.Msg = plural(n, "pending hunk") + " (:haa / :hra to review them all, :q! to discard)"
 		return
 	}
 	e.Quit = true

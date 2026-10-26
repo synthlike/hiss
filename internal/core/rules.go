@@ -170,7 +170,7 @@ func (e *Editor) runRule(r *rule, input string, from, to int) {
 	if r.find != nil && input == "" {
 		caps, at := e.findUp(r.find)
 		if at < 0 {
-			e.Msg = fmt.Sprintf("[%s]: nothing above the cursor matches %s", r.name, r.find)
+			e.Msg = fmt.Sprintf("%s: nothing above the cursor matches %s", r.name, r.find)
 			return
 		}
 		run.argv = append([]string{"sh", "-c", r.cmd, "sh"}, caps...)
@@ -316,7 +316,7 @@ func (e *Editor) runByRule() bool {
 	}
 	r := findRule(rules, "block."+lang)
 	if r == nil || r.find != nil {
-		e.Msg = fmt.Sprintf("no rule in %s for ```%s blocks", rulesFile, lang)
+		e.Msg = fmt.Sprintf("no rule for %s blocks in %s", lang, rulesFile)
 		return true
 	}
 	s := ""

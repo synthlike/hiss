@@ -194,7 +194,7 @@ func (e *Editor) langServer(srv lsp.Server, b *Buffer) langServer {
 		e.Post(func(e *Editor) { e.SetDiagnostics(d) })
 	})
 	if err != nil {
-		e.Msg = srv.Cmd[0] + ": " + err.Error()
+		e.Msg = failed("starting "+srv.Cmd[0], err)
 		e.servers[srv.Lang] = nil
 		return nil
 	}

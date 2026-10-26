@@ -102,7 +102,7 @@ func (e *Editor) askKey(k string) {
 	switch k {
 	case "esc", "C-c":
 		q.hidden, e.Asking = true, nil
-		e.Msg = "question closed (:answer to reopen)"
+		e.Msg = "question closed (:an to reopen)"
 	case "enter":
 		answer := q.Input
 		if q.Selected < len(q.Options) {

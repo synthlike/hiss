@@ -55,7 +55,7 @@ func (e *Editor) openFilePicker() {
 		p.Items = append(p.Items, PickItem{Label: f, Run: func(e *Editor) { e.openFile(filepath.Join(e.Root, f)) }})
 	}
 	if len(p.Items) == 0 {
-		e.Msg = "no files under " + e.Root
+		e.Msg = "no files in the project"
 		return
 	}
 	e.Picker = p

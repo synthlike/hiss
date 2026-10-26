@@ -39,7 +39,7 @@ func (e *Editor) note(text string) {
 		err = appendLine(file, strings.Join(fields, "  "))
 	}
 	if err != nil {
-		e.Msg = err.Error()
+		e.Msg = failed("writing "+notesFile, err)
 		return
 	}
 	e.Msg = "noted in " + notesFile
@@ -128,7 +128,7 @@ func (e *Editor) openNotePicker() {
 	}
 	data, err := os.ReadFile(filepath.Join(e.Root, notesFile))
 	if err != nil && !os.IsNotExist(err) {
-		e.Msg = err.Error()
+		e.Msg = failed("reading "+notesFile, err)
 		return
 	}
 	p := &Picker{Title: "notes"}
@@ -144,7 +144,7 @@ func (e *Editor) openNotePicker() {
 		p.Items = append(p.Items, PickItem{Label: label, Detail: n.text, Run: func(e *Editor) { e.goToNote(n) }})
 	}
 	if len(p.Items) == 0 {
-		e.Msg = "no notes yet (:note <text> adds one)"
+		e.Msg = "no notes yet (:n <text> to add one)"
 		return
 	}
 	e.Picker = p

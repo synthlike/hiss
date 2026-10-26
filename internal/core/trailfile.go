@@ -49,7 +49,7 @@ func (e *Editor) saveTrail(path string) {
 		err = os.WriteFile(path, append(data, '\n'), 0o644)
 	}
 	if err != nil {
-		e.Msg = err.Error()
+		e.Msg = failed("saving the trail to "+path, err)
 		return
 	}
 	e.Msg = fmt.Sprintf("saved the trail to %s", path)
@@ -58,12 +58,12 @@ func (e *Editor) saveTrail(path string) {
 func (e *Editor) loadTrail(path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		e.Msg = err.Error()
+		e.Msg = failed("loading "+path, err)
 		return
 	}
 	var f trailFile
 	if err := json.Unmarshal(data, &f); err != nil {
-		e.Msg = fmt.Sprintf("%s: %v", path, err)
+		e.Msg = failed("loading "+path, err)
 		return
 	}
 	if len(f.Steps) == 0 {
@@ -101,8 +101,12 @@ func (e *Editor) loadTrail(path string) {
 		}
 	}
 	e.setTrail(t)
-	e.Msg = fmt.Sprintf("loaded %s, %d steps (]s to walk it)", f.Title, len(t.Steps))
+	e.Msg = fmt.Sprintf("loaded %s, %s (]s to walk it)", f.Title, plural(len(t.Steps), "step"))
 	if len(changed) > 0 {
-		e.Msg += "; changed since saved: steps " + strings.Join(changed, ", ")
+		noun := "steps "
+		if len(changed) == 1 {
+			noun = "step "
+		}
+		e.Msg += "; changed since saved: " + noun + strings.Join(changed, ", ")
 	}
 }

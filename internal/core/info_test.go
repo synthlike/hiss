@@ -14,7 +14,7 @@ func TestHunkInfoWraps(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys(e, "g g")
-	want := []string{"#1 claude: make it loud  (+ accept, -", "reject, # comment)"}
+	want := []string{"#1 claude: make it loud  (+ accept · -", "reject · # comment)"}
 	if got := e.HunkInfo(); !slices.Equal(got, want) {
 		t.Errorf("info %q, want %q", got, want)
 	}

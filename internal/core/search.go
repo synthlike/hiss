@@ -93,7 +93,7 @@ func (e *Editor) searchKey(k string) {
 // searchNext moves to the next (dir 1) or previous (dir -1) match of the last search.
 func (e *Editor) searchNext(dir int) {
 	if e.search.re == nil {
-		e.Msg = "no search yet: / to search"
+		e.Msg = "no search yet (/ to search)"
 		return
 	}
 	e.search.shown = true

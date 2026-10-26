@@ -30,7 +30,7 @@ func TestDrawChangeSet(t *testing.T) {
 	ed.HandleKey("g")
 	g := newGrid(100, 10)
 	Draw(g, ed)
-	if got := g.row(9); !strings.HasPrefix(got, "#1 claude (set 0/2 reviewed): shout  (+ accept, - reject, # comment, :sa the set)") {
+	if got := g.row(9); !strings.HasPrefix(got, "#1 claude (set 0/2 reviewed): shout  (+ accept · - reject · # comment · :sa the set)") {
 		t.Errorf("info = %q", got)
 	}
 	ed.HandleKey("+") // on to #2

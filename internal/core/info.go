@@ -33,11 +33,11 @@ func (e *Editor) HunkInfo() []string {
 	}
 	switch {
 	case hk.Tweaked:
-		info += "  (editing: + accept as edited, - restore and reject)"
+		info += "  (editing: + accept as edited · - restore and reject)"
 	case total > 1:
-		info += "  (+ accept, - reject, # comment, :sa the set)"
+		info += "  (+ accept · - reject · # comment · :sa the set)"
 	default:
-		info += "  (+ accept, - reject, # comment)"
+		info += "  (+ accept · - reject · # comment)"
 	}
 	if e.Width <= 0 {
 		return []string{info}

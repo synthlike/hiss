@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v3"
 	"github.com/gdamore/tcell/v3/color"
@@ -333,7 +334,11 @@ func Draw(s Screen, ed *core.Editor) {
 		right = pending + "  " + right
 	}
 	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
-		right = fmt.Sprintf("%d asked (:answer)  ", n) + right
+		noun := "questions"
+		if n == 1 {
+			noun = "question"
+		}
+		right = fmt.Sprintf("%d %s (:an)  ", n, noun) + right
 	}
 	if r := ed.Running(); r != "" {
 		right = r + "  " + right
@@ -343,7 +348,7 @@ func Draw(s Screen, ed *core.Editor) {
 	}
 	fill(s, 0, status, w, styleStatus)
 	putString(s, 0, status, left, styleStatus)
-	putString(s, w-len(right), status, right, styleStatus)
+	putString(s, w-utf8.RuneCountInString(right), status, right, styleStatus)
 
 	msg := status + 1
 	switch {
@@ -355,7 +360,7 @@ func Draw(s Screen, ed *core.Editor) {
 		putString(s, 0, msg, ed.Msg, styleText)
 	default:
 		if ss := ed.Sessions(); len(ss) > 0 && ss[0].State == core.Waiting && ss[0].Note != "" {
-			putString(s, 0, msg, "claude: "+ss[0].Note, styleDim)
+			putString(s, 0, msg, core.HookAgent+": "+ss[0].Note, styleDim)
 		}
 		if info := ed.HunkInfo(); info != nil { // on a hunk's own lines, its info wins; on its proposed lines, their problems
 			for i, l := range info {
@@ -474,11 +479,11 @@ func drawPanel(s Screen, w, y, rows int, ed *core.Editor) {
 	if r := ed.Running(); r != "" {
 		title += "  " + r
 	}
-	keys := "space o opens, esc hides "
+	keys := "space o open · esc hide "
 	fill(s, 0, y, w, styleMenu)
 	putString(s, 0, y, title, styleMenu.Bold(true))
-	if len(title)+len(keys)+2 <= w {
-		putString(s, w-len(keys), y, keys, styleMenu)
+	if kw := utf8.RuneCountInString(keys); len(title)+kw+2 <= w {
+		putString(s, w-kw, y, keys, styleMenu)
 	}
 	for i, l := range ed.OutTail(rows - 1) {
 		fill(s, 0, y+1+i, w, styleText)
@@ -525,9 +530,9 @@ func agentStatus(ed *core.Editor) string {
 	s := ss[0]
 	state := string(s.State)
 	if s.Awaiting(ed.Now()) {
-		state = "awaiting your review"
+		state = "waiting on your review"
 	}
-	out := fmt.Sprintf("claude %s · turn %d", state, s.Turn)
+	out := fmt.Sprintf("%s %s · turn %d", core.HookAgent, state, s.Turn)
 	if len(ss) > 1 {
 		out += fmt.Sprintf(" (+%d)", len(ss)-1)
 	}

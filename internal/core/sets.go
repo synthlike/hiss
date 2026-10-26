@@ -76,14 +76,11 @@ func (e *Editor) reviewSet(accept bool, reason string) {
 			failed++
 		}
 	}
-	verb, s := "rejected", "s"
+	verb := "rejected"
 	if accept {
 		verb = "accepted"
 	}
-	if n == 1 {
-		s = ""
-	}
-	msg := fmt.Sprintf("%s %d hunk%s of the set", verb, n, s)
+	msg := verb + " " + plural(n, "hunk") + " of the set"
 	if failed > 0 {
 		msg += fmt.Sprintf("; saving failed for %d", failed)
 	}

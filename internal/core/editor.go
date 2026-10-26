@@ -3,7 +3,9 @@
 package core
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"time"
@@ -22,7 +24,7 @@ const (
 	Search
 )
 
-func (m Mode) String() string { return [...]string{"NOR", "INS", "SEL", "CMD", "SRC"}[m] }
+func (m Mode) String() string { return [...]string{"NOR", "INS", "SEL", "CMD", "FND"}[m] }
 
 // You is the origin of text typed by the user.
 var You = text.Origin{Author: "you"}
@@ -284,7 +286,7 @@ func (e *Editor) commandKey(k string) {
 func (e *Editor) saveAs(path string) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		e.Msg = err.Error()
+		e.Msg = failed("saving "+path, err)
 		return
 	}
 	if b := e.Find(abs); b != nil && b != e.Buf {
@@ -300,12 +302,12 @@ func (e *Editor) saveAs(path string) {
 func (e *Editor) openFile(path string) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		e.Msg = err.Error()
+		e.Msg = failed("opening "+path, err)
 		return
 	}
 	b, err := e.OpenBuffer(abs)
 	if err != nil {
-		e.Msg = err.Error()
+		e.Msg = failed("opening "+e.shortPath(abs), err)
 		return
 	}
 	old := e.Buf
@@ -323,11 +325,29 @@ func (e *Editor) openFile(path string) {
 
 func (e *Editor) save() bool {
 	if err := e.Buf.Save(); err != nil {
-		e.Msg = "save failed: " + err.Error()
+		e.Msg = failed("saving "+e.Buf.Name, err)
 		return false
 	}
 	e.Msg = fmt.Sprintf("wrote %s (%d bytes)", e.Buf.Name, e.Buf.Text.Len())
 	return true
+}
+
+// failed reads like "saving x.go failed: permission denied". what names the
+// file, relative to the project root, so the absolute path an os error
+// repeats is dropped.
+func failed(what string, err error) string {
+	if pe, ok := errors.AsType[*fs.PathError](err); ok {
+		err = pe.Err
+	}
+	return what + " failed: " + err.Error()
+}
+
+// shortPath returns path relative to the project root if it's inside it.
+func (e *Editor) shortPath(path string) string {
+	if rel, ok := e.underRoot(path); ok {
+		return rel
+	}
+	return path
 }
 
 // edit replaces [start, end) with s as the user and leaves the cursor after s.

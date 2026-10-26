@@ -30,7 +30,7 @@ func TestNotePicker(t *testing.T) {
 	e := newEditor(t, "x\n")
 	e.Root = filepath.Dir(e.Buf.Path)
 	keys(e, "space n")
-	if e.Picker != nil || e.Msg != "no notes yet (:note <text> adds one)" {
+	if e.Picker != nil || e.Msg != "no notes yet (:n <text> to add one)" {
 		t.Errorf("no notes: picker %v, msg %q", e.Picker != nil, e.Msg)
 	}
 	os.WriteFile(filepath.Join(e.Root, "g.go"), []byte("1\n2\n3\n"), 0o600)

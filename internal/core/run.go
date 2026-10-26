@@ -122,7 +122,7 @@ func (e *Editor) rerun() {
 // startRun runs r into *out*, showing the panel unless *out* is on screen.
 func (e *Editor) startRun(r *run) {
 	if g := e.runs.going; g != nil {
-		e.Msg = g.title + " is still running (C-c cancels)"
+		e.Msg = g.title + " is still running (C-c to cancel)"
 		return
 	}
 	if e.Post == nil {

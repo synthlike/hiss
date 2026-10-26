@@ -252,10 +252,10 @@ func TestAgentStatus(t *testing.T) {
 		Message: "Claude needs your permission to use Bash"})
 	g := newGrid(60, 4)
 	Draw(g, ed)
-	if got := g.row(2); !strings.Contains(got, "claude waiting on you · turn 1") {
+	if got := g.row(2); !strings.Contains(got, "claude-code waiting on you · turn 1") {
 		t.Errorf("status = %q", got)
 	}
-	if got := g.row(3); got != "claude: Claude needs your permission to use Bash" {
+	if got := g.row(3); got != "claude-code: Claude needs your permission to use Bash" {
 		t.Errorf("message = %q", got)
 	}
 }

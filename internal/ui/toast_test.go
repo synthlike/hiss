@@ -25,7 +25,7 @@ func TestToast(t *testing.T) {
 	if got := g.row(0); !strings.HasSuffix(got, "claude") {
 		t.Errorf("toast title row = %q", got)
 	}
-	if got := g.row(1); !strings.HasSuffix(got, "proposed 1 edit in g.go (]h to review)") {
+	if got := g.row(1); !strings.HasSuffix(got, "proposed 1 hunk in g.go (]h to review)") {
 		t.Errorf("toast text row = %q", got)
 	}
 	if g.styles[1][59] != styleMenu {

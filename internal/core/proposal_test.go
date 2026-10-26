@@ -56,7 +56,7 @@ func TestReviewKeys(t *testing.T) {
 		t.Fatalf("# off a hunk: mode=%s msg=%q", e.Mode, e.Msg)
 	}
 	keys(e, "g g #")
-	if e.Mode != Command || e.Cmd != "comment " {
+	if e.Mode != Command || e.Cmd != "c " {
 		t.Fatalf("# on a hunk: mode=%s cmd=%q", e.Mode, e.Cmd)
 	}
 	keys(e, "esc -")

@@ -36,14 +36,14 @@ type Delivery struct {
 
 const nothingToComment = "nothing to comment on here: move to a pending hunk or a trail step"
 
-// startComment opens the command line on ":comment " if there is something
+// startComment opens the command line on ":c " if there is something
 // under the cursor to comment on.
 func (e *Editor) startComment() {
 	if e.HunkAtCursor() == nil && e.stepAtCursor() == nil {
 		e.Msg = nothingToComment
 		return
 	}
-	e.Mode, e.Cmd = Command, "comment "
+	e.Mode, e.Cmd = Command, "c "
 }
 
 // comment adds the user's comment to the pending hunk under the cursor or,

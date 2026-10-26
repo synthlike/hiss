@@ -166,7 +166,7 @@ func TestRuleFind(t *testing.T) {
 		t.Errorf("header: %q", h)
 	}
 	keys(e, "g g enter")
-	if !strings.HasPrefix(e.Msg, "[found]: nothing above the cursor matches") {
+	if !strings.HasPrefix(e.Msg, "found: nothing above the cursor matches") {
 		t.Errorf("above every func: msg %q", e.Msg)
 	}
 }
@@ -181,12 +181,12 @@ func TestRuleFences(t *testing.T) {
 	}
 	gotoText(t, e, "```go")
 	keys(e, "enter")
-	if e.Msg != "no rule in .hissrun for ```go blocks" {
+	if e.Msg != "no rule for go blocks in .hissrun" {
 		t.Errorf("find rule for a fence: msg %q", e.Msg)
 	}
 	gotoText(t, e, "y\n")
 	keys(e, "enter")
-	if e.Msg != "no rule in .hissrun for ```py blocks" {
+	if e.Msg != "no rule for py blocks in .hissrun" {
 		t.Errorf("no rule: msg %q", e.Msg)
 	}
 	gotoText(t, e, "# notes")

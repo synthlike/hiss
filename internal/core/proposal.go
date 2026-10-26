@@ -144,11 +144,7 @@ func (e *Editor) addProposal(agent, rationale string, b *Buffer, start, end int,
 }
 
 func (e *Editor) announce(agent string, b *Buffer, n int) {
-	s := ""
-	if n > 1 {
-		s = "s"
-	}
-	e.reviewNotice(agent, fmt.Sprintf("proposed %d edit%s in %s (]h to review)", n, s, b.Name), n)
+	e.reviewNotice(agent, fmt.Sprintf("proposed %s in %s (]h to review)", plural(n, "hunk"), b.Name), n)
 }
 
 // Proposal returns the proposal with id, or nil.
@@ -336,14 +332,11 @@ func (e *Editor) reviewAll(accept bool, reason string) {
 		e.Msg = "no pending hunks"
 		return
 	}
-	verb, noun := "rejected", "hunks"
+	verb := "rejected"
 	if accept {
 		verb = "accepted"
 	}
-	if n == 1 {
-		noun = "hunk"
-	}
-	e.Msg = fmt.Sprintf("%s %d %s", verb, n, noun)
+	e.Msg = verb + " " + plural(n, "hunk")
 	if failed > 0 {
 		e.Msg += fmt.Sprintf("; saving failed for %d", failed)
 	}

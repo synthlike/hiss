@@ -185,7 +185,7 @@ func TestRunCancel(t *testing.T) {
 	keys(e, "enter")
 	pump(t, e, ch, func() bool { return strings.Contains(e.runs.out.Text.String(), "=== RUN   TestSlow") })
 	keys(e, ": r r enter")
-	if e.Msg != "TestSlow is still running (C-c cancels)" {
+	if e.Msg != "TestSlow is still running (C-c to cancel)" {
 		t.Errorf(":rr while running: msg %q", e.Msg)
 	}
 	start := time.Now()
