@@ -101,10 +101,11 @@ The [guide](docs/guide.md) covers the rest: editing, gopls, run output and
 
 ## Status
 
-v0.4: early and small. An agent turn's proposals are reviewed as one change
-set, and agents can vet and test them before you do; run output streams into
-a panel below the text. Since v0.3, `enter` runs the Go test, SQL query or
-HTTP request under the cursor, next to gopls diagnostics and navigation.
+v0.5: early and small. Runs get environments (with a confirm for the risky
+ones), `enter` runs the table case or subtest under the cursor, the last 20
+runs' output stays at hand, and Claude can propose a query that runs when you
+accept it. Since v0.4, an agent turn's proposals are reviewed as one change
+set, and agents can vet and test them before you do.
 
 ## License
 
