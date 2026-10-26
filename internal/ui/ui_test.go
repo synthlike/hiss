@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v3"
@@ -74,6 +75,20 @@ func TestDrawEnv(t *testing.T) {
 	Draw(g, ed)
 	if got := g.row(4); !strings.HasSuffix(got, "env dev  1:1") {
 		t.Errorf("status = %q", got)
+	}
+
+	os.WriteFile(filepath.Join(root, ".hissrun"), []byte("[env]\nname = prod\nconfirm = true\n"), 0o600)
+	ed = core.New(&core.Buffer{Path: filepath.Join(root, "a.sql"), Name: "a.sql", Text: text.New(nil, text.Origin{})})
+	ed.Root = root
+	ed.Resize(40, 6)
+	g = newGrid(40, 6)
+	Draw(g, ed)
+	row := g.row(4)
+	if !strings.HasSuffix(row, " env prod   1:1") {
+		t.Fatalf("status = %q", row)
+	}
+	if x := strings.Index(row, "prod"); g.styles[4][x] != styleEnvConfirm {
+		t.Error("an env that asks first isn't highlighted")
 	}
 }
 
@@ -267,7 +282,7 @@ func TestAgentStatus(t *testing.T) {
 		Message: "Claude needs your permission to use Bash"})
 	g := newGrid(60, 4)
 	Draw(g, ed)
-	if got := g.row(2); !strings.Contains(got, "claude-code waiting on you · turn 1") {
+	if got := g.row(2); !strings.HasSuffix(got, "● claude-code · needs you  1:1") {
 		t.Errorf("status = %q", got)
 	}
 	if got := g.row(3); got != "claude-code: Claude needs your permission to use Bash" {
@@ -326,5 +341,23 @@ func TestDrawWrapped(t *testing.T) {
 	}
 	if !g.styles[5][0].HasReverse() || g.styles[3][0].HasReverse() {
 		t.Error("the cursor's proposed line should be reversed on all its rows")
+	}
+}
+
+func TestAgentSpinner(t *testing.T) {
+	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go", Text: text.New([]byte("x\n"), text.Origin{})})
+	ed.Resize(60, 4)
+	ed.Hook(core.HookEvent{SessionID: "s1", Event: "UserPromptSubmit"})
+	got := agentStatus(ed)
+	if r := []rune(got); !strings.ContainsRune(string(spinnerFrames), r[0]) || string(r[1:]) != " claude-code" || tickFor(ed) != spinnerTick {
+		t.Errorf("working: %q, tick %s", got, tickFor(ed))
+	}
+	ed.Hook(core.HookEvent{SessionID: "s1", Event: "Stop"})
+	if got := agentStatus(ed); got != "○ claude-code" || tickFor(ed) != time.Second {
+		t.Errorf("idle: %q, tick %s", got, tickFor(ed))
+	}
+	a := time.Unix(0, 0)
+	if spinner(a) == spinner(a.Add(spinnerTick)) || spinner(a) != spinner(a.Add(time.Duration(len(spinnerFrames))*spinnerTick)) {
+		t.Error("the spinner doesn't turn once per tick")
 	}
 }

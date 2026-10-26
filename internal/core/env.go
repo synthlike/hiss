@@ -16,11 +16,7 @@ func (e *Editor) loadRunConfig() (*runConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	e.runs.envs = e.runs.envs[:0]
-	for _, en := range c.envs {
-		e.runs.envs = append(e.runs.envs, en.name)
-	}
-	e.runs.loaded = true
+	e.runs.envs, e.runs.loaded = c.envs, true
 	return c, nil
 }
 
@@ -59,18 +55,21 @@ func (e *Editor) label(r *run) string {
 	return r.title + " on " + r.envName
 }
 
-// EnvName returns the active env for the status line, or "" with none.
-func (e *Editor) EnvName() string {
+// EnvName returns the active env for the status line, and whether runs
+// there ask first; "" with none.
+func (e *Editor) EnvName() (string, bool) {
 	if !e.runs.loaded {
 		e.loadRunConfig() // a bad rules file shows when something runs
 	}
-	switch {
-	case len(e.runs.envs) == 0:
-		return ""
-	case e.runs.env != "":
-		return e.runs.env
+	if len(e.runs.envs) == 0 {
+		return "", false
 	}
-	return e.runs.envs[0]
+	for _, en := range e.runs.envs {
+		if en.name == e.runs.env || e.runs.env == "" {
+			return en.name, en.confirm
+		}
+	}
+	return e.runs.env, false // gone from the rules file: the next run says so
 }
 
 // switchEnv makes name the active env; with no name, it lists them.
@@ -86,7 +85,7 @@ func (e *Editor) switchEnv(name string) {
 	}
 	if name == "" {
 		p := &Picker{Title: "environments"}
-		active := e.EnvName()
+		active, _ := e.EnvName()
 		for _, en := range c.envs {
 			detail := en.source
 			if en.name == active {

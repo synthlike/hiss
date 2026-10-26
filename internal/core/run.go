@@ -61,9 +61,9 @@ type runState struct {
 
 	proposal *Proposal // the accepted proposal the next run starts for
 
-	env    string   // the env :env picked; "" for the first
-	envs   []string // the envs' names, as the rules file last said
-	loaded bool     // envs is up to date
+	env    string // the env :env picked; "" for the first
+	envs   []env  // as the rules file last said
+	loaded bool   // envs is up to date
 }
 
 // RunReport is a finished shared run, handed to each agent session once
@@ -371,6 +371,14 @@ func (e *Editor) StopRuns() {
 	if e.runs.cancel != nil {
 		e.runs.cancel()
 	}
+}
+
+// RunTitle names the run that's going, or "".
+func (e *Editor) RunTitle() string {
+	if g := e.runs.going; g != nil {
+		return g.title
+	}
+	return ""
 }
 
 // Running describes the run that's going for the status line, or "".

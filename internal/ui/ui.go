@@ -37,6 +37,8 @@ var (
 	styleError     = tcell.StyleDefault.Foreground(color.Red)
 	styleWarning   = tcell.StyleDefault.Foreground(color.Yellow)
 	styleInfo      = tcell.StyleDefault.Foreground(color.Teal)
+
+	styleEnvConfirm = tcell.StyleDefault.Background(color.Maroon).Foreground(color.White).Bold(true)
 )
 
 func diagStyle(severity int) tcell.Style {
@@ -62,7 +64,8 @@ func underline(st tcell.Style, severity int) tcell.Style {
 // Run draws and handles events until the editor quits. Work sent on reqs runs on
 // this goroutine, which owns the editor.
 func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
-	tick := time.NewTicker(time.Second) // redraw time-based state such as agent status
+	every := time.Second // redraw time-based state such as agent status; faster while a spinner turns
+	tick := time.NewTicker(every)
 	defer tick.Stop()
 	scr.EnableFocus()
 	defer ed.SaveProposals() // the last event may have resolved them
@@ -81,6 +84,10 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 		scr.Clear()
 		Draw(scr, ed)
 		scr.Show()
+		if d := tickFor(ed); d != every {
+			every = d
+			tick.Reset(every)
+		}
 		select {
 		case <-tick.C:
 		case ev := <-scr.EventQ():
@@ -323,36 +330,14 @@ func Draw(s Screen, ed *core.Editor) {
 		dirty = " [+]"
 	}
 	left := fmt.Sprintf(" %s  %s%s", ed.Mode, ed.Buf.Name, dirty)
-	line, col := ed.Cursor()
-	right := fmt.Sprintf("%d:%d ", line+1, col+1)
-	if errs, warns := ed.Buf.DiagCounts(); errs+warns > 0 {
-		right = diagSummary(errs, warns) + "  " + right
-	}
-	if n := ed.PendingCount(); n > 0 {
-		pending := fmt.Sprintf("%d pending", n)
-		if r, t := ed.HalfReviewed(); t > 0 {
-			pending += fmt.Sprintf(", set %d/%d reviewed", r, t) // the rest may be needed to build
-		}
-		right = pending + "  " + right
-	}
-	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
-		noun := "questions"
-		if n == 1 {
-			noun = "question"
-		}
-		right = fmt.Sprintf("%d %s (:an)  ", n, noun) + right
-	}
-	if r := ed.Running(); r != "" {
-		right = r + "  " + right
-	} else if env := ed.EnvName(); env != "" {
-		right = "env " + env + "  " + right
-	}
-	if a := agentStatus(ed); a != "" {
-		right = a + "  " + right
-	}
 	fill(s, 0, status, w, styleStatus)
 	putString(s, 0, status, left, styleStatus)
-	putString(s, w-utf8.RuneCountInString(right), status, right, styleStatus)
+	x := w
+	for _, sg := range statusRight(ed) { // right to left
+		x -= utf8.RuneCountInString(sg.text)
+		putString(s, x, status, sg.text, sg.style)
+		x -= 2
+	}
 
 	msg := status + 1
 	switch {
@@ -525,20 +510,99 @@ func diagSummary(errs, warns int) string {
 	return strings.Join(parts, ", ")
 }
 
-// agentStatus describes the most recently active agent session.
+// segment is a part of the status line.
+type segment struct {
+	text  string
+	style tcell.Style
+}
+
+// statusRight returns the status line's right side, from the right: the
+// cursor, problems, pending hunks, questions, the env, the run going and
+// the agent.
+func statusRight(ed *core.Editor) []segment {
+	line, col := ed.Cursor()
+	segs := []segment{{fmt.Sprintf("%d:%d ", line+1, col+1), styleStatus}}
+	add := func(s string) { segs = append(segs, segment{s, styleStatus}) }
+	if errs, warns := ed.Buf.DiagCounts(); errs+warns > 0 {
+		add(diagSummary(errs, warns))
+	}
+	if n := ed.PendingCount(); n > 0 {
+		pending := fmt.Sprintf("%d pending", n)
+		if r, t := ed.HalfReviewed(); t > 0 {
+			pending += fmt.Sprintf(", set %d/%d reviewed", r, t) // the rest may be needed to build
+		}
+		add(pending)
+	}
+	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
+		noun := "questions"
+		if n == 1 {
+			noun = "question"
+		}
+		add(fmt.Sprintf("%d %s (:an)", n, noun))
+	}
+	if env, confirm := ed.EnvName(); env != "" {
+		sg := segment{"env " + env, styleStatus}
+		if confirm { // staging or prod: runs there ask first
+			sg = segment{" env " + env + " ", styleEnvConfirm}
+		}
+		segs = append(segs, sg)
+	}
+	if r := ed.RunTitle(); r != "" {
+		add(spinner(ed.Now()) + " " + r + " (C-c)")
+	}
+	if a := agentStatus(ed); a != "" {
+		add(a)
+	}
+	return segs
+}
+
+// spinnerFrames turn while something is going; a frame lasts spinnerTick.
+var spinnerFrames = []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+
+const spinnerTick = 100 * time.Millisecond
+
+func spinner(now time.Time) string {
+	return string(spinnerFrames[now.UnixMilli()/spinnerTick.Milliseconds()%int64(len(spinnerFrames))])
+}
+
+// tickFor returns how often to redraw: often while a spinner turns.
+func tickFor(ed *core.Editor) time.Duration {
+	if animating(ed) {
+		return spinnerTick
+	}
+	return time.Second
+}
+
+// animating reports whether the status line has a spinner turning.
+func animating(ed *core.Editor) bool {
+	if ed.RunTitle() != "" {
+		return true
+	}
+	ss := ed.Sessions()
+	return len(ss) > 0 && ss[0].State == core.Working && !ss[0].Awaiting(ed.Now())
+}
+
+// agentStatus describes the most recently active agent session for the
+// status line, or "": a spinner while it works, then what it waits for.
 func agentStatus(ed *core.Editor) string {
 	ss := ed.Sessions()
 	if len(ss) == 0 {
 		return ""
 	}
 	s := ss[0]
-	state := string(s.State)
-	if s.Awaiting(ed.Now()) {
-		state = "waiting on your review"
+	var out string
+	switch {
+	case s.Awaiting(ed.Now()):
+		out = "◆ " + core.HookAgent + " · review"
+	case s.State == core.Working:
+		out = spinner(ed.Now()) + " " + core.HookAgent
+	case s.State == core.Waiting:
+		out = "● " + core.HookAgent + " · needs you"
+	default:
+		out = "○ " + core.HookAgent
 	}
-	out := fmt.Sprintf("%s %s · turn %d", core.HookAgent, state, s.Turn)
 	if len(ss) > 1 {
-		out += fmt.Sprintf(" (+%d)", len(ss)-1)
+		out += fmt.Sprintf(" +%d", len(ss)-1)
 	}
 	return out
 }

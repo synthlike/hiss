@@ -103,7 +103,7 @@ func envEditor(t *testing.T, name string) (*Editor, chan func(*Editor)) {
 
 func TestRunInEnv(t *testing.T) {
 	e, ch := envEditor(t, "a.txt")
-	if got := e.EnvName(); got != "dev" {
+	if got := active(e); got != "dev" {
 		t.Errorf("active at start: %q", got)
 	}
 	if got := runOutput(t, e, ch, "enter"); got != "# env dev: env/dev.sh\ndev says hi" {
@@ -111,8 +111,8 @@ func TestRunInEnv(t *testing.T) {
 	}
 
 	e.execute("env shell")
-	if e.EnvName() != "shell" || e.Msg != "runs use shell" {
-		t.Errorf("switched: %q, msg %q", e.EnvName(), e.Msg)
+	if active(e) != "shell" || e.Msg != "runs use shell" {
+		t.Errorf("switched: %q, msg %q", active(e), e.Msg)
 	}
 	if got := runOutput(t, e, ch, "enter"); got != "# env shell\nshell says nothing" {
 		t.Errorf("no source: %q", got)
@@ -123,8 +123,8 @@ func TestRunInEnv(t *testing.T) {
 	}
 	pump(t, e, ch, finished(e))
 	e.execute("env nope")
-	if e.EnvName() != "shell" || e.Msg != "no [env] is named nope" {
-		t.Errorf("unknown env: %q, msg %q", e.EnvName(), e.Msg)
+	if active(e) != "shell" || e.Msg != "no [env] is named nope" {
+		t.Errorf("unknown env: %q, msg %q", active(e), e.Msg)
 	}
 }
 
@@ -190,20 +190,20 @@ func TestEnvList(t *testing.T) {
 		t.Errorf("items %q, want %q", got, want)
 	}
 	keys(e, "s t a g enter")
-	if e.EnvName() != "staging" {
-		t.Errorf("picked %q", e.EnvName())
+	if active(e) != "staging" {
+		t.Errorf("picked %q", active(e))
 	}
 }
 
 func TestEnvNameFollowsRulesFile(t *testing.T) {
 	e, _ := rulesEditor(t, "a.txt", "x\n")
-	if got := e.EnvName(); got != "" {
+	if got := active(e); got != "" {
 		t.Errorf("no envs: %q", got)
 	}
 	e.openFile(filepath.Join(e.Root, rulesFile))
 	e.Buf.Replace(0, 0, []byte("[env]\nname = local\n"), You)
 	e.save()
-	if got := e.EnvName(); got != "local" {
+	if got := active(e); got != "local" {
 		t.Errorf("after saving %s: %q", rulesFile, got)
 	}
 }
@@ -251,4 +251,10 @@ func TestEnv(t *testing.T) {
 	if r := e.TakeRun("s1"); r != nil {
 		t.Errorf("shared with share = false: %+v", r)
 	}
+}
+
+// active returns e's active env.
+func active(e *Editor) string {
+	name, _ := e.EnvName()
+	return name
 }
