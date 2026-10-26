@@ -124,8 +124,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 
 ## Status
 
-v0.2: early and small, now with gopls diagnostics and navigation. Next up
-(v0.3): run the SQL query, HTTP request or Go test under the cursor.
+v0.3: early and small. `enter` runs the Go test, SQL query or HTTP request
+under the cursor, next to gopls diagnostics and navigation; lines are
+numbered and wrap.
 
 ## License
 
