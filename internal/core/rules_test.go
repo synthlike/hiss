@@ -216,3 +216,34 @@ func TestBadRulesFile(t *testing.T) {
 		t.Errorf("msg %q", e.Msg)
 	}
 }
+
+func TestRunPicker(t *testing.T) {
+	e, ch := rulesEditor(t, "x.txt", "")
+	keys(e, "space r")
+	if e.Picker != nil || e.Msg != "no saved runs in .hiss/runs that a rule in .hissrun matches" {
+		t.Fatalf("none saved: picker %v, msg %q", e.Picker != nil, e.Msg)
+	}
+	runs := filepath.Join(e.Root, savedRuns)
+	os.MkdirAll(filepath.Join(runs, "db"), 0o755)
+	for name, s := range map[string]string{"login.txt": "hi\n", "db/all.all": "a\nb\n", "notes.md": "x\n"} {
+		os.WriteFile(filepath.Join(runs, name), []byte(s), 0o600)
+	}
+	keys(e, "space r")
+	if e.Picker == nil {
+		t.Fatalf("no picker: %q", e.Msg)
+	}
+	var got []string
+	for _, it := range e.Picker.Items {
+		got = append(got, it.Label+" "+it.Detail)
+	}
+	if want := []string{filepath.Join("db", "all.all") + " whole", "login.txt upper"}; !equal(got, want) {
+		t.Errorf("items %q, want %q", got, want)
+	}
+	keys(e, "l o g enter")
+	if e.Buf.Path != filepath.Join(runs, "login.txt") || e.runs.going != nil {
+		t.Fatalf("opened %s, running %v", e.Buf.Path, e.runs.going != nil)
+	}
+	if got := runOutput(t, e, ch, "enter"); !strings.HasPrefix(got, "HI\n") {
+		t.Errorf("running it: %q", got)
+	}
+}

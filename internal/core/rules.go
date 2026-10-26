@@ -329,3 +329,36 @@ func (e *Editor) runByRule() bool {
 	e.runRule(r, s, from, max(to, from))
 	return true
 }
+
+// savedRuns is where queries and requests worth keeping live, relative to
+// the project root. Like the rest of .hiss/, it's not committed.
+const savedRuns = ".hiss/runs"
+
+// openRunPicker lists the files in savedRuns that a rule matches; enter
+// opens one, and enter in it runs it.
+func (e *Editor) openRunPicker() {
+	rules, err := loadRules(e.Root)
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	dir := filepath.Join(e.Root, savedRuns)
+	p := &Picker{Title: "saved runs"}
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(e.Root, path)
+		if r := findRule(rules, rel); r != nil {
+			name, _ := filepath.Rel(dir, path)
+			p.Items = append(p.Items, PickItem{Label: name, Detail: r.name,
+				Run: func(e *Editor) { e.openFile(path) }})
+		}
+		return nil
+	})
+	if len(p.Items) == 0 {
+		e.Msg = "no saved runs in " + savedRuns + " that a rule in " + rulesFile + " matches"
+		return
+	}
+	e.Picker = p
+}

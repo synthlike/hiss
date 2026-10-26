@@ -40,6 +40,9 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
   show_trail rather than listing file:line in chat. Keep notes to one line and
   don't number them. The user may comment on a step; answer with reply (step).
 - Use get_selection to see what the user is pointing at.
+- The user runs SQL, HTTP requests (curl) and tests with Enter in hiss, with
+  their own credentials, as the project's .hissrun says. To hand them a query
+  or request, write it as a file; put ones worth keeping in .hiss/runs/.
 - When you need the user to decide or confirm something, ask with the ask
   tool rather than in chat or with AskUserQuestion: it pops up in the editor
   and waits for the answer. Offer short options when the answers are predictable.`

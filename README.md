@@ -112,6 +112,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   match = *.http
   cmd   = sh
   ```
+
+  Queries and requests worth keeping go in `.hiss/runs/`; `space r` lists the
+  ones a rule matches.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 
