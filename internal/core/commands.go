@@ -25,7 +25,10 @@ var commands = []command{
 	}},
 	{[]string{"e", "edit"}, "<path>", "open a file", (*Editor).openFile},
 	{[]string{"q", "quit"}, "", "quit", func(e *Editor, _ string) { e.quit() }},
-	{[]string{"q!", "quit!"}, "", "quit, discarding unsaved changes and pending hunks", func(e *Editor, _ string) { e.Quit = true }},
+	{[]string{"q!", "quit!"}, "", "quit, discarding unsaved changes and pending hunks", func(e *Editor, _ string) {
+		e.ForgetProposals()
+		e.Quit = true
+	}},
 	{[]string{"wq", "write-quit"}, "", "write and quit", func(e *Editor, _ string) {
 		if e.save() {
 			e.quit()

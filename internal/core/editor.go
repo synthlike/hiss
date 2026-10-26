@@ -92,6 +92,7 @@ type Editor struct {
 	servers   map[string]langServer // by language; nil if it failed to start
 	related   relatedState
 	runs      runState
+	persist   persist
 }
 
 func New(b *Buffer) *Editor {

@@ -65,7 +65,9 @@ func Run(ed *core.Editor, scr tcell.Screen, reqs <-chan func(*core.Editor)) {
 	tick := time.NewTicker(time.Second) // redraw time-based state such as agent status
 	defer tick.Stop()
 	scr.EnableFocus()
+	defer ed.SaveProposals() // the last event may have resolved them
 	for !ed.Quit {
+		ed.SaveProposals()
 		if notices := ed.TakeNotices(); len(notices) > 0 && ed.Unfocused { // the toast is enough when the user is looking
 			for _, n := range notices {
 				scr.ShowNotification("hiss: "+n.Title, n.Text)

@@ -86,6 +86,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   replies inline or sends a revision, even after its turn has ended.
 - **Get a tour.** Ask "walk me through the auth flow": Claude shares a trail of
   steps with notes, which you follow with `]s` and can comment on.
+- **Pick up where you left off.** Pending hunks and their threads are kept in
+  `.hiss/proposals.json`, so they survive a crash or restart; `:q!` discards
+  them. A hunk whose old text has changed on disk in the meantime is dropped.
 - **Point at code.** Select something in hiss, then ask Claude about "this"
   ("what does this do?"): it can read your selection.
 

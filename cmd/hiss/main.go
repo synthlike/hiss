@@ -101,6 +101,7 @@ func runEditor(path string) error {
 		ed.Msg = "agents disabled: " + err.Error()
 	} else {
 		defer ln.Close()
+		ed.RestoreProposals() // only the hiss serving the project keeps them
 		go rpc.Serve(ln, func(req rpc.Request) rpc.Response {
 			return onLoop(reqs, done, func(ed *core.Editor) rpc.Response { return tools.Exec(ed, req) })
 		})

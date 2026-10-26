@@ -137,10 +137,16 @@ func (e *Editor) addProposal(agent, rationale string, b *Buffer, start, end int,
 	if s := e.Caller(); s != nil {
 		p.Session, p.Turn = s.ID, s.Turn
 	}
-	e.proposals[p.ID] = p
-	i, _ := slices.BinarySearchFunc(b.pending, start, func(q *Proposal, s int) int { return q.Start - s })
-	b.pending = slices.Insert(b.pending, i, p)
+	e.track(p)
 	return p
+}
+
+// track adds pending proposal p to the editor and its buffer.
+func (e *Editor) track(p *Proposal) {
+	e.proposals[p.ID] = p
+	b := p.Buf
+	i, _ := slices.BinarySearchFunc(b.pending, p.Start, func(q *Proposal, s int) int { return q.Start - s })
+	b.pending = slices.Insert(b.pending, i, p)
 }
 
 func (e *Editor) announce(agent string, b *Buffer, n int) {
