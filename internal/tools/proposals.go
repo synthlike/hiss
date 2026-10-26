@@ -20,6 +20,7 @@ type ProposeEditIn struct {
 	BaseVersion *int   `json:"base_version,omitempty" jsonschema:"buffer version you read; the edit is refused if the user changed this text since"`
 	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change"`
 	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over"`
+	Run         bool   `json:"run,omitempty" jsonschema:"run the block you changed once the user accepts, as Enter there would: for a query, request or script in a file a .hissrun rule matches"`
 }
 
 type WriteFileIn struct {
@@ -28,6 +29,7 @@ type WriteFileIn struct {
 	BaseVersion *int   `json:"base_version,omitempty" jsonschema:"buffer version you read, for an existing file"`
 	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change"`
 	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over"`
+	Run         bool   `json:"run,omitempty" jsonschema:"run the first block you changed once the user accepts, as Enter there would: for a query, request or script in a file a .hissrun rule matches"`
 }
 
 type ProposeOut struct {
@@ -50,6 +52,9 @@ type ProposalInfo struct {
 	Rationale string `json:"rationale,omitempty"`
 	Edited    bool   `json:"edited,omitempty" jsonschema:"the user changed your text before accepting it"`
 	FinalText string `json:"final_text,omitempty" jsonschema:"the text as accepted, when edited; build on this rather than your proposal"`
+	Running   bool   `json:"running,omitempty" jsonschema:"accepted, and its run hasn't finished"`
+	Ran       string `json:"ran,omitempty" jsonschema:"how its run went, for a proposal made with run"`
+	RanOutput string `json:"ran_output,omitempty" jsonschema:"the end of the run's output, when its rule shares it"`
 }
 
 type GetProposalsIn struct {
@@ -72,7 +77,19 @@ func (o ProposalsOut) Text() string {
 		if p.Edited {
 			fmt.Fprintf(&sb, " with the user's edits; the text as saved:\n%s", strings.TrimSuffix(p.FinalText, "\n"))
 		}
+		switch {
+		case p.Running:
+			sb.WriteString("; running")
+		case p.Ran != "":
+			sb.WriteString("; " + p.Ran)
+		}
 		sb.WriteString("\n")
+		if p.RanOutput != "" {
+			sb.WriteString("The output ended with:\n")
+			for l := range strings.Lines(p.RanOutput) {
+				sb.WriteString("    " + strings.TrimSuffix(l, "\n") + "\n")
+			}
+		}
 	}
 	switch {
 	case len(o.Proposals) == 0:
@@ -86,16 +103,47 @@ func (o ProposalsOut) Text() string {
 }
 
 func proposeEdit(ed *core.Editor, agent string, in ProposeEditIn) (ProposeOut, error) {
+	path := resolve(ed, in.Path)
+	if in.Run && in.ReplaceAll {
+		return ProposeOut{}, fmt.Errorf("run takes one edit; drop replace_all")
+	}
 	return superseding(ed, agent, in.Supersedes, func() ([]*core.Proposal, error) {
-		return ed.ProposeEdit(agent, resolve(ed, in.Path), in.OldString, in.NewString, in.ReplaceAll, in.BaseVersion, in.Rationale)
+		if err := canRun(ed, in.Run, path); err != nil {
+			return nil, err
+		}
+		ps, err := ed.ProposeEdit(agent, path, in.OldString, in.NewString, in.ReplaceAll, in.BaseVersion, in.Rationale)
+		return runOnAccept(ed, in.Run, ps), err
 	})
 }
 
 func writeFile(ed *core.Editor, agent string, in WriteFileIn) (ProposeOut, error) {
+	path := resolve(ed, in.Path)
 	return superseding(ed, agent, in.Supersedes, func() ([]*core.Proposal, error) {
-		p, err := ed.WriteFile(agent, resolve(ed, in.Path), in.Content, in.BaseVersion, in.Rationale)
-		return []*core.Proposal{p}, err
+		if err := canRun(ed, in.Run, path); err != nil {
+			return nil, err
+		}
+		p, err := ed.WriteFile(agent, path, in.Content, in.BaseVersion, in.Rationale)
+		if err != nil {
+			return nil, err
+		}
+		return runOnAccept(ed, in.Run, []*core.Proposal{p}), nil
 	})
+}
+
+func canRun(ed *core.Editor, run bool, path string) error {
+	if !run {
+		return nil
+	}
+	return ed.CanRun(path)
+}
+
+func runOnAccept(ed *core.Editor, run bool, ps []*core.Proposal) []*core.Proposal {
+	if run {
+		for _, p := range ps {
+			ed.RunOnAccept(p)
+		}
+	}
+	return ps
 }
 
 // superseding runs propose, first withdrawing the proposal it revises (if any)
@@ -147,6 +195,7 @@ func proposalInfo(p *core.Proposal) ProposalInfo {
 		ID: p.ID, Path: p.Buf.Path, Session: p.Session, Turn: p.Turn,
 		Status: string(p.Status), Reason: p.Reason, Rationale: p.Rationale,
 		Edited: p.Edited, FinalText: p.Final,
+		Running: p.Running(), Ran: p.Ran, RanOutput: p.RanTail,
 	}
 }
 
@@ -182,7 +231,7 @@ var awaitReview = tool{
 				if err != nil {
 					return nil, out, err
 				}
-				waiting := slices.ContainsFunc(out.Proposals, func(p ProposalInfo) bool { return p.Status == string(core.Pending) })
+				waiting := slices.ContainsFunc(out.Proposals, func(p ProposalInfo) bool { return p.Status == string(core.Pending) || p.Running })
 				if !waiting || len(out.Comments) > 0 || time.Now().After(deadline) {
 					out.TimedOut = waiting && len(out.Comments) == 0
 					return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out.Text()}}}, out, nil

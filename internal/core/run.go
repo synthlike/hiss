@@ -40,6 +40,8 @@ type run struct {
 	what    string // what the history calls it: the file, or the test
 	pin     string // the env it always runs in; "" for the active one
 	envName string // the env it last ran in; "" with none
+
+	proposal *Proposal // the run proposal it's running, if it is one
 }
 
 type runState struct {
@@ -56,6 +58,8 @@ type runState struct {
 
 	history []pastRun // finished runs, the newest last
 	at      int       // the one *out* shows; len(history) while one is going
+
+	proposal *Proposal // the accepted proposal the next run starts for
 
 	env    string   // the env :env picked; "" for the first
 	envs   []string // the envs' names, as the rules file last said
@@ -166,6 +170,7 @@ func (e *Editor) startRun(r *run) {
 		e.Msg = err.Error()
 		return
 	}
+	r.proposal = e.runs.proposal
 	r.envName = ""
 	if en != nil {
 		r.envName = en.name
@@ -176,12 +181,19 @@ func (e *Editor) startRun(r *run) {
 			}
 		}
 	}
+	if p := r.proposal; p != nil {
+		p.runGoing = true
+	}
 	if en == nil || !en.confirm {
 		e.launch(r, en)
 		return
 	}
 	e.Menu = &Menu{Title: "run " + e.label(r) + "?", Items: []MenuItem{
 		{"y", "run it", func(e *Editor) { e.launch(r, en) }},
+	}, Else: func(e *Editor) {
+		if p := r.proposal; p != nil {
+			p.runGoing, p.Ran = false, "not run: the user didn't confirm running it on "+en.name
+		}
 	}}
 }
 
@@ -292,8 +304,15 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 	if n := out.Text.Len(); n > 0 && out.Text.Slice(n-1, n)[0] != '\n' {
 		e.appendOut("\n")
 	}
-	if r.share {
-		e.report(r, status, took, string(out.Text.Slice(min(e.runs.header, out.Text.Len()), out.Text.Len())))
+	output := string(out.Text.Slice(min(e.runs.header, out.Text.Len()), out.Text.Len()))
+	switch p := r.proposal; {
+	case p != nil: // its agent hears through the review instead
+		p.runGoing, p.Ran = false, fmt.Sprintf("ran %s: %s (%s)", e.label(r), status, took)
+		if r.share {
+			p.RanTail = tailOf(output)
+		}
+	case r.share:
+		e.report(r, status, took, output)
 	}
 	e.appendOut(fmt.Sprintf("[%s, %s]\n", status, took))
 	e.keep(r, status)
@@ -308,16 +327,21 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 // report keeps a shared run's result, with the last lines of its output, as
 // the latest for agents.
 func (e *Editor) report(r *run, status string, took time.Duration, output string) {
-	lines := strings.SplitAfter(output, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	tail := strings.Join(lines[max(len(lines)-reportLines, 0):], "")
+	tail := tailOf(output)
 	seq := 1
 	if p := e.runs.report; p != nil {
 		seq = p.Seq + 1
 	}
 	e.runs.report = &RunReport{Seq: seq, Title: r.title, Env: r.envName, Command: r.show, Status: status, Took: took, Tail: tail}
+}
+
+// tailOf returns the last reportLines lines of output.
+func tailOf(output string) string {
+	lines := strings.SplitAfter(output, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines[max(len(lines)-reportLines, 0):], "")
 }
 
 // TakeRun returns the latest shared run if session hasn't been given it yet.

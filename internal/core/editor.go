@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -37,6 +38,7 @@ type Selection struct{ Anchor, Head int }
 type Menu struct {
 	Title string
 	Items []MenuItem
+	Else  func(*Editor) // for any other key; nil to just close
 }
 
 type MenuItem struct {
@@ -126,10 +128,12 @@ func (e *Editor) HandleKey(k string) {
 	case e.Menu != nil:
 		m := e.Menu
 		e.Menu = nil
-		for _, it := range m.Items {
-			if it.Key == k {
-				it.Run(e)
-			}
+		i := slices.IndexFunc(m.Items, func(it MenuItem) bool { return it.Key == k })
+		switch {
+		case i >= 0:
+			m.Items[i].Run(e)
+		case m.Else != nil:
+			m.Else(e)
 		}
 	case e.Mode == Insert:
 		e.insertKey(k)

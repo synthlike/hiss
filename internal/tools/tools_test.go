@@ -235,6 +235,47 @@ func TestProposeReviewAwait(t *testing.T) {
 	}
 }
 
+func TestProposeRun(t *testing.T) {
+	pollInterval = 10 * time.Millisecond
+	cs, reqs := setup(t, "package main\n")
+	res := call(t, cs, "write_file", map[string]any{"path": "q.txt", "content": "select 1\n", "run": true})
+	if !res.IsError || !strings.Contains(text(res), "no rule in .hissrun matches q.txt") {
+		t.Fatalf("without a rule: %s", text(res))
+	}
+	onEditor(reqs, func(ed *core.Editor) {
+		os.WriteFile(filepath.Join(ed.Root, ".hissrun"), []byte("[up]\nmatch = *.txt\nshare = true\ncmd = tr a-z A-Z\n"), 0o600)
+		ed.Post = func(f func(*core.Editor)) {
+			go func() {
+				select {
+				case reqs <- f:
+				case <-time.After(5 * time.Second):
+				}
+			}()
+		}
+	})
+	res = call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "main", "new_string": "x", "replace_all": true, "run": true})
+	if !res.IsError || !strings.Contains(text(res), "drop replace_all") {
+		t.Errorf("replace_all: %s", text(res))
+	}
+	res = call(t, cs, "write_file", map[string]any{"path": "q.txt", "content": "select 1\n", "run": true})
+	if res.IsError {
+		t.Fatalf("write_file: %s", text(res))
+	}
+	id := structured[ProposeOut](t, res).IDs[0]
+	go onEditor(reqs, func(ed *core.Editor) {
+		ed.OpenBuffer(filepath.Join(ed.Root, "q.txt"))
+		ed.SwitchTo(ed.Proposal(id).Buf)
+		for _, k := range []string{"]", "h", "+"} {
+			ed.HandleKey(k)
+		}
+	})
+	res = call(t, cs, "await_review", map[string]any{"ids": []int{id}, "timeout_seconds": 5})
+	got := text(res)
+	if !strings.Contains(got, ": accepted; ran up: ok (") || !strings.Contains(got, "The output ended with:\n    SELECT 1\n") {
+		t.Errorf("await_review:\n%s", got)
+	}
+}
+
 func TestAwaitReviewTimesOut(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	cs, _ := setup(t, "x\n")

@@ -31,13 +31,18 @@ func (e *Editor) HunkInfo() []string {
 	if hk.P.Rationale != "" {
 		info += ": " + strings.Join(strings.Fields(hk.P.Rationale), " ")
 	}
+	accept := "accept"
+	if hk.P.Run {
+		info += "  ▶ " + e.runNote(hk.P)
+		accept = "accept and run"
+	}
 	switch {
 	case hk.Tweaked:
-		info += "  (editing: + accept as edited · - restore and reject)"
+		info += "  (editing: + " + accept + " as edited · - restore and reject)"
 	case total > 1:
-		info += "  (+ accept · - reject · # comment · :sa the set)"
+		info += "  (+ " + accept + " · - reject · # comment · :sa the set)"
 	default:
-		info += "  (+ accept · - reject · # comment)"
+		info += "  (+ " + accept + " · - reject · # comment)"
 	}
 	if e.Width <= 0 {
 		return []string{info}

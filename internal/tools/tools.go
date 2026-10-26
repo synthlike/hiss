@@ -44,6 +44,9 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
 - The user runs SQL, HTTP requests (curl) and tests with Enter in hiss, with
   their own credentials, as the project's .hissrun says. To hand them a query
   or request, write it as a file; put ones worth keeping in .hiss/runs/.
+  With run set, accepting the proposal also runs it, in the environment the
+  user has active, and await_review reports how it went (the output only if
+  the rule shares it). Don't use it for tests: run those yourself.
   Its [env] sections name environments; when you run tests yourself, source
   the script of the one [go] pins (set -a; . <source>; set +a) first.
 - When you need the user to decide or confirm something, ask with the ask

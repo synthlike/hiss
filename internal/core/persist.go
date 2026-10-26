@@ -34,6 +34,8 @@ type savedProposal struct {
 	Line      int            `json:"line"` // 1-based, where Old started: picks among repeats
 	Old       string         `json:"old"`
 	New       string         `json:"new"`
+	Run       bool           `json:"run,omitempty"`
+	RunAt     int            `json:"run_at,omitempty"` // where in New the run starts
 	Thread    []savedComment `json:"thread,omitempty"`
 }
 
@@ -126,7 +128,7 @@ func (e *Editor) restoreProposal(sp savedProposal) bool {
 		return false
 	}
 	p := &Proposal{ID: sp.ID, Agent: sp.Agent, Session: sp.Session, Turn: sp.Turn, Rationale: sp.Rationale,
-		Buf: b, Start: start, End: start + len(sp.Old), New: sp.New, Status: Pending}
+		Buf: b, Start: start, End: start + len(sp.Old), New: sp.New, Status: Pending, Run: sp.Run, runAt: sp.RunAt}
 	for _, c := range sp.Thread {
 		p.Thread = append(p.Thread, Comment{Author: c.Author, Text: c.Text, At: c.At, Line: c.Line, delivered: c.Delivered})
 	}
@@ -189,7 +191,7 @@ func (e *Editor) saved(p *Proposal) savedProposal {
 		old = sb.String()
 	}
 	sp := savedProposal{ID: p.ID, Agent: p.Agent, Session: p.Session, Turn: p.Turn, Rationale: p.Rationale,
-		Path: e.shortPath(b.Path), Line: b.Text.LineOf(p.Start) + 1, Old: old, New: p.New}
+		Path: e.shortPath(b.Path), Line: b.Text.LineOf(p.Start) + 1, Old: old, New: p.New, Run: p.Run, RunAt: p.runAt}
 	for _, c := range p.Thread {
 		sp.Thread = append(sp.Thread, savedComment{Author: c.Author, Text: c.Text, At: c.At, Line: c.Line, Delivered: c.delivered})
 	}

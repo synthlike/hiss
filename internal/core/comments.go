@@ -128,7 +128,7 @@ func (e *Editor) WatchComments(session, watcher string, register bool) WatchResu
 		return WatchResult{Superseded: true}
 	}
 	r := WatchResult{Comments: append(e.TakeComments(ps), e.takeTrailComments(session)...)}
-	if len(s.watched) > 0 && !slices.ContainsFunc(s.watched, func(p *Proposal) bool { return p.Status == Pending }) {
+	if len(s.watched) > 0 && !slices.ContainsFunc(s.watched, func(p *Proposal) bool { return p.Status == Pending || p.runGoing }) {
 		r.Reviewed, s.watched = s.watched, nil
 	}
 	return r

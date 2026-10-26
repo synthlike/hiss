@@ -169,6 +169,10 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   status and the last 20 lines of output with your next prompt (or its next
   tool call); Go runs share unless `[go]` says `share = false`, rules don't
   unless asked.
+  Claude can also propose a query or request to run: the hunk says how it
+  will run (`▶ runs [sql] on dev`), and accepting it saves the file and runs
+  it in the active environment. Claude hears how it went, with the output
+  only when the rule shares.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

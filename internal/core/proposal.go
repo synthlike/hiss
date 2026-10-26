@@ -38,10 +38,15 @@ type Proposal struct {
 	Tweaked   bool      // the proposed text is in the buffer for the user to edit
 	Edited    bool      // accepted after the user changed the proposed text
 	Final     string    // the accepted text, when Edited
+	Run       bool      // run it once accepted
+	Ran       string    // how that went, once it has
+	RanTail   string    // the end of its output, when its rule shares
 
 	old       []oldSpan  // the text a tweak replaced
 	tweakUndo int        // undo depth just after the tweak's checkpoint
 	diags     []hunkDiag // the language server's problems in New
+	runAt     int        // where in New the run starts: the first line it changes
+	runGoing  bool       // accepted, and its run hasn't finished
 }
 
 func (p *Proposal) origin() text.Origin {
@@ -310,6 +315,11 @@ func (e *Editor) resolve(p *Proposal, accept bool, reason string) string {
 	if err := b.Save(); err != nil {
 		p.Reason = "accepted in the editor, but saving failed: " + err.Error()
 		return fmt.Sprintf("accepted #%d but saving failed: %v", p.ID, err)
+	}
+	if p.Run {
+		if why := e.runAccepted(p); why != "" {
+			return fmt.Sprintf("accepted #%d, wrote %s; %s", p.ID, b.Name, why)
+		}
 	}
 	return fmt.Sprintf("accepted #%d, wrote %s", p.ID, b.Name)
 }
