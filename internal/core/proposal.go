@@ -308,7 +308,12 @@ func (e *Editor) resolve(p *Proposal, accept bool, reason string) string {
 		}
 	} else {
 		e.checkpointBuf(b)
-		b.Replace(p.Start, p.End, []byte(p.New), p.origin())
+		ed := b.Replace(p.Start, p.End, []byte(p.New), p.origin())
+		sel := &b.sel
+		if b == e.Buf {
+			sel = &e.Sel
+		}
+		sel.Anchor, sel.Head = ed.Map(sel.Anchor, false), ed.Map(sel.Head, false) // the cursor stays in the text
 	}
 	p.Status = Accepted
 	e.rulesChanged(b.Path)

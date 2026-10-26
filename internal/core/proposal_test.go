@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -205,5 +206,23 @@ func TestHunkLines(t *testing.T) {
 			t.Errorf("%q→%q: added=%q lines %d-%d", c.old, c.new, h.Added, h.First, h.Last)
 		}
 		keys(e, "] h - enter")
+	}
+}
+
+func TestAcceptShrinkingBelowTop(t *testing.T) {
+	var sb strings.Builder
+	for i := range 40 {
+		sb.WriteString("l" + strconv.Itoa(i) + "\n")
+	}
+	e := newEditor(t, sb.String())
+	old := strings.Join(strings.SplitAfter(sb.String(), "\n")[5:38], "")
+	propose(t, e, old, "x\n")
+	keys(e, "g e")
+	if e.Top < 30 {
+		t.Fatalf("top %d: the test needs it past the accepted text's end", e.Top)
+	}
+	keys(e, ": h a a enter") // panicked: Top stayed past the shrunk buffer's last line
+	if n := e.Buf.Text.LineCount(); e.Top >= n || e.line() < e.Top {
+		t.Errorf("top %d, cursor line %d, %d lines", e.Top, e.line(), n)
 	}
 }

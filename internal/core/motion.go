@@ -291,6 +291,9 @@ func (e *Editor) scroll() {
 	if e.Height <= 0 {
 		return
 	}
+	if last := e.Buf.Text.LineCount() - 1; e.Top > last { // the text shrank under it, as by accepting a hunk
+		e.Top, e.TopSub = last, 0
+	}
 	above, block := e.lineRows()
 	line := e.line()
 	sub := e.cursorSub(above[line]) // the cursor's row within its line's block
