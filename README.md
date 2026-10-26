@@ -83,6 +83,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 - `/` searches as you type, `n` / `N` repeat, `*` searches for the selection.
 - `:<line>` goes to a line; `C-o` / `C-i` jump back and forward.
 - `:` shows the commands as you type; `tab` completes them.
+- `:note <text>` (`:n`) adds a line to `.hiss/notes.md` with the date, the
+  commit (`+` if the file has changed since) and the cursor's `path:line`.
 - In Go files, gopls's diagnostics are marked in the gutter and underlined; the
   cursor line's message shows below, and `]d` / `[d` go to the next / previous.
   `gd` goes to a definition and `gr` lists references, also from proposed lines;
