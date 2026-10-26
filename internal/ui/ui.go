@@ -325,7 +325,11 @@ func Draw(s Screen, ed *core.Editor) {
 		right = diagSummary(errs, warns) + "  " + right
 	}
 	if n := ed.PendingCount(); n > 0 {
-		right = fmt.Sprintf("%d pending  ", n) + right
+		pending := fmt.Sprintf("%d pending", n)
+		if r, t := ed.HalfReviewed(); t > 0 {
+			pending += fmt.Sprintf(", set %d/%d reviewed", r, t) // the rest may be needed to build
+		}
+		right = pending + "  " + right
 	}
 	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
 		right = fmt.Sprintf("%d asked (:answer)  ", n) + right
@@ -362,10 +366,17 @@ func Draw(s Screen, ed *core.Editor) {
 		case hk != nil:
 			fill(s, 0, h-1, w, styleText)
 			info := fmt.Sprintf("#%d %s", hk.P.ID, hk.P.Agent)
+			r, total := ed.SetProgress(hk.P)
+			if total > 1 {
+				info += fmt.Sprintf(" (set %d/%d reviewed)", r, total)
+			}
 			if hk.P.Rationale != "" {
 				info += ": " + hk.P.Rationale
 			}
 			keys := "  (+ accept, - reject, # comment)"
+			if total > 1 {
+				keys = "  (+ accept, - reject, # comment, :sa the set)"
+			}
 			if hk.Tweaked {
 				keys = "  (editing: + accept as edited, - restore and reject)"
 			}

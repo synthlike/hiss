@@ -76,6 +76,7 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 | `+` / `-` / `#` | accept / reject / comment |
 | `]s` / `[s` | next / previous trail step |
 | `space f` `b` `h` `t` | pick a file, buffer, hunk or trail step |
+| `:sa` / `:sr` | accept / reject the hunk's change set: what Claude proposed in that turn |
 | `:haa` / `:hra` | accept / reject all hunks |
 
 ## Editing
