@@ -98,9 +98,17 @@ func (e *Editor) runAtCursor() {
 		e.Msg = "not in a test function"
 		return
 	}
-	dir := filepath.Dir(e.Buf.Path)
-	e.startRun(&run{title: name, dir: dir, warnDir: dir, share: c.goShare, pin: c.goEnv,
-		argv: []string{"go", "test", "-run", "^" + name + "$", "-v", "."}})
+	if sub := e.subtestAt(name); sub != "" {
+		name += "/" + sub
+	}
+	e.runGoTest(c, filepath.Dir(e.Buf.Path), name)
+}
+
+// runGoTest runs test, named as go test -v prints it ("TestX/case"), in the
+// package in dir.
+func (e *Editor) runGoTest(c *runConfig, dir, test string) {
+	e.startRun(&run{title: test, dir: dir, warnDir: dir, share: c.goShare, pin: c.goEnv,
+		argv: []string{"go", "test", "-run", runPattern(test), "-v", "."}})
 }
 
 // enclosingTest returns the name of the top-level test function the cursor
@@ -500,6 +508,8 @@ func (e *Editor) openOutputLocation() {
 		found = append(found, loc{path, l, c})
 	}
 	switch {
+	case len(found) == 0 && e.rerunTestLine(s):
+		return
 	case len(found) == 0:
 		e.Msg = "no file:line on this line"
 		return
@@ -508,6 +518,24 @@ func (e *Editor) openOutputLocation() {
 	}
 	f := found[under]
 	e.openAt(f.path, f.line, f.col)
+}
+
+// rerunTestLine runs the test a go test -v line s names, such as
+// "--- FAIL: TestX/case (0.00s)", in the last run's package, and reports
+// whether s was one.
+func (e *Editor) rerunTestLine(s string) bool {
+	m := testLine.FindStringSubmatch(s)
+	r := e.runs.last
+	if m == nil || r == nil || len(r.argv) < 2 || r.argv[0] != "go" || r.argv[1] != "test" {
+		return false
+	}
+	c, err := e.loadRunConfig()
+	if err != nil {
+		e.Msg = err.Error()
+		return true
+	}
+	e.runGoTest(c, r.dir, m[1])
+	return true
 }
 
 // existing returns name as an absolute path to a file that exists or is

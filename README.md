@@ -119,8 +119,10 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   `return`, the function's returns.
 - In a Go test, `enter` runs it with `go test -run` on the files as saved and
   streams the output into a panel below the text, so the cursor stays put;
-  `esc` hides it. `space o` opens the whole output as `*out*`, where `enter`
-  on a `file:line` goes to it. `C-c` cancels, and `:rerun` (`:rr`) runs it
+  `esc` hides it. In a table case (a `name:` field or a map key) or a
+  `t.Run("…")`, it runs just that subtest. `space o` opens the whole output
+  as `*out*`, where `enter` on a `file:line` goes to it and on a
+  `--- FAIL: TestX/case` line runs that test again. `C-c` cancels, and `:rerun` (`:rr`) runs it
   again from anywhere.
 - `.hissrun` at the project root tells `enter` what to run in other files. The
   paragraph under the cursor (or the selection, or with `input = file` the
