@@ -37,6 +37,7 @@ type run struct {
 	show    string // the command as *out* shows it; set from argv if ""
 	warnDir string // say if files here have changes that aren't on disk; "" not to
 	share   bool   // the agent may see the output
+	what    string // what the history calls it: the file, or the test
 	pin     string // the env it always runs in; "" for the active one
 	envName string // the env it last ran in; "" with none
 }
@@ -52,6 +53,9 @@ type runState struct {
 
 	report *RunReport     // the latest shared run
 	told   map[string]int // the Seq of the report each session was given
+
+	history []pastRun // finished runs, the newest last
+	at      int       // the one *out* shows; len(history) while one is going
 
 	env    string   // the env :env picked; "" for the first
 	envs   []string // the envs' names, as the rules file last said
@@ -107,7 +111,7 @@ func (e *Editor) runAtCursor() {
 // runGoTest runs test, named as go test -v prints it ("TestX/case"), in the
 // package in dir.
 func (e *Editor) runGoTest(c *runConfig, dir, test string) {
-	e.startRun(&run{title: test, dir: dir, warnDir: dir, share: c.goShare, pin: c.goEnv,
+	e.startRun(&run{title: test, what: test, dir: dir, warnDir: dir, share: c.goShare, pin: c.goEnv,
 		argv: []string{"go", "test", "-run", runPattern(test), "-v", "."}})
 }
 
@@ -133,11 +137,12 @@ func (e *Editor) enclosingTest() string {
 }
 
 func (e *Editor) rerun() {
-	if e.runs.last == nil {
+	r := e.shownRun()
+	if r == nil {
 		e.Msg = "nothing run yet"
 		return
 	}
-	e.startRun(e.runs.last)
+	e.startRun(r)
 }
 
 // startRun runs r into *out* in its environment, asking first if that has
@@ -215,6 +220,7 @@ func (e *Editor) launch(r *run, en *env) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e.runs.last, e.runs.going, e.runs.cancel, e.runs.start = r, r, cancel, e.now()
+	e.runs.at = len(e.runs.history)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = r.dir
 	if environ != nil {
@@ -290,6 +296,7 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 		e.report(r, status, took, string(out.Text.Slice(min(e.runs.header, out.Text.Len()), out.Text.Len())))
 	}
 	e.appendOut(fmt.Sprintf("[%s, %s]\n", status, took))
+	e.keep(r, status)
 	if !e.runs.panel && e.Buf != out { // otherwise the line above is on screen
 		e.Msg = fmt.Sprintf("%s: %s (%s)", e.label(r), status, took)
 		if w := e.diskWarning(r.warnDir); w != "" {
@@ -481,7 +488,7 @@ func (e *Editor) openOutputLocation() {
 	s := string(t.Slice(start, e.Buf.LineEnd(line)))
 	col := e.Sel.Head - start
 	var dirs []string
-	if r := e.runs.last; r != nil {
+	if r := e.shownRun(); r != nil {
 		dirs = append(dirs, r.dir)
 	}
 	dirs = append(dirs, e.Root)
@@ -525,7 +532,7 @@ func (e *Editor) openOutputLocation() {
 // whether s was one.
 func (e *Editor) rerunTestLine(s string) bool {
 	m := testLine.FindStringSubmatch(s)
-	r := e.runs.last
+	r := e.shownRun()
 	if m == nil || r == nil || len(r.argv) < 2 || r.argv[0] != "go" || r.argv[1] != "test" {
 		return false
 	}

@@ -122,8 +122,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   `esc` hides it. In a table case (a `name:` field or a map key) or a
   `t.Run("…")`, it runs just that subtest. `space o` opens the whole output
   as `*out*`, where `enter` on a `file:line` goes to it and on a
-  `--- FAIL: TestX/case` line runs that test again. `C-c` cancels, and `:rerun` (`:rr`) runs it
-  again from anywhere.
+  `--- FAIL: TestX/case` line runs that test again. `C-c` cancels, and
+  `:rerun` (`:rr`) runs it again from anywhere. `[r` / `]r` step through the
+  last 20 runs' output (kept until you quit); `:rerun` runs the one shown.
 - `.hissrun` at the project root tells `enter` what to run in other files. The
   paragraph under the cursor (or the selection, or with `input = file` the
   whole file) goes to the command's stdin; with `find`, a regexp searched

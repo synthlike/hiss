@@ -202,12 +202,14 @@ var nextMenu = Menu{Title: "next", Items: []MenuItem{
 	{"h", "hunk", func(e *Editor) { e.jumpHunk(1) }},
 	{"s", "step", func(e *Editor) { e.stepTrail(1) }},
 	{"d", "diagnostic", func(e *Editor) { e.jumpDiag(1) }},
+	{"r", "run's output", func(e *Editor) { e.stepRun(1) }},
 }}
 
 var prevMenu = Menu{Title: "previous", Items: []MenuItem{
 	{"h", "hunk", func(e *Editor) { e.jumpHunk(-1) }},
 	{"s", "step", func(e *Editor) { e.stepTrail(-1) }},
 	{"d", "diagnostic", func(e *Editor) { e.jumpDiag(-1) }},
+	{"r", "run's output", func(e *Editor) { e.stepRun(-1) }},
 }}
 
 var spaceMenu = Menu{Title: "space", Items: []MenuItem{

@@ -480,7 +480,7 @@ func diagMark(severity int) string {
 // on the rows below it, rows in all.
 func drawPanel(s Screen, w, y, rows int, ed *core.Editor) {
 	title := " *out*"
-	if r := ed.Running(); r != "" {
+	if r := ed.OutInfo(); r != "" {
 		title += "  " + r
 	}
 	keys := "space o open · esc hide "

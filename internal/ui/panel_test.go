@@ -46,7 +46,7 @@ func TestDrawPanel(t *testing.T) {
 			t.Errorf("row %d = %q, want %q", y, got, w)
 		}
 	}
-	if got := g.row(8); !strings.HasPrefix(got, " *out*") || !strings.HasSuffix(got, "space o open · esc hide") {
+	if got := g.row(8); got != " *out*  run 1/1 · f.txt · ok · just now" { // too narrow for the keys too
 		t.Errorf("title = %q", got)
 	}
 	if g.row(9) != " one" || g.row(10) != " two" || !strings.HasPrefix(g.row(11), " [ok, ") {

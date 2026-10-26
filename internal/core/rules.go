@@ -248,7 +248,7 @@ func findRule(rules []rule, rel string) *rule {
 func (e *Editor) runRule(r *rule, input string, from, to int) {
 	b := e.Buf
 	line := e.line()
-	run := &run{title: r.name, dir: e.Root, share: r.share, pin: r.env,
+	run := &run{title: r.name, what: e.relName(b), dir: e.Root, share: r.share, pin: r.env,
 		env: []string{"file=" + b.Path, "dir=" + filepath.Dir(b.Path),
 			"line=" + strconv.Itoa(line+1), "root=" + e.Root}}
 	var show strings.Builder
