@@ -247,3 +247,17 @@ func TestRunPicker(t *testing.T) {
 		t.Errorf("running it: %q", got)
 	}
 }
+
+func TestRuleSharesOnlyWhenAsked(t *testing.T) {
+	e, ch := rulesEditor(t, "q.txt", "a\n")
+	runOutput(t, e, ch, "enter")
+	if r := e.TakeRun("s1"); r != nil {
+		t.Errorf("reported a rule without share: %+v", r)
+	}
+	os.WriteFile(filepath.Join(e.Root, rulesFile), []byte("[s]\nmatch = *.txt\nshare = true\ncmd = cat\n"), 0o600)
+	keys(e, "C-o")
+	runOutput(t, e, ch, "enter")
+	if r := e.TakeRun("s1"); r == nil || r.Title != "s" || r.Tail != "a\n" {
+		t.Errorf("report %+v", r)
+	}
+}

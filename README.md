@@ -114,7 +114,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   ```
 
   Queries and requests worth keeping go in `.hiss/runs/`; `space r` lists the
-  ones a rule matches.
+  ones a rule matches. With `share = true`, Claude gets the command, its exit
+  status and the last 20 lines of output with your next prompt (or its next
+  tool call); Go tests always share, rules don't unless asked.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

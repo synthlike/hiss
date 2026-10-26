@@ -110,3 +110,21 @@ func TestSetupIsValidSettings(t *testing.T) {
 		t.Errorf("hooks=%d deny=%v", len(s.Hooks), s.Permissions.Deny)
 	}
 }
+
+func TestHookHandsOverRuns(t *testing.T) {
+	serveHook(t, tools.HookOut{Run: &tools.RunInfo{Title: "TestX", Command: "go test -run '^TestX$' -v .",
+		Status: "exit status 1", Took: "1.2s", Tail: "--- FAIL: TestX\nFAIL\n"}})
+	var stdout strings.Builder
+	runHook(strings.NewReader(`{"session_id":"s1","hook_event_name":"UserPromptSubmit"}`), &stdout)
+	var out struct {
+		HookSpecificOutput struct{ AdditionalContext string }
+	}
+	if err := json.Unmarshal([]byte(stdout.String()), &out); err != nil {
+		t.Fatalf("%q: %v", stdout.String(), err)
+	}
+	want := "The user ran TestX in hiss: exit status 1 (1.2s).\n    $ go test -run '^TestX$' -v .\n" +
+		"The output ended with:\n    --- FAIL: TestX\n    FAIL\n"
+	if got := out.HookSpecificOutput.AdditionalContext; got != want {
+		t.Errorf("context:\n%s\nwant:\n%s", got, want)
+	}
+}

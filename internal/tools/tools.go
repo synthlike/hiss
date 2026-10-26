@@ -150,15 +150,29 @@ var hook = tool{
 		var out HookOut
 		if ev.Event == "PostToolUse" || ev.Event == "UserPromptSubmit" {
 			out.Comments = commentInfos(ed.SessionComments(ev.SessionID))
+			out.Run = runInfo(ed.TakeRun(ev.SessionID))
 		}
 		return out, nil
 	},
 }
 
-// HookOut is the editor's answer to a hook event: new comments the hook
-// should hand to the agent right away.
+// HookOut is the editor's answer to a hook event: new comments, and a run
+// the user shared, that the hook should hand to the agent right away.
 type HookOut struct {
 	Comments []CommentInfo `json:"comments,omitempty"`
+	Run      *RunInfo      `json:"run,omitempty"`
+}
+
+// Text is what the hook tells the agent, or "".
+func (o HookOut) Text() string {
+	var s string
+	if len(o.Comments) > 0 {
+		s = CommentsText(o.Comments)
+	}
+	if o.Run != nil {
+		s += RunText(o.Run)
+	}
+	return s
 }
 
 // Register adds every tool to s, forwarding calls with fwd.

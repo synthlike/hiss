@@ -194,11 +194,11 @@ func runHook(stdin io.Reader, stdout io.Writer) {
 	defer cancel()
 	raw, err := rpc.Call(ctx, sock, rpc.Request{Tool: "hook", Args: data})
 	var out tools.HookOut
-	if err != nil || json.Unmarshal(raw, &out) != nil || len(out.Comments) == 0 {
+	if err != nil || json.Unmarshal(raw, &out) != nil || out.Text() == "" {
 		return
 	}
 	json.NewEncoder(stdout).Encode(map[string]any{"hookSpecificOutput": map[string]any{
 		"hookEventName":     in.Event,
-		"additionalContext": tools.CommentsText(out.Comments),
+		"additionalContext": out.Text(),
 	}})
 }

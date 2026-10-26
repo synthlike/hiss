@@ -32,7 +32,7 @@ type run struct {
 	argv    []string // the command
 	env     []string // added to hiss's environment
 	stdin   string
-	show    string // the command as *out* shows it; "" to show argv
+	show    string // the command as *out* shows it; set from argv if ""
 	warnDir string // say if files here have changes that aren't on disk; "" not to
 	share   bool   // the agent may see the output
 }
@@ -43,7 +43,25 @@ type runState struct {
 	cancel context.CancelFunc // stops going
 	start  time.Time
 	out    *Buffer
+	header int // bytes of *out* before the output
+
+	report *RunReport     // the latest shared run
+	told   map[string]int // the Seq of the report each session was given
 }
+
+// RunReport is a finished shared run, handed to each agent session once
+// with the user's next prompt or the agent's next tool call.
+type RunReport struct {
+	Seq     int
+	Title   string
+	Command string
+	Status  string // "ok", "exit status 1", "cancelled", …
+	Took    time.Duration
+	Tail    string // the output's last lines
+}
+
+// reportLines is how much output a report carries.
+const reportLines = 20
 
 // testFunc matches the line a test, fuzz test or example starts on.
 var testFunc = regexp.MustCompile(`^func ((?:Test|Fuzz|Example)\w*)\(`)
@@ -110,15 +128,15 @@ func (e *Editor) startRun(r *run) {
 		return
 	}
 	out := e.outBuffer()
-	show := r.show
-	if show == "" {
-		show = e.shellLine(r)
+	if r.show == "" {
+		r.show = e.shellLine(r)
 	}
-	header := "$ " + show + "\n"
+	header := "$ " + r.show + "\n"
 	if w := e.diskWarning(r.warnDir); w != "" {
 		header += "# " + w + "\n"
 	}
 	out.Replace(0, out.Text.Len(), []byte(header), text.Origin{})
+	e.runs.header = len(header)
 	out.undo, out.redo = nil, nil
 	if e.Buf != out {
 		e.pushJump()
@@ -200,11 +218,42 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 	if n := out.Text.Len(); n > 0 && out.Text.Slice(n-1, n)[0] != '\n' {
 		e.appendOut("\n")
 	}
+	if r.share {
+		e.report(r, status, took, string(out.Text.Slice(min(e.runs.header, out.Text.Len()), out.Text.Len())))
+	}
 	e.appendOut(fmt.Sprintf("[%s, %s]\n", status, took))
 	e.Msg = fmt.Sprintf("%s: %s (%s)", r.title, status, took)
 	if w := e.diskWarning(r.warnDir); w != "" {
 		e.Msg += "; " + w
 	}
+}
+
+// report keeps a shared run's result, with the last lines of its output, as
+// the latest for agents.
+func (e *Editor) report(r *run, status string, took time.Duration, output string) {
+	lines := strings.SplitAfter(output, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	tail := strings.Join(lines[max(len(lines)-reportLines, 0):], "")
+	seq := 1
+	if p := e.runs.report; p != nil {
+		seq = p.Seq + 1
+	}
+	e.runs.report = &RunReport{Seq: seq, Title: r.title, Command: r.show, Status: status, Took: took, Tail: tail}
+}
+
+// TakeRun returns the latest shared run if session hasn't been given it yet.
+func (e *Editor) TakeRun(session string) *RunReport {
+	r := e.runs.report
+	if r == nil || e.runs.told[session] >= r.Seq {
+		return nil
+	}
+	if e.runs.told == nil {
+		e.runs.told = map[string]int{}
+	}
+	e.runs.told[session] = r.Seq
+	return r
 }
 
 // cancelRun stops the run that's going, if any.

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -219,5 +220,39 @@ func TestOpenOutputLocation(t *testing.T) {
 	keys(e, "l enter") // under the cursor
 	if e.Buf != f || e.line() != 2 {
 		t.Errorf("under cursor: on %s line %d", e.Buf.Name, e.line())
+	}
+}
+
+func TestRunReportsSharedRuns(t *testing.T) {
+	e, ch := runEditor(t)
+	gotoText(t, e, `t.Error("broken")`)
+	keys(e, "enter")
+	pump(t, e, ch, finished(e))
+	r := e.TakeRun("s1")
+	if r == nil {
+		t.Fatal("no report for a Go test")
+	}
+	if r.Title != "TestFail" || r.Status != "exit status 1" || r.Command != "go test -run '^TestFail$' -v ." ||
+		!strings.Contains(r.Tail, "x_test.go:13: broken") || strings.Contains(r.Tail, "[exit status 1") {
+		t.Errorf("report %+v", r)
+	}
+	if e.TakeRun("s1") != nil {
+		t.Error("s1 was told twice")
+	}
+	if e.TakeRun("s2") == nil {
+		t.Error("s2 wasn't told")
+	}
+}
+
+func TestRunReportTail(t *testing.T) {
+	e := newEditor(t, "")
+	var out strings.Builder
+	for i := range 30 {
+		fmt.Fprintf(&out, "line %d\n", i)
+	}
+	e.report(&run{title: "x", show: "x"}, "ok", 0, out.String())
+	r := e.TakeRun("s")
+	if !strings.HasPrefix(r.Tail, "line 10\n") || !strings.HasSuffix(r.Tail, "line 29\n") {
+		t.Errorf("tail %q", r.Tail)
 	}
 }
