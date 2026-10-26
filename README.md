@@ -8,29 +8,47 @@ revise. Navigation is inspired by Helix.
 
 ## In action
 
-Review proposed changes and discuss them inline.
+Review a change set hunk by hunk, and discuss it inline.
 
-<picture>
+<a href="docs/screenshots/review-light.png"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/review-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/review-light.png">
-  <img alt="An inline review in hiss: Claude proposes a JSON response, and the user discusses its shape in a comment thread." src="docs/screenshots/review-light.png" width="1000">
-</picture>
+  <img alt="An inline review in hiss: Claude proposes a JSON response as a set of three hunks; one is accepted, and a comment thread under the next asks about errors." src="docs/screenshots/review-light.png" width="600">
+</picture></a>
 
 Follow a guided code tour, with notes anchored to the relevant lines.
 
-<picture>
+<a href="docs/screenshots/code-tour-light.png"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/code-tour-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/code-tour-light.png">
-  <img alt="A guided code tour in hiss: Claude explains how a request becomes a response in three inline steps." src="docs/screenshots/code-tour-light.png" width="1000">
-</picture>
+  <img alt="A guided code tour in hiss: Claude explains how a request becomes a response in three inline steps, and answers a comment on the last one." src="docs/screenshots/code-tour-light.png" width="600">
+</picture></a>
+
+Answer Claude's questions without leaving the editor.
+
+<a href="docs/screenshots/ask-light.png"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ask-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/ask-light.png">
+  <img alt="A question popup in hiss: Claude asks whether to keep the plain-text greeting, offering three answers over the pending hunks." src="docs/screenshots/ask-light.png" width="600">
+</picture></a>
+
+Run the test under the cursor with `enter`; Claude sees the result too.
+
+<a href="docs/screenshots/run-light.png"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/run-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/run-light.png">
+  <img alt="A test run in hiss: enter on TestGreet streams go test output into a panel, which notes the run didn't include two pending hunks." src="docs/screenshots/run-light.png" width="600">
+</picture></a>
 
 Find the change you want to review with the fuzzy hunk picker (`space h`).
 
-<picture>
+<a href="docs/screenshots/fuzzy-finder-light.png"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/fuzzy-finder-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/fuzzy-finder-light.png">
-  <img alt="The fuzzy hunk picker in hiss: typing json filters five pending changes to three matching proposals across files." src="docs/screenshots/fuzzy-finder-light.png" width="1000">
-</picture>
+  <img alt="The fuzzy hunk picker in hiss: typing json filters five pending hunks to the four that match, across three files." src="docs/screenshots/fuzzy-finder-light.png" width="600">
+</picture></a>
+
+Click a screenshot for full size. `docs/screenshots/shoot.sh` regenerates them from the real UI.
 
 ## Install
 
