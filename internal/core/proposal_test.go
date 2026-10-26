@@ -1,9 +1,9 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -212,7 +212,7 @@ func TestHunkLines(t *testing.T) {
 func TestAcceptShrinkingBelowTop(t *testing.T) {
 	var sb strings.Builder
 	for i := range 40 {
-		sb.WriteString("l" + strconv.Itoa(i) + "\n")
+		fmt.Fprintf(&sb, "l%d\n", i)
 	}
 	e := newEditor(t, sb.String())
 	old := strings.Join(strings.SplitAfter(sb.String(), "\n")[5:38], "")
