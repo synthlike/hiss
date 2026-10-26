@@ -117,64 +117,74 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   `space s` lists the file's symbols.
   Resting the cursor on a name highlights its other uses; on `func` or
   `return`, the function's returns.
-- In a Go test, `enter` runs it with `go test -run` on the files as saved and
-  streams the output into a panel below the text, so the cursor stays put;
-  `esc` hides it. In a table case (a `name:` field or a map key) or a
-  `t.Run("…")`, it runs just that subtest. `space o` opens the whole output
-  as `*out*`, where `enter` on a `file:line` goes to it and on a
-  `--- FAIL: TestX/case` line runs that test again. `C-c` cancels, and
-  `:rerun` (`:rr`) runs it again from anywhere. `[r` / `]r` step through the
-  last 20 runs' output (kept until you quit); `:rerun` runs the one shown.
-- `.hissrun` at the project root tells `enter` what to run in other files. The
-  paragraph under the cursor (or the selection, or with `input = file` the
-  whole file) goes to the command's stdin; with `find`, a regexp searched
-  upward from the cursor gives the command `$1`…. Commands run with `sh -c` in
-  the project root, with `$file`, `$dir`, `$line` and `$root` set. In
-  Markdown, a fenced block runs with the rule for its language.
-
-  ```ini
-  [sql]
-  match = *.sql
-  cmd   = psql "$DATABASE_URL" -X -f -
-
-  # requests.http holds curl commands; secrets stay in your shell's env
-  [http]
-  match = *.http
-  cmd   = sh
-  ```
-
-  `[env]` sections name environments. Runs source the active one's script
-  (with `set -a`, fresh each time) and get its name as `$env`; the first is
-  active at start, `:env <name>` switches and the status line shows its name
-  in teal. `confirm = true` asks before each run there, and shows it in red. A rule's `env = <name>` always
-  runs in that one, and `[go]` sets the built-in Go runner's `env` and
-  `share` (a rule matching `*.go` replaces the runner instead).
-
-  ```ini
-  [env]
-  name   = dev
-  source = scripts/env-dev.sh
-
-  [env]
-  name    = staging
-  source  = scripts/env-staging.sh
-  confirm = true
-
-  [go]
-  env = dev
-  ```
-
-  Queries and requests worth keeping go in `.hiss/runs/`; `space r` lists the
-  ones a rule matches. With `share = true`, Claude gets the command, its exit
-  status and the last 20 lines of output with your next prompt (or its next
-  tool call); Go runs share unless `[go]` says `share = false`, rules don't
-  unless asked.
-  Claude can also propose a query or request to run: the hunk says how it
-  will run (`▶ runs [sql] on dev`), and accepting it saves the file and runs
-  it in the active environment. Claude hears how it went, with the output
-  only when the rule shares.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
+
+## Running
+
+`enter` runs what's under the cursor and streams the output into a panel below
+the text, so the cursor stays put. `esc` hides the panel and `C-c` cancels.
+
+- **Go tests.** In a test, `enter` runs it with `go test -run` on the files as
+  saved; in a table case (a `name:` field or a map key) or a `t.Run("…")`,
+  just that subtest.
+- **Queries, requests, scripts.** `.hissrun` says what to run in other files
+  (see below). In Markdown, a fenced block runs with the rule for its language.
+- **Output.** `space o` opens the whole output as `*out*`, where `enter` on a
+  `file:line` goes to it and on a `--- FAIL: TestX/case` line runs that test
+  again. `[r` / `]r` step through the last 20 runs (kept until you quit), and
+  `:rerun` (`:rr`) runs the one shown again from anywhere.
+- **Saved runs.** Queries and requests worth keeping go in `.hiss/runs/`;
+  `space r` lists the ones a rule matches.
+- **Claude sees the result.** With `share = true`, Claude gets the command, its
+  exit status and the last 20 lines of output with your next prompt (or its
+  next tool call). Go runs share unless `[go]` says `share = false`; rules
+  don't unless asked.
+- **Claude proposes runs.** The hunk says how it will run (`▶ runs [sql] on
+  dev`), and accepting it saves the file and runs it in the active
+  environment. Claude hears how it went, with the output only when the rule
+  shares.
+
+### .hissrun
+
+`.hissrun` at the project root holds the rules. Each `[name]` section matches
+files by glob and gives a command, which runs with `sh -c` in the project root
+with `$file`, `$dir`, `$line` and `$root` set. The paragraph under the cursor
+(or the selection, or with `input = file` the whole file) goes to its stdin;
+with `find`, a regexp searched upward from the cursor gives it `$1`….
+
+```ini
+[sql]
+match = *.sql
+cmd   = psql "$DATABASE_URL" -X -f -
+
+# requests.http holds curl commands; secrets stay in your shell's env
+[http]
+match = *.http
+cmd   = sh
+```
+
+`[env]` sections name environments. Runs source the active one's script (with
+`set -a`, fresh each time) and get its name as `$env`. The first is active at
+start; `:env <name>` switches (`:env` alone picks), and the status line shows
+the name in teal. `confirm = true` asks before each run there and shows the
+name in red. A rule's `env = <name>` always runs in that one. `[go]` sets the
+built-in Go runner's `env` and `share`; a rule matching `*.go` replaces the
+runner instead.
+
+```ini
+[env]
+name   = dev
+source = scripts/env-dev.sh
+
+[env]
+name    = staging
+source  = scripts/env-staging.sh
+confirm = true
+
+[go]
+env = dev
+```
 
 ## Status
 
