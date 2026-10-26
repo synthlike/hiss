@@ -38,6 +38,7 @@ var (
 	styleWarning   = tcell.StyleDefault.Foreground(color.Yellow)
 	styleInfo      = tcell.StyleDefault.Foreground(color.Teal)
 
+	styleEnv        = tcell.StyleDefault.Background(color.Teal).Foreground(color.White).Bold(true)
 	styleEnvConfirm = tcell.StyleDefault.Background(color.Maroon).Foreground(color.White).Bold(true)
 )
 
@@ -541,11 +542,11 @@ func statusRight(ed *core.Editor) []segment {
 		add(fmt.Sprintf("%d %s (:an)", n, noun))
 	}
 	if env, confirm := ed.EnvName(); env != "" {
-		sg := segment{"env " + env, styleStatus}
+		st := styleEnv
 		if confirm { // staging or prod: runs there ask first
-			sg = segment{" env " + env + " ", styleEnvConfirm}
+			st = styleEnvConfirm
 		}
-		segs = append(segs, sg)
+		segs = append(segs, segment{" " + env + " ", st})
 	}
 	if r := ed.RunTitle(); r != "" {
 		add(spinner(ed.Now()) + " " + r + " (C-c)")

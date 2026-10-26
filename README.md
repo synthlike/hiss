@@ -145,8 +145,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 
   `[env]` sections name environments. Runs source the active one's script
   (with `set -a`, fresh each time) and get its name as `$env`; the first is
-  active at start, `:env <name>` switches and the status line shows it.
-  `confirm = true` asks before each run there, and marks it in red. A rule's `env = <name>` always
+  active at start, `:env <name>` switches and the status line shows its name
+  in teal. `confirm = true` asks before each run there, and shows it in red. A rule's `env = <name>` always
   runs in that one, and `[go]` sets the built-in Go runner's `env` and
   `share` (a rule matching `*.go` replaces the runner instead).
 

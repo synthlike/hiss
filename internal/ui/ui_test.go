@@ -73,8 +73,11 @@ func TestDrawEnv(t *testing.T) {
 	ed.Resize(40, 6)
 	g := newGrid(40, 6)
 	Draw(g, ed)
-	if got := g.row(4); !strings.HasSuffix(got, "env dev  1:1") {
+	if got := g.row(4); !strings.HasSuffix(got, " dev   1:1") {
 		t.Errorf("status = %q", got)
+	}
+	if x := strings.Index(g.row(4), "dev"); g.styles[4][x] != styleEnv {
+		t.Error("the env isn't marked")
 	}
 
 	os.WriteFile(filepath.Join(root, ".hissrun"), []byte("[env]\nname = prod\nconfirm = true\n"), 0o600)
@@ -84,7 +87,7 @@ func TestDrawEnv(t *testing.T) {
 	g = newGrid(40, 6)
 	Draw(g, ed)
 	row := g.row(4)
-	if !strings.HasSuffix(row, " env prod   1:1") {
+	if !strings.HasSuffix(row, " prod   1:1") {
 		t.Fatalf("status = %q", row)
 	}
 	if x := strings.Index(row, "prod"); g.styles[4][x] != styleEnvConfirm {
