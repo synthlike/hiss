@@ -2,9 +2,15 @@
 
 A small modal terminal editor for working alongside Claude Code.
 
-Claude doesn't write your files: it proposes edits, and you review them inline,
+Claude doesn't write your files. It proposes edits, which you review inline:
 accept or reject each one, tweak it before accepting, or comment and let Claude
-revise. Navigation is inspired by Helix.
+revise.
+
+The rest of the loop happens in the editor too. Claude walks you through code
+and asks you questions there; you run tests, SQL queries and HTTP requests with
+`enter`, in the environment you pick, and Claude sees how they went. Go files
+get gopls diagnostics and navigation, proposed lines included. Editing is
+inspired by Helix and Kakoune: select first, then act.
 
 ## In action
 
