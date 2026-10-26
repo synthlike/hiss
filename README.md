@@ -146,9 +146,10 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 
 ## Status
 
-v0.3: early and small. `enter` runs the Go test, SQL query or HTTP request
-under the cursor, next to gopls diagnostics and navigation; lines are
-numbered and wrap.
+v0.4: early and small. An agent turn's proposals are reviewed as one change
+set, and agents can vet and test them before you do; run output streams into
+a panel below the text. Since v0.3, `enter` runs the Go test, SQL query or
+HTTP request under the cursor, next to gopls diagnostics and navigation.
 
 ## License
 
