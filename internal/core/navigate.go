@@ -113,7 +113,7 @@ func (e *Editor) sentCursor(s sentText) (int, bool) {
 			continue
 		}
 		// The hunk's Added lines are the sent text from its first line's start.
-		off := s.toSent(e.Buf.Text.LineStart(h.First))
+		off := s.toSentBefore(e.Buf.Text.LineStart(h.First))
 		for _, l := range h.Added[:row-1] {
 			off += len(l) + 1
 		}
@@ -137,6 +137,22 @@ func (s sentText) toSent(off int) int {
 	d := 0
 	for _, sp := range s.spans {
 		if off < sp.start {
+			break
+		}
+		if off < sp.end {
+			return sp.start + d
+		}
+		d += sp.n - (sp.end - sp.start)
+	}
+	return off + d
+}
+
+// toSentBefore is toSent, except that where a proposal inserts text at off,
+// it goes before the new text rather than after it.
+func (s sentText) toSentBefore(off int) int {
+	d := 0
+	for _, sp := range s.spans {
+		if off <= sp.start {
 			break
 		}
 		if off < sp.end {

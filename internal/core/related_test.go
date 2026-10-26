@@ -108,3 +108,20 @@ func TestRelatedLateAnswerDropped(t *testing.T) {
 		t.Error("a late answer was drawn")
 	}
 }
+
+// A new file's proposal inserts all of its text at offset 0, so the proposed
+// lines start where the insertion does, not after it.
+func TestRelatedOnNewFileProposal(t *testing.T) {
+	e := newGoEditor(t, "")
+	f, run := relatedLSP(t, e)
+	src := "package a\n\nfunc f(x int) int { return x }\n"
+	if _, err := e.WriteFile("claude", e.Buf.Path, src, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	keys(e, "j j j") // the third proposed line
+	e.goal = 7       // on x
+	settle(e, run)
+	if len(f.asked) != 1 || f.asked[0] != (lsp.Position{Line: 2, Character: 7}) {
+		t.Errorf("asked about %+v, want 2:7", f.asked)
+	}
+}
