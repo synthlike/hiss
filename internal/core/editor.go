@@ -187,8 +187,8 @@ var normalKeys = map[string]func(*Editor){
 }
 
 var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
-	{"g", "file start", func(e *Editor) { e.pushJump(); e.setHead(0) }},
-	{"e", "file end", func(e *Editor) { e.pushJump(); e.setHead(e.Buf.Text.LineStart(e.Buf.Text.LineCount() - 1)) }},
+	{"g", "file start", (*Editor).fileStart},
+	{"e", "file end", (*Editor).fileEnd},
 	{"h", "line start", func(e *Editor) { e.setHead(e.Buf.Text.LineStart(e.line())) }},
 	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.LineEnd(e.line())) }},
 	{"d", "definition", (*Editor).gotoDefinition},

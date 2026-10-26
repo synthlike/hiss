@@ -102,7 +102,7 @@ func TestDrawDiagnosticsOnHunk(t *testing.T) {
 	}
 	b.Text = text.New([]byte("package a\nfunc f() {}\n"), text.Origin{})
 	ed := core.New(b)
-	ed.Resize(40, 10)
+	ed.Resize(60, 10)
 	if _, err := ed.ProposeEdit("claude", b.Path, "func f() {}", "func f() { x }", false, nil, "use x"); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestDrawDiagnosticsOnHunk(t *testing.T) {
 	ed.SetDiagnostics(lsp.Diagnostics{Path: b.Path, Version: -1, UTF8: true, Diags: []lsp.Diagnostic{
 		{Range: rng, Severity: lsp.Error, Message: "undefined: x"}}})
 	ed.HandleKey("j")
-	g := newGrid(40, 10)
+	g := newGrid(60, 10)
 	Draw(g, ed)
 	var plus int
 	for y := range 10 {
@@ -128,7 +128,7 @@ func TestDrawDiagnosticsOnHunk(t *testing.T) {
 		t.Errorf("message line on the old line = %q, want the hunk's info", got)
 	}
 	ed.HandleKey("j")
-	g = newGrid(40, 10)
+	g = newGrid(60, 10)
 	Draw(g, ed)
 	if got := g.row(9); got != "undefined: x" {
 		t.Errorf("message line on the proposed line = %q, want its problem", got)
@@ -163,7 +163,7 @@ func TestDrawHunk(t *testing.T) {
 	b.Text = text.New([]byte("one\ntwo\nthree\n"), text.Origin{})
 	ed := core.New(b)
 	ed.Root = dir
-	ed.Resize(30, 9)
+	ed.Resize(60, 9)
 	if _, err := ed.ProposeEdit("claude", b.Path, "two\n", "2\nTWO\n", false, nil, "spell it out"); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestDrawHunk(t *testing.T) {
 	}
 	ed.Toast = core.Toast{} // the "replied" toast would cover the top rows
 	ed.HandleKey("j")
-	g := newGrid(30, 9)
+	g := newGrid(60, 9)
 	Draw(g, ed)
 	want := []string{"   1 one", "▸    #1 claude: spell it out", "-  2 two", "+    2", "+    TWO", "┆    claude: spelled out", "   3 three"}
 	for y, w := range want {
@@ -197,7 +197,7 @@ func TestDrawCursorInTallHunk(t *testing.T) {
 	b.Text = text.New([]byte("a\nb\nc\n"), text.Origin{})
 	ed := core.New(b)
 	ed.Root = dir
-	ed.Resize(30, 5) // three text rows
+	ed.Resize(60, 5) // three text rows
 	if _, err := ed.ProposeEdit("claude", b.Path, "b\n", "1\n2\n3\n4\n5\n6\n", false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestDrawCursorInTallHunk(t *testing.T) {
 	for range 5 {
 		ed.HandleKey("j")
 	}
-	g := newGrid(30, 5)
+	g := newGrid(60, 5)
 	Draw(g, ed)
 	for y, want := range []string{"+    2", "+    3", "+    4"} {
 		if got := g.row(y); got != want {
@@ -294,14 +294,14 @@ func TestDrawWrapped(t *testing.T) {
 	b.Text = text.New([]byte("hello world again\nx\n"), text.Origin{})
 	ed := core.New(b)
 	ed.Root = dir
-	ed.Resize(15, 10) // 10 columns of text after the gutter
+	ed.Resize(15, 12) // 10 columns of text after the gutter
 	if _, err := ed.ProposeEdit("claude", b.Path, "x\n", "one two three four\n", false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	ed.Toast = core.Toast{}
 	ed.HandleKey("j")
 	ed.HandleKey("j") // on the proposed line
-	g := newGrid(15, 10)
+	g := newGrid(15, 12)
 	Draw(g, ed)
 	want := []string{"   1 hello", "     world", "     again", "-  2 x", "+    one two", "     three four", "   3"}
 	for y, w := range want {

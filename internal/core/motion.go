@@ -67,6 +67,23 @@ func (e *Editor) moveLines(n int) {
 	e.goal, e.row, e.rowSet = goal, row, true
 }
 
+// fileStart goes to the file's first row: a tweaked hunk's old lines come
+// before its first line.
+func (e *Editor) fileStart() {
+	e.pushJump()
+	e.setHead(0)
+	e.row, e.rowSet = -e.diffAbove(0), true
+}
+
+// fileEnd goes to the file's last row, which is a proposed line when a
+// hunk ends on the last line, as in a new file.
+func (e *Editor) fileEnd() {
+	last := e.Buf.Text.LineCount() - 1
+	e.pushJump()
+	e.setHead(e.Buf.Text.LineStart(last))
+	e.row, e.rowSet = e.diffBelow(last), true
+}
+
 // DiffRow returns n>0 when the cursor is on the n-th proposed line drawn below
 // its hunk, -n when it is n rows above a tweaked hunk's first line on one of
 // its old lines, or 0 when it is on the buffer line.
@@ -269,7 +286,7 @@ func (e *Editor) cursorSub(above int) int {
 // scroll keeps the cursor line inside the visible rows.
 func (e *Editor) scroll() {
 	if e.screen > 0 {
-		e.Height = max(e.screen-2-e.PanelRows(), 1) // the status and message lines, and the output panel
+		e.Height = max(e.screen-1-e.MessageRows()-e.PanelRows(), 1) // the status line, the message area and the output panel
 	}
 	if e.Height <= 0 {
 		return

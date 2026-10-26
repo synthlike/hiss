@@ -26,11 +26,15 @@ func (e *Editor) TextWidth() int { return max(e.Width-e.Gutter(), 1) }
 // tabs reach the next tab stop, counted from the row's start. Without a known
 // width, s takes one row.
 func (e *Editor) Wrap(s string) []int {
-	rows := []int{0}
 	if e.Width <= 0 {
-		return rows
+		return []int{0}
 	}
-	w := e.TextWidth()
+	return wrapAt(s, e.TextWidth())
+}
+
+// wrapAt is Wrap for rows of w columns.
+func wrapAt(s string, w int) []int {
+	rows := []int{0}
 	start, col, brk := 0, 0, 0 // brk is just after the row's last blank past its indentation
 	word := false              // whether the row has a non-blank yet
 	for i := 0; i < len(s); {

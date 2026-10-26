@@ -172,7 +172,8 @@ func Draw(s Screen, ed *core.Editor) {
 	}
 	g := ed.Gutter() // a mark column, the line number and a space
 	panel := ed.PanelRows()
-	textH := h - 2 - panel // rows for text, above the panel and the status and message lines
+	status := h - 1 - ed.MessageRows() // the status line's row, above the message area
+	textH := status - panel            // rows for text, above the panel
 	row, line := 0, ed.Top
 	for row < textH {
 		if line >= t.LineCount() {
@@ -311,7 +312,7 @@ func Draw(s Screen, ed *core.Editor) {
 		drawPanel(s, w, textH, panel, ed)
 	}
 	if ed.Splash != "" && ed.Buf.Path == "" && t.Len() == 0 {
-		drawSplash(s, w, h-2, ed.Splash)
+		drawSplash(s, w, textH, ed.Splash)
 	}
 
 	dirty := ""
@@ -340,58 +341,41 @@ func Draw(s Screen, ed *core.Editor) {
 	if a := agentStatus(ed); a != "" {
 		right = a + "  " + right
 	}
-	fill(s, 0, h-2, w, styleStatus)
-	putString(s, 0, h-2, left, styleStatus)
-	putString(s, w-len(right), h-2, right, styleStatus)
+	fill(s, 0, status, w, styleStatus)
+	putString(s, 0, status, left, styleStatus)
+	putString(s, w-len(right), status, right, styleStatus)
 
+	msg := status + 1
 	switch {
 	case ed.Mode == core.Command:
-		putString(s, 0, h-1, ":"+ed.Cmd, styleText)
+		putString(s, 0, msg, ":"+ed.Cmd, styleText)
 	case ed.Mode == core.Search:
-		putString(s, 0, h-1, "/"+ed.Cmd, styleText)
+		putString(s, 0, msg, "/"+ed.Cmd, styleText)
 	case ed.Msg != "":
-		putString(s, 0, h-1, ed.Msg, styleText)
+		putString(s, 0, msg, ed.Msg, styleText)
 	default:
 		if ss := ed.Sessions(); len(ss) > 0 && ss[0].State == core.Waiting && ss[0].Note != "" {
-			putString(s, 0, h-1, "claude: "+ss[0].Note, styleDim)
+			putString(s, 0, msg, "claude: "+ss[0].Note, styleDim)
 		}
-		d, hk := ed.DiagAtCursor(), ed.HunkAtCursor()
-		if hk != nil && d != nil && ed.DiffRow() <= 0 {
-			d = nil // on a hunk's own lines, its info wins; on its proposed lines, their problems
-		}
-		switch {
-		case d != nil:
-			fill(s, 0, h-1, w, styleText)
-			putString(s, 0, h-1, d.Summary(), diagStyle(d.Severity))
-		case hk != nil:
-			fill(s, 0, h-1, w, styleText)
-			info := fmt.Sprintf("#%d %s", hk.P.ID, hk.P.Agent)
-			r, total := ed.SetProgress(hk.P)
-			if total > 1 {
-				info += fmt.Sprintf(" (set %d/%d reviewed)", r, total)
+		if info := ed.HunkInfo(); info != nil { // on a hunk's own lines, its info wins; on its proposed lines, their problems
+			for i, l := range info {
+				fill(s, 0, msg+i, w, styleText)
+				putString(s, 0, msg+i, l, styleDim)
 			}
-			if hk.P.Rationale != "" {
-				info += ": " + hk.P.Rationale
-			}
-			keys := "  (+ accept, - reject, # comment)"
-			if total > 1 {
-				keys = "  (+ accept, - reject, # comment, :sa the set)"
-			}
-			if hk.Tweaked {
-				keys = "  (editing: + accept as edited, - restore and reject)"
-			}
-			putString(s, 0, h-1, info+keys, styleDim)
+		} else if d := ed.DiagAtCursor(); d != nil {
+			fill(s, 0, msg, w, styleText)
+			putString(s, 0, msg, d.Summary(), diagStyle(d.Severity))
 		}
 	}
 	if t := ed.ActiveToast(); t != nil {
 		drawToast(s, w, t)
 	}
 	if ed.Menu != nil {
-		drawMenu(s, w, h-2, ed.Menu, false)
+		drawMenu(s, w, status, ed.Menu, false)
 	}
 	if ed.Mode == core.Command {
 		if m := ed.CommandHints(); m != nil {
-			drawMenu(s, w, h-2, m, true) // by the command line it completes
+			drawMenu(s, w, status, m, true) // by the command line it completes
 		}
 	}
 	if ed.Picker != nil {

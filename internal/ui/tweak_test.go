@@ -17,7 +17,7 @@ func TestDrawTweakedHunk(t *testing.T) {
 	b.Text = text.New([]byte("one\ntwo\nthree\n"), text.Origin{})
 	ed := core.New(b)
 	ed.Root = dir
-	ed.Resize(40, 9)
+	ed.Resize(70, 9)
 	if _, err := ed.ProposeEdit("claude", b.Path, "two\n", "2\nTWO\n", false, nil, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestDrawTweakedHunk(t *testing.T) {
 	for _, k := range []string{"j", "j", "i", "X", "esc"} {
 		ed.HandleKey(k)
 	}
-	g := newGrid(40, 9)
+	g := newGrid(70, 9)
 	Draw(g, ed)
 	for y, want := range []string{"   1 one", "-    two", "+  2 X2", "+  3 TWO", "   4 three"} {
 		if got := g.row(y); got != want {
