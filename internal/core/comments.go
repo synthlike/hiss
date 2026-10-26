@@ -180,7 +180,7 @@ func (e *Editor) Withdraw(agent string, id int) (undo func(), err error) {
 func (e *Editor) Supersede(old, p *Proposal) {
 	old.Status, old.Reason = Superseded, fmt.Sprintf("revised as #%d", p.ID)
 	p.Thread = append(old.Thread, p.Thread...)
-	e.notify(p.Agent, fmt.Sprintf("revised #%d as #%d (]h to review)", old.ID, p.ID))
+	e.reviewNotice(p.Agent, fmt.Sprintf("revised #%d as #%d (]h to review)", old.ID, p.ID), 1)
 }
 
 // threadLines wraps a thread to width columns, each comment led by its author.

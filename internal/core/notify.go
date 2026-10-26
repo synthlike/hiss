@@ -19,6 +19,16 @@ func (e *Editor) notify(title, text string) {
 	e.notices = append(e.notices, Toast{Title: title, Text: text})
 }
 
+// reviewNotice tells the user about added new pending proposals, unless
+// they're already reviewing others with hiss in focus: then a toast would
+// only cover the hunks, and the status line's pending count says it.
+func (e *Editor) reviewNotice(title, text string, added int) {
+	if !e.Unfocused && e.PendingCount() > added {
+		return
+	}
+	e.notify(title, text)
+}
+
 // SetFocused records whether the terminal has focus. Focusing starts the
 // countdown of a toast held while the user was away.
 func (e *Editor) SetFocused(focused bool) {
