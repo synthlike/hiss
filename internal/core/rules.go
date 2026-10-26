@@ -24,6 +24,10 @@ import (
 // captures as $1…. Commands run with sh -c in the project root, with $file,
 // $dir, $line and $root set; hiss substitutes nothing itself. In Markdown, a
 // fenced block (```sql) runs with the rule for a file of that extension.
+//
+// [env] sections name environments; runs source the active one's script
+// first, and a rule's env = <name> pins it to one. [go] configures the
+// built-in Go runner.
 
 // rulesFile is the rules file, relative to the project root.
 const rulesFile = ".hissrun"
@@ -33,18 +37,43 @@ type rule struct {
 	match []string // globs: on the file name, or on the path from the root when they have a /
 	cmd   string
 	find  *regexp.Regexp
-	file  bool // input = file: the whole file is the input
-	share bool // the agent may see the output
+	file  bool   // input = file: the whole file is the input
+	share bool   // the agent may see the output
+	env   string // the environment it always runs in; "" for the active one
+}
+
+// env is an environment runs can be switched between with :env.
+type env struct {
+	name    string
+	source  string // a script sourced with set -a before the command; "" for none
+	confirm bool   // ask before running
+}
+
+// runConfig is what the rules file says.
+type runConfig struct {
+	rules   []rule
+	envs    []env
+	goEnv   string // the built-in test runner's env
+	goShare bool
+}
+
+func (c *runConfig) env(name string) *env {
+	for i := range c.envs {
+		if c.envs[i].name == name {
+			return &c.envs[i]
+		}
+	}
+	return nil
 }
 
 // loadRules reads the project's rules; no file means no rules.
-func loadRules(root string) ([]rule, error) {
+func loadRules(root string) (*runConfig, error) {
 	if root == "" {
-		return nil, nil
+		return parseRules("")
 	}
 	data, err := os.ReadFile(filepath.Join(root, rulesFile))
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return parseRules("")
 	}
 	if err != nil {
 		return nil, err
@@ -52,20 +81,33 @@ func loadRules(root string) ([]rule, error) {
 	return parseRules(string(data))
 }
 
-func parseRules(src string) ([]rule, error) {
-	var rules []rule
+func parseRules(src string) (*runConfig, error) {
+	c := &runConfig{goShare: true}
 	var r *rule
-	start := 0 // the line r starts on
+	var en *env
+	section := "" // "rule", "env" or "go"
+	start := 0    // the line the section starts on
+	type pin struct {
+		env  string
+		line int
+	}
+	var pins []pin // envs rules pin to, checked once all are read
 	done := func() error {
 		switch {
-		case r == nil:
-			return nil
+		case section == "env" && en.name == "":
+			return fmt.Errorf("%s:%d: [env] has no name", rulesFile, start)
+		case section == "env" && c.env(en.name) != nil:
+			return fmt.Errorf("%s:%d: a second [env] named %s", rulesFile, start, en.name)
+		case section == "env":
+			c.envs = append(c.envs, *en)
+		case section != "rule":
 		case len(r.match) == 0:
 			return fmt.Errorf("%s:%d: [%s] has no match", rulesFile, start, r.name)
 		case r.cmd == "":
 			return fmt.Errorf("%s:%d: [%s] has no cmd", rulesFile, start, r.name)
+		default:
+			c.rules = append(c.rules, *r)
 		}
-		rules = append(rules, *r)
 		return nil
 	}
 	for i, l := range strings.Split(src, "\n") {
@@ -78,7 +120,16 @@ func parseRules(src string) ([]rule, error) {
 			if err := done(); err != nil {
 				return nil, err
 			}
-			r, start = &rule{name: strings.TrimSpace(l[1 : len(l)-1])}, n
+			name := strings.TrimSpace(l[1 : len(l)-1])
+			start = n
+			switch name {
+			case "env":
+				section, en = "env", &env{}
+			case "go":
+				section = "go"
+			default:
+				section, r = "rule", &rule{name: name}
+			}
 			continue
 		}
 		key, val, ok := strings.Cut(l, "=")
@@ -86,51 +137,86 @@ func parseRules(src string) ([]rule, error) {
 		bad := func(format string, a ...any) error {
 			return fmt.Errorf("%s:%d: %s", rulesFile, n, fmt.Sprintf(format, a...))
 		}
+		boolean := func() (bool, error) {
+			b, err := strconv.ParseBool(val)
+			if err != nil {
+				return false, bad("%s is true or false, not %q", key, val)
+			}
+			return b, nil
+		}
+		var err error
 		switch {
 		case !ok:
 			return nil, bad("want [name] or key = value")
-		case r == nil:
+		case section == "":
 			return nil, bad("%s before the first [name]", key)
-		}
-		switch key {
-		case "match":
-			r.match = strings.Fields(val)
-			for _, g := range r.match {
-				if _, err := filepath.Match(g, ""); err != nil {
-					return nil, bad("match %q: %v", g, err)
-				}
-			}
-		case "cmd":
-			r.cmd = val
-		case "find":
-			re, err := regexp.Compile(val)
-			if err != nil {
-				return nil, bad("find: %v", err)
-			}
-			r.find = re
-		case "input":
-			switch val {
-			case "paragraph":
-				r.file = false
-			case "file":
-				r.file = true
+		case section == "env":
+			switch key {
+			case "name":
+				en.name = val
+			case "source":
+				en.source = val
+			case "confirm":
+				en.confirm, err = boolean()
 			default:
-				return nil, bad("input is paragraph or file, not %q", val)
+				return nil, bad("unknown key %q in [env] (name, source, confirm)", key)
 			}
-		case "share":
-			b, err := strconv.ParseBool(val)
-			if err != nil {
-				return nil, bad("share is true or false, not %q", val)
+		case section == "go":
+			switch key {
+			case "env":
+				c.goEnv, pins = val, append(pins, pin{val, n})
+			case "share":
+				c.goShare, err = boolean()
+			default:
+				return nil, bad("unknown key %q in [go] (env, share)", key)
 			}
-			r.share = b
 		default:
-			return nil, bad("unknown key %q (match, cmd, find, input, share)", key)
+			switch key {
+			case "match":
+				r.match = strings.Fields(val)
+				for _, g := range r.match {
+					if _, err := filepath.Match(g, ""); err != nil {
+						return nil, bad("match %q: %v", g, err)
+					}
+				}
+			case "cmd":
+				r.cmd = val
+			case "find":
+				re, err := regexp.Compile(val)
+				if err != nil {
+					return nil, bad("find: %v", err)
+				}
+				r.find = re
+			case "input":
+				switch val {
+				case "paragraph":
+					r.file = false
+				case "file":
+					r.file = true
+				default:
+					return nil, bad("input is paragraph or file, not %q", val)
+				}
+			case "share":
+				r.share, err = boolean()
+			case "env":
+				r.env, pins = val, append(pins, pin{val, n})
+			default:
+				return nil, bad("unknown key %q (match, cmd, find, input, share, env)", key)
+			}
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 	if err := done(); err != nil {
 		return nil, err
 	}
-	return rules, nil
+	for _, p := range pins {
+		if c.env(p.env) == nil {
+			return nil, fmt.Errorf("%s:%d: no [env] is named %s", rulesFile, p.line, p.env)
+		}
+	}
+	return c, nil
 }
 
 // matches reports whether r applies to path, given as it is relative to the
@@ -162,7 +248,7 @@ func findRule(rules []rule, rel string) *rule {
 func (e *Editor) runRule(r *rule, input string, from, to int) {
 	b := e.Buf
 	line := e.line()
-	run := &run{title: r.name, dir: e.Root, share: r.share,
+	run := &run{title: r.name, dir: e.Root, share: r.share, pin: r.env,
 		env: []string{"file=" + b.Path, "dir=" + filepath.Dir(b.Path),
 			"line=" + strconv.Itoa(line+1), "root=" + e.Root}}
 	var show strings.Builder
@@ -273,12 +359,7 @@ func isMarkdown(path string) bool {
 
 // runByRule runs the rule for the cursor, if there is one, and reports
 // whether there was.
-func (e *Editor) runByRule() bool {
-	rules, err := loadRules(e.Root)
-	if err != nil {
-		e.Msg = err.Error()
-		return true
-	}
+func (e *Editor) runByRule(rules []rule) bool {
 	b := e.Buf
 	if b.Path == "" || len(rules) == 0 {
 		return false
@@ -337,11 +418,12 @@ const savedRuns = ".hiss/runs"
 // openRunPicker lists the files in savedRuns that a rule matches; enter
 // opens one, and enter in it runs it.
 func (e *Editor) openRunPicker() {
-	rules, err := loadRules(e.Root)
+	c, err := e.loadRunConfig()
 	if err != nil {
 		e.Msg = err.Error()
 		return
 	}
+	rules := c.rules
 	dir := filepath.Join(e.Root, savedRuns)
 	p := &Picker{Title: "saved runs"}
 	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {

@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseRules(t *testing.T) {
-	rules, err := parseRules(`# comment
+	c, err := parseRules(`# comment
 [sql]
 match = *.sql  queries/*.txt
 cmd   = psql -X -f -
@@ -23,6 +23,7 @@ input = file
 	if err != nil {
 		t.Fatal(err)
 	}
+	rules := c.rules
 	if len(rules) != 2 {
 		t.Fatalf("%d rules", len(rules))
 	}
@@ -57,7 +58,7 @@ func TestParseRulesErrors(t *testing.T) {
 		"[a]\ninput = all\n":                      ".hissrun:2: input is paragraph or file, not \"all\"",
 		"[a]\nshare = yes\n":                      ".hissrun:2: share is true or false, not \"yes\"",
 		"[a]\nmatch = [\n":                        ".hissrun:2: match \"[\": syntax error in pattern",
-		"[a]\nrun = x\n":                          ".hissrun:2: unknown key \"run\" (match, cmd, find, input, share)",
+		"[a]\nrun = x\n":                          ".hissrun:2: unknown key \"run\" (match, cmd, find, input, share, env)",
 	}
 	for src, want := range cases {
 		if _, err := parseRules(src); err == nil || err.Error() != want {

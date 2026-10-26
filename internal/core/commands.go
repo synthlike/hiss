@@ -42,6 +42,7 @@ var commands = []command{
 	{[]string{"hra", "hunk-reject-all"}, "[reason]", "reject every pending hunk", func(e *Editor, arg string) { e.reviewAll(false, arg) }},
 	{[]string{"c", "comment"}, "<text>", "comment on the hunk, line or trail step", (*Editor).comment},
 	{[]string{"rr", "rerun"}, "", "run the last command again", func(e *Editor, _ string) { e.rerun() }},
+	{[]string{"env"}, "[name]", "switch the environment runs use, or list them", (*Editor).switchEnv},
 	{[]string{"n", "note"}, "<text>", "add a note on this line to " + notesFile, (*Editor).note},
 	{[]string{"tc", "trail-clear"}, "", "stop showing the trail", func(e *Editor, _ string) { e.clearTrail() }},
 	{[]string{"ts", "trail-save"}, "<path>", "save the trail as JSON", (*Editor).saveTrail},

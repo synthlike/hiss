@@ -329,6 +329,7 @@ func (e *Editor) save() bool {
 		e.Msg = failed("saving "+e.Buf.Name, err)
 		return false
 	}
+	e.rulesChanged(e.Buf.Path)
 	e.Msg = fmt.Sprintf("wrote %s (%d bytes)", e.Buf.Name, e.Buf.Text.Len())
 	return true
 }

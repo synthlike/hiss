@@ -306,6 +306,7 @@ func (e *Editor) resolve(p *Proposal, accept bool, reason string) string {
 		b.Replace(p.Start, p.End, []byte(p.New), p.origin())
 	}
 	p.Status = Accepted
+	e.rulesChanged(b.Path)
 	if err := b.Save(); err != nil {
 		p.Reason = "accepted in the editor, but saving failed: " + err.Error()
 		return fmt.Sprintf("accepted #%d but saving failed: %v", p.ID, err)

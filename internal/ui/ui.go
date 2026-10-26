@@ -344,6 +344,8 @@ func Draw(s Screen, ed *core.Editor) {
 	}
 	if r := ed.Running(); r != "" {
 		right = r + "  " + right
+	} else if env := ed.EnvName(); env != "" {
+		right = "env " + env + "  " + right
 	}
 	if a := agentStatus(ed); a != "" {
 		right = a + "  " + right

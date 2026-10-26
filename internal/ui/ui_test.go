@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -58,6 +60,19 @@ func TestDraw(t *testing.T) {
 		t.Error("cursor not drawn on 'y'")
 	}
 	if got := g.row(4); !strings.HasPrefix(got, " NOR  a.go") || !strings.HasSuffix(got, "2:2") {
+		t.Errorf("status = %q", got)
+	}
+}
+
+func TestDrawEnv(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, ".hissrun"), []byte("[env]\nname = dev\n"), 0o600)
+	ed := core.New(&core.Buffer{Path: filepath.Join(root, "a.sql"), Name: "a.sql", Text: text.New(nil, text.Origin{})})
+	ed.Root = root
+	ed.Resize(40, 6)
+	g := newGrid(40, 6)
+	Draw(g, ed)
+	if got := g.row(4); !strings.HasSuffix(got, "env dev  1:1") {
 		t.Errorf("status = %q", got)
 	}
 }

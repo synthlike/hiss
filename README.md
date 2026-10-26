@@ -140,10 +140,32 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   cmd   = sh
   ```
 
+  `[env]` sections name environments. Runs source the active one's script
+  (with `set -a`, fresh each time) and get its name as `$env`; the first is
+  active at start, `:env <name>` switches and the status line shows it.
+  `confirm = true` asks before each run there. A rule's `env = <name>` always
+  runs in that one, and `[go]` sets the built-in Go runner's `env` and
+  `share` (a rule matching `*.go` replaces the runner instead).
+
+  ```ini
+  [env]
+  name   = dev
+  source = scripts/env-dev.sh
+
+  [env]
+  name    = staging
+  source  = scripts/env-staging.sh
+  confirm = true
+
+  [go]
+  env = dev
+  ```
+
   Queries and requests worth keeping go in `.hiss/runs/`; `space r` lists the
   ones a rule matches. With `share = true`, Claude gets the command, its exit
   status and the last 20 lines of output with your next prompt (or its next
-  tool call); Go tests always share, rules don't unless asked.
+  tool call); Go runs share unless `[go]` says `share = false`, rules don't
+  unless asked.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 

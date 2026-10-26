@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -36,6 +37,8 @@ type run struct {
 	show    string // the command as *out* shows it; set from argv if ""
 	warnDir string // say if files here have changes that aren't on disk; "" not to
 	share   bool   // the agent may see the output
+	pin     string // the env it always runs in; "" for the active one
+	envName string // the env it last ran in; "" with none
 }
 
 type runState struct {
@@ -49,6 +52,10 @@ type runState struct {
 
 	report *RunReport     // the latest shared run
 	told   map[string]int // the Seq of the report each session was given
+
+	env    string   // the env :env picked; "" for the first
+	envs   []string // the envs' names, as the rules file last said
+	loaded bool     // envs is up to date
 }
 
 // RunReport is a finished shared run, handed to each agent session once
@@ -56,6 +63,7 @@ type runState struct {
 type RunReport struct {
 	Seq     int
 	Title   string
+	Env     string // the environment it ran in, or ""
 	Command string
 	Status  string // "ok", "exit status 1", "cancelled", …
 	Took    time.Duration
@@ -73,7 +81,12 @@ func (e *Editor) runAtCursor() {
 		e.openOutputLocation()
 		return
 	}
-	if e.runByRule() {
+	c, err := e.loadRunConfig()
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	if e.runByRule(c.rules) {
 		return
 	}
 	if !strings.HasSuffix(e.Buf.Path, "_test.go") {
@@ -86,7 +99,7 @@ func (e *Editor) runAtCursor() {
 		return
 	}
 	dir := filepath.Dir(e.Buf.Path)
-	e.startRun(&run{title: name, dir: dir, warnDir: dir, share: true,
+	e.startRun(&run{title: name, dir: dir, warnDir: dir, share: c.goShare, pin: c.goEnv,
 		argv: []string{"go", "test", "-run", "^" + name + "$", "-v", "."}})
 }
 
@@ -119,21 +132,66 @@ func (e *Editor) rerun() {
 	e.startRun(e.runs.last)
 }
 
-// startRun runs r into *out*, showing the panel unless *out* is on screen.
+// startRun runs r into *out* in its environment, asking first if that has
+// confirm set.
 func (e *Editor) startRun(r *run) {
 	if g := e.runs.going; g != nil {
-		e.Msg = g.title + " is still running (C-c to cancel)"
+		e.Msg = e.label(g) + " is still running (C-c to cancel)"
 		return
 	}
 	if e.Post == nil {
 		e.Msg = "can't run without the editor loop"
 		return
 	}
+	c, err := e.loadRunConfig()
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	en, err := e.runEnv(c, r.pin)
+	if err != nil {
+		e.Msg = err.Error()
+		return
+	}
+	r.envName = ""
+	if en != nil {
+		r.envName = en.name
+		if en.source != "" {
+			if _, err := os.Stat(e.sourcePath(en)); err != nil {
+				e.Msg = failed("env "+en.name+": sourcing "+en.source, err)
+				return
+			}
+		}
+	}
+	if en == nil || !en.confirm {
+		e.launch(r, en)
+		return
+	}
+	e.Menu = &Menu{Title: "run " + e.label(r) + "?", Items: []MenuItem{
+		{"y", "run it", func(e *Editor) { e.launch(r, en) }},
+	}}
+}
+
+// launch runs r into *out*, showing the panel unless *out* is on screen.
+func (e *Editor) launch(r *run, en *env) {
 	out := e.outBuffer()
 	if r.show == "" {
 		r.show = e.shellLine(r)
 	}
 	header := "$ " + r.show + "\n"
+	argv, environ := r.argv, r.env
+	if en != nil {
+		environ = append(slices.Clip(environ), "env="+en.name)
+		header += "# env " + en.name
+		if en.source != "" {
+			// Sourced from the root, where the rules file's paths start.
+			argv = append([]string{"sh", "-c", "cd " + shellQuote(e.Root) +
+				" || exit; set -a; . " + shellQuote(e.sourcePath(en)) + "; set +a; cd " +
+				shellQuote(r.dir) + ` || exit; exec "$@"`, "sh"}, r.argv...)
+			header += ": " + en.source
+		}
+		header += "\n"
+	}
 	if w := e.diskWarning(r.warnDir); w != "" {
 		header += "# " + w + "\n"
 	}
@@ -149,10 +207,10 @@ func (e *Editor) startRun(r *run) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	e.runs.last, e.runs.going, e.runs.cancel, e.runs.start = r, r, cancel, e.now()
-	cmd := exec.CommandContext(ctx, r.argv[0], r.argv[1:]...)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = r.dir
-	if r.env != nil {
-		cmd.Env = append(os.Environ(), r.env...)
+	if environ != nil {
+		cmd.Env = append(os.Environ(), environ...)
 	}
 	if r.stdin != "" {
 		cmd.Stdin = strings.NewReader(r.stdin)
@@ -225,7 +283,7 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 	}
 	e.appendOut(fmt.Sprintf("[%s, %s]\n", status, took))
 	if !e.runs.panel && e.Buf != out { // otherwise the line above is on screen
-		e.Msg = fmt.Sprintf("%s: %s (%s)", r.title, status, took)
+		e.Msg = fmt.Sprintf("%s: %s (%s)", e.label(r), status, took)
 		if w := e.diskWarning(r.warnDir); w != "" {
 			e.Msg += "; " + w
 		}
@@ -244,7 +302,7 @@ func (e *Editor) report(r *run, status string, took time.Duration, output string
 	if p := e.runs.report; p != nil {
 		seq = p.Seq + 1
 	}
-	e.runs.report = &RunReport{Seq: seq, Title: r.title, Command: r.show, Status: status, Took: took, Tail: tail}
+	e.runs.report = &RunReport{Seq: seq, Title: r.title, Env: r.envName, Command: r.show, Status: status, Took: took, Tail: tail}
 }
 
 // TakeRun returns the latest shared run if session hasn't been given it yet.
@@ -279,7 +337,7 @@ func (e *Editor) StopRuns() {
 // Running describes the run that's going for the status line, or "".
 func (e *Editor) Running() string {
 	if g := e.runs.going; g != nil {
-		return "running " + g.title + " (C-c)"
+		return "running " + e.label(g) + " (C-c)"
 	}
 	return ""
 }
