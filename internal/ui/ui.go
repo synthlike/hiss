@@ -13,11 +13,6 @@ import (
 	"github.com/synthlike/hiss/internal/lsp"
 )
 
-const (
-	tabWidth = 4
-	gutter   = 2 // columns before the text: a hunk mark and a space
-)
-
 // Screen is the part of tcell.Screen that drawing needs; tests fake it.
 type Screen interface {
 	Put(x, y int, str string, style tcell.Style) (string, int)
@@ -175,6 +170,7 @@ func Draw(s Screen, ed *core.Editor) {
 		}
 		return sev
 	}
+	g := ed.Gutter() // a mark column, the line number and a space
 	row, line := 0, ed.Top
 	for row < h-2 {
 		if line >= t.LineCount() {
@@ -196,15 +192,17 @@ func Draw(s Screen, ed *core.Editor) {
 			if hk.First == line {
 				for _, n := range hk.Above {
 					if visible() {
-						drawHunkNote(s, row, n)
+						drawHunkNote(s, row, g, n)
 						row++
 					}
 				}
 				for i, a := range hk.Removed { // a tweaked hunk's old lines
-					if visible() {
-						onIt := line == curLine && i-len(hk.Removed) == diffRow
-						drawDiffLine(s, row, w, "-", a, styleRemoved, onIt, nil, nil)
-						row++
+					onIt := line == curLine && i-len(hk.Removed) == diffRow
+					for j, segs := 0, ed.Wrap(a); j < len(segs); j++ {
+						if visible() {
+							drawDiffLine(s, row, w, g, "-", a, segs, j, styleRemoved, onIt, nil, nil)
+							row++
+						}
 					}
 				}
 			}
@@ -222,14 +220,30 @@ func Draw(s Screen, ed *core.Editor) {
 		case hunk != nil && hunk.Tweaked:
 			base, mark = styleAdded, "+"
 		}
-		if visible() {
-			if sev := lineSeverity[line]; sev != 0 && mark == " " {
-				s.Put(0, row, diagMark(sev), diagStyle(sev))
-			} else {
-				s.Put(0, row, mark, base)
+		start, end := t.LineStart(line), ed.Buf.LineEnd(line)
+		str := string(t.Slice(start, end))
+		segs := ed.Wrap(str)
+		for i, a := range segs {
+			if !visible() {
+				continue
 			}
-			start, end := t.LineStart(line), ed.Buf.LineEnd(line)
-			x := drawText(s, gutter, row, w, string(t.Slice(start, end)), start, func(off int) tcell.Style {
+			if i == 0 {
+				if sev := lineSeverity[line]; sev != 0 && mark == " " {
+					s.Put(0, row, diagMark(sev), diagStyle(sev))
+				} else {
+					s.Put(0, row, mark, base)
+				}
+				num := styleDim
+				if line == curLine {
+					num = styleText
+				}
+				putString(s, 1, row, fmt.Sprintf("%*d", g-2, line+1), num)
+			}
+			b := len(str)
+			if i+1 < len(segs) {
+				b = segs[i+1]
+			}
+			x := drawText(s, g, row, w, str[a:b], start+a, func(off int) tcell.Style {
 				st := base
 				switch {
 				case off == cursor:
@@ -251,22 +265,25 @@ func Draw(s Screen, ed *core.Editor) {
 				}
 				return st
 			})
-			if end == cursor && x < w { // cursor on the newline or end of file
+			if i == len(segs)-1 && end == cursor && x < w { // cursor on the newline or end of file
 				s.Put(x, row, " ", styleCursor)
 			}
 			row++
 		}
 		if hunk != nil && line == hunk.Last {
 			for i, a := range hunk.Added {
-				if visible() {
-					drawDiffLine(s, row, w, "+", a, styleAdded, line == curLine && i+1 == diffRow,
-						rowDiags(hunk.AddedDiags, i), rowSpans(hunk.Related, i))
-					row++
+				onIt := line == curLine && i+1 == diffRow
+				diags, related := rowDiags(hunk.AddedDiags, i), rowSpans(hunk.Related, i)
+				for j, segs := 0, ed.Wrap(a); j < len(segs); j++ {
+					if visible() {
+						drawDiffLine(s, row, w, g, "+", a, segs, j, styleAdded, onIt, diags, related)
+						row++
+					}
 				}
 			}
 			for _, n := range hunk.Notes {
 				if visible() {
-					drawHunkNote(s, row, n)
+					drawHunkNote(s, row, g, n)
 					row++
 				}
 			}
@@ -283,7 +300,7 @@ func Draw(s Screen, ed *core.Editor) {
 				st = styleYourNote
 			}
 			s.Put(0, row, mark, st)
-			drawText(s, gutter, row, w, n.Text, 0, style(st))
+			drawText(s, g, row, w, n.Text, 0, style(st))
 			row++
 		}
 		line++
@@ -369,16 +386,18 @@ func Draw(s Screen, ed *core.Editor) {
 	}
 }
 
-// drawDiffLine draws a diff line that isn't in the buffer, reversed when the
-// cursor is on it.
+// drawDiffLine draws row j of a diff line that isn't in the buffer, reversed
+// when the cursor is on it; segs is where its rows start, from Wrap.
 // diags are the line's problems, marked after mark and underlined; related
 // are the columns of its related highlights.
-func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, cursor bool, diags []core.AddedDiag, related [][2]int) {
+func drawDiffLine(s Screen, row, w, g int, mark, text string, segs []int, j int, st tcell.Style, cursor bool, diags []core.AddedDiag, related [][2]int) {
 	if cursor {
 		st = st.Reverse(true)
 	}
 	fill(s, 0, row, w, st)
-	s.Put(0, row, mark, st)
+	if j == 0 {
+		s.Put(0, row, mark, st)
+	}
 	sevAt := func(col int) int {
 		sev := 0
 		for _, d := range diags {
@@ -388,14 +407,18 @@ func drawDiffLine(s Screen, row, w int, mark, text string, st tcell.Style, curso
 		}
 		return sev
 	}
-	if len(diags) > 0 {
+	if len(diags) > 0 && j == 0 {
 		sev := diags[0].Severity
 		for _, d := range diags[1:] {
 			sev = min(sev, d.Severity)
 		}
 		s.Put(1, row, diagMark(sev), diagStyle(sev)) // the mark column holds the + already
 	}
-	drawText(s, gutter, row, w, text, 0, func(col int) tcell.Style {
+	from, to := segs[j], len(text)
+	if j+1 < len(segs) {
+		to = segs[j+1]
+	}
+	drawText(s, g, row, w, text[from:to], from, func(col int) tcell.Style {
 		st := st
 		if !cursor && inSpans(related, col) {
 			st = st.Background(styleRelated.GetBackground())
@@ -445,7 +468,7 @@ func diagMark(severity int) string {
 }
 
 // drawHunkNote draws a hunk's rationale or a comment in its review thread.
-func drawHunkNote(s Screen, row int, n core.NoteLine) {
+func drawHunkNote(s Screen, row, g int, n core.NoteLine) {
 	mark, style := "┆", styleAgentNote
 	switch {
 	case n.Note:
@@ -454,7 +477,7 @@ func drawHunkNote(s Screen, row int, n core.NoteLine) {
 		style = styleYourNote
 	}
 	s.Put(0, row, mark, styleDim)
-	putString(s, gutter, row, n.Text, style)
+	putString(s, g, row, n.Text, style)
 }
 
 // diagSummary reads like "2 errors, 1 warning".
@@ -526,7 +549,7 @@ func drawText(s Screen, x, row, width int, str string, off int, styleAt func(int
 	for str != "" && x < width {
 		style := styleAt(off)
 		if str[0] == '\t' {
-			n := tabWidth - col%tabWidth
+			n := core.TabWidth - col%core.TabWidth
 			fill(s, x, row, min(n, width-x), style)
 			str, off, x, col = str[1:], off+1, x+n, col+n
 			continue

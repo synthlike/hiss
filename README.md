@@ -83,6 +83,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 - `/` searches as you type, `n` / `N` repeat, `*` searches for the selection.
 - `:<line>` goes to a line; `C-o` / `C-i` jump back and forward.
 - `:` shows the commands as you type; `tab` completes them.
+- Lines are numbered, and long lines wrap at the edge of the window, proposed
+  ones too; `j` / `k` still move by line.
 - `:note <text>` (`:n`) adds a line to `.hiss/notes.md` with the date, the
   commit (`+` if the file has changed since) and the cursor's `path:line`;
   `space n` lists the notes, newest first.

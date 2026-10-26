@@ -18,13 +18,13 @@ func TestDrawSearch(t *testing.T) {
 	if got := g.row(5); got != "/two" {
 		t.Errorf("prompt = %q", got)
 	}
-	if g.styles[0][6] != styleSel { // the current match is selected
-		t.Errorf("current match style = %v", g.styles[0][6])
+	if g.styles[0][9] != styleSel { // the current match is selected
+		t.Errorf("current match style = %v", g.styles[0][9])
 	}
-	if g.styles[1][2] != styleMatch || g.styles[1][4] != styleMatch {
-		t.Errorf("other match not highlighted: %v", g.styles[1][2])
+	if g.styles[1][5] != styleMatch || g.styles[1][7] != styleMatch {
+		t.Errorf("other match not highlighted: %v", g.styles[1][5])
 	}
-	if g.styles[0][2] == styleMatch {
+	if g.styles[0][5] == styleMatch {
 		t.Error("non-matching text highlighted")
 	}
 }

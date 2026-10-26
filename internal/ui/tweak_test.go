@@ -27,7 +27,7 @@ func TestDrawTweakedHunk(t *testing.T) {
 	}
 	g := newGrid(40, 9)
 	Draw(g, ed)
-	for y, want := range []string{"  one", "- two", "+ X2", "+ TWO", "  three"} {
+	for y, want := range []string{"   1 one", "-    two", "+  2 X2", "+  3 TWO", "   4 three"} {
 		if got := g.row(y); got != want {
 			t.Errorf("row %d = %q, want %q", y, got, want)
 		}

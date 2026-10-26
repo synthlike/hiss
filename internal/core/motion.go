@@ -233,18 +233,37 @@ func (e *Editor) prevRune(off int) int {
 
 // lineRows returns the rows drawn above each line (hunk rationales and a
 // tweaked hunk's old lines) and a func counting every row drawn for a line,
-// including pending hunks and trail notes below it.
+// including its wrapped rows and the pending hunks and trail notes below it.
 func (e *Editor) lineRows() (above map[int]int, block func(int) int) {
 	above = map[int]int{}
 	extra := map[int]int{}
 	for _, h := range e.Hunks() {
-		above[h.First] += h.RowsAbove()
-		extra[h.Last] += h.Rows()
+		above[h.First] += len(h.Above) + e.wrapRows(h.Removed)
+		extra[h.Last] += e.wrapRows(h.Added) + len(h.Notes)
 	}
 	for l, rows := range e.TrailRows() {
 		extra[l] += len(rows)
 	}
-	return above, func(l int) int { return above[l] + 1 + extra[l] }
+	return above, func(l int) int { return above[l] + len(e.lineWrap(l)) + extra[l] }
+}
+
+// cursorSub returns the cursor's row within its line's block, given the rows
+// drawn above the line: on the line, the wrapped row holding the cursor; on
+// a proposed or old line, that line's first row.
+func (e *Editor) cursorSub(above int) int {
+	line, d := e.line(), e.DiffRow()
+	if d == 0 {
+		return above + rowOf(e.lineWrap(line), e.Sel.Head-e.Buf.Text.LineStart(line))
+	}
+	for _, h := range e.Hunks() {
+		switch {
+		case d > 0 && h.Last == line:
+			return above + len(e.lineWrap(line)) + e.wrapRows(h.Added[:d-1])
+		case d < 0 && h.First == line:
+			return above - e.wrapRows(h.Removed[len(h.Removed)+d:])
+		}
+	}
+	return above
 }
 
 // scroll keeps the cursor line inside the visible rows.
@@ -254,7 +273,7 @@ func (e *Editor) scroll() {
 	}
 	above, block := e.lineRows()
 	line := e.line()
-	sub := above[line] + e.DiffRow() // the cursor's row within its line's block
+	sub := e.cursorSub(above[line]) // the cursor's row within its line's block
 	e.TopSub = min(e.TopSub, block(e.Top)-1)
 	if line < e.Top || line == e.Top && sub <= e.TopSub {
 		e.Top, e.TopSub = line, sub

@@ -48,13 +48,13 @@ func TestDraw(t *testing.T) {
 	g := newGrid(20, 6)
 	Draw(g, ed)
 
-	want := []string{"  a   b", "  xy", "", "~"}
+	want := []string{"   1 a   b", "   2 xy", "   3", "~"}
 	for y, w := range want {
 		if got := g.row(y); got != w {
 			t.Errorf("row %d = %q, want %q", y, got, w)
 		}
 	}
-	if !g.styles[1][3].HasReverse() || g.styles[1][2].HasReverse() {
+	if !g.styles[1][6].HasReverse() || g.styles[1][5].HasReverse() {
 		t.Error("cursor not drawn on 'y'")
 	}
 	if got := g.row(4); !strings.HasPrefix(got, " NOR  a.go") || !strings.HasSuffix(got, "2:2") {
@@ -70,13 +70,13 @@ func TestDrawDiagnostics(t *testing.T) {
 		{Range: rng, Severity: lsp.Error, Message: "undefined: y\ndetails"}}})
 	g := newGrid(30, 6)
 	Draw(g, ed)
-	if got := g.row(1); got != "● var x = y" {
+	if got := g.row(1); got != "●  2 var x = y" {
 		t.Errorf("row 1 = %q, want a mark in the gutter", got)
 	}
-	if st := g.styles[1][10]; st.GetUnderlineStyle() != tcell.UnderlineStyleCurly {
+	if st := g.styles[1][13]; st.GetUnderlineStyle() != tcell.UnderlineStyleCurly {
 		t.Error("y isn't underlined")
 	}
-	if g.styles[1][8].HasUnderline() {
+	if g.styles[1][11].HasUnderline() {
 		t.Error("= is underlined")
 	}
 	if got := g.row(4); !strings.HasSuffix(got, "1 error  1:1") {
@@ -118,10 +118,10 @@ func TestDrawDiagnosticsOnHunk(t *testing.T) {
 			plus = y
 		}
 	}
-	if got := g.row(plus); got != "+●func f() { x }" {
+	if got := g.row(plus); got != "+●   func f() { x }" {
 		t.Fatalf("proposed line = %q, want a mark after the +", got)
 	}
-	if g.styles[plus][13].GetUnderlineStyle() != tcell.UnderlineStyleCurly || g.styles[plus][12].HasUnderline() {
+	if g.styles[plus][16].GetUnderlineStyle() != tcell.UnderlineStyleCurly || g.styles[plus][15].HasUnderline() {
 		t.Error("only x should be underlined")
 	}
 	if got := g.row(9); !strings.HasPrefix(got, "#1 claude: use x") {
@@ -174,7 +174,7 @@ func TestDrawHunk(t *testing.T) {
 	ed.HandleKey("j")
 	g := newGrid(30, 9)
 	Draw(g, ed)
-	want := []string{"  one", "▸ #1 claude: spell it out", "- two", "+ 2", "+ TWO", "┆ claude: spelled out", "  three"}
+	want := []string{"   1 one", "▸    #1 claude: spell it out", "-  2 two", "+    2", "+    TWO", "┆    claude: spelled out", "   3 three"}
 	for y, w := range want {
 		if got := g.row(y); got != strings.TrimRight(w, " ") {
 			t.Errorf("row %d = %q, want %q", y, got, w)
@@ -207,7 +207,7 @@ func TestDrawCursorInTallHunk(t *testing.T) {
 	}
 	g := newGrid(30, 5)
 	Draw(g, ed)
-	for y, want := range []string{"+ 2", "+ 3", "+ 4"} {
+	for y, want := range []string{"+    2", "+    3", "+    4"} {
 		if got := g.row(y); got != want {
 			t.Errorf("row %d = %q, want %q", y, got, want)
 		}
@@ -230,12 +230,12 @@ func TestDrawHighlightsGo(t *testing.T) {
 		x, y int
 		want tcell.Style
 	}{
-		{2, 0, styleText},                     // x
-		{7, 0, syntaxStyles[syntax.String]},   // `raw
-		{2, 1, syntaxStyles[syntax.String]},   // still raw` (string continues)
-		{14, 1, syntaxStyles[syntax.Comment]}, // // c
-		{4, 2, syntaxStyles[syntax.Keyword]},  // return (the cursor is on its "e")
-		{9, 2, syntaxStyles[syntax.Number]},   // 1
+		{5, 0, styleText},                     // x
+		{10, 0, syntaxStyles[syntax.String]},  // `raw
+		{5, 1, syntaxStyles[syntax.String]},   // still raw` (string continues)
+		{17, 1, syntaxStyles[syntax.Comment]}, // // c
+		{7, 2, syntaxStyles[syntax.Keyword]},  // return (the cursor is on its "e")
+		{12, 2, syntaxStyles[syntax.Number]},  // 1
 	}
 	for _, c := range cases {
 		if got := g.styles[c.y][c.x]; got != c.want {
@@ -282,5 +282,34 @@ func TestSplash(t *testing.T) {
 	}
 	if !strings.Contains(g.row(8), "[scratch]") {
 		t.Errorf("status = %q", g.row(8))
+	}
+}
+
+func TestDrawWrapped(t *testing.T) {
+	dir := t.TempDir()
+	b, err := core.Open(dir + "/f.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Text = text.New([]byte("hello world again\nx\n"), text.Origin{})
+	ed := core.New(b)
+	ed.Root = dir
+	ed.Resize(15, 10) // 10 columns of text after the gutter
+	if _, err := ed.ProposeEdit("claude", b.Path, "x\n", "one two three four\n", false, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	ed.Toast = core.Toast{}
+	ed.HandleKey("j")
+	ed.HandleKey("j") // on the proposed line
+	g := newGrid(15, 10)
+	Draw(g, ed)
+	want := []string{"   1 hello", "     world", "     again", "-  2 x", "+    one two", "     three four", "   3"}
+	for y, w := range want {
+		if got := g.row(y); got != w {
+			t.Errorf("row %d = %q, want %q", y, got, w)
+		}
+	}
+	if !g.styles[5][0].HasReverse() || g.styles[3][0].HasReverse() {
+		t.Error("the cursor's proposed line should be reversed on all its rows")
 	}
 }

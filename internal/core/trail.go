@@ -104,7 +104,7 @@ func (e *Editor) TrailRows() map[int][]NoteLine {
 			note += " (changed since saved)"
 		}
 		rows[l] = append(rows[l], NoteLine{Note: true, Text: note})
-		rows[l] = append(rows[l], threadLines(s.Thread, e.Width-2)...)
+		rows[l] = append(rows[l], threadLines(s.Thread, e.TextWidth())...)
 	}
 	return rows
 }

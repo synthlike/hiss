@@ -31,7 +31,7 @@ func TestDrawTrail(t *testing.T) {
 	ed.Toast = core.Toast{}
 	g := newGrid(40, 8)
 	Draw(g, ed)
-	for y, want := range []string{"  one", "  two", "▸ 1. the middle", "┆ claude: it's two", "  three"} {
+	for y, want := range []string{"   1 one", "   2 two", "▸    1. the middle", "┆    claude: it's two", "   3 three"} {
 		if got := g.row(y); got != want {
 			t.Errorf("row %d = %q, want %q", y, got, want)
 		}

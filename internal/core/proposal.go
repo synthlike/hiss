@@ -196,12 +196,6 @@ type Hunk struct {
 // Below returns the number of diff lines drawn after the hunk's last line.
 func (h Hunk) Below() int { return len(h.Added) }
 
-// RowsAbove returns the number of rows drawn before the hunk's first line.
-func (h Hunk) RowsAbove() int { return len(h.Above) + len(h.Removed) }
-
-// Rows returns the number of rows drawn after the hunk's last line.
-func (h Hunk) Rows() int { return h.Below() + len(h.Notes) }
-
 // Hunks returns the pending hunks of the visible buffer in order.
 func (e *Editor) Hunks() []Hunk {
 	var hs []Hunk
@@ -216,7 +210,7 @@ func (e *Editor) hunk(p *Proposal) Hunk {
 	first := t.LineOf(p.Start)
 	last := t.LineOf(max(p.End-1, p.Start))
 	h := Hunk{P: p, First: first, Last: last,
-		Above: rationaleLines(p, e.Width-2), Notes: threadLines(p.Thread, e.Width-2)}
+		Above: rationaleLines(p, e.TextWidth()), Notes: threadLines(p.Thread, e.TextWidth())}
 	if p.Tweaked {
 		h.Tweaked, h.Removed = true, diffLines(p, first, last, p.oldText())
 	} else {
