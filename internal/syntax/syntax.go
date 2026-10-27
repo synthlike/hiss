@@ -97,6 +97,9 @@ var byExt = map[string]*Lang{
 	".tf": HCL, ".tfvars": HCL, ".hcl": HCL,
 	".dockerfile": Docker,
 	".md":         Markdown, ".markdown": Markdown,
+	".lisp": Lisp, ".lsp": Lisp, ".cl": Lisp, ".asd": Lisp, ".el": Lisp, ".emacs": Lisp, ".scm": Lisp, ".ss": Lisp,
+	".sld": Lisp, ".rkt": Lisp, ".clj": Lisp, ".cljs": Lisp, ".cljc": Lisp, ".edn": Lisp, ".fnl": Lisp,
+	".janet": Lisp, ".hy": Lisp, ".puff": Lisp,
 }
 
 // ForPath picks a language by file name or extension, or returns nil.

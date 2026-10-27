@@ -59,7 +59,8 @@ and running tests, queries and requests.
   `return`, the function's returns.
 - Light highlighting for Go, JS/TS and other C-like languages, shell (also
   dotfiles and `#!` scripts), Python, Ruby, YAML, TOML, JSON, SQL, `.http`,
-  Terraform, Dockerfiles and Markdown.
+  Terraform, Dockerfiles, Markdown and Lisps (Common Lisp, Scheme, Racket,
+  Clojure, Emacs Lisp, Fennel, Janet).
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 
