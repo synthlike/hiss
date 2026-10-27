@@ -31,6 +31,10 @@ func TestLex(t *testing.T) {
 		{CLike, `const x = 'a'; // js`, "keyword:const | string:'a' | comment:// js"},
 		{Hash, `def f(): # py` + "\n" + `  return None`, "keyword:def | comment:# py | keyword:return | keyword:None"},
 		{JSON, `{"a": [1, true, null]}`, `string:"a" | number:1 | keyword:true | keyword:null`},
+		{SQL, "SELECT id -- x\nfrom notes where body = 'hi' /* c */", "keyword:SELECT | comment:-- x | keyword:from | keyword:where | string:'hi' | comment:/* c */"},
+		{HTTP, `# get` + "\n" + `curl -sS -X POST "$U/a" | jq .`, `comment:# get | keyword:curl | keyword:POST | string:"$U/a" | keyword:jq`},
+		{HCL, `resource "aws_s3_bucket" "b" { count = 2 } # x`, `keyword:resource | string:"aws_s3_bucket" | string:"b" | keyword:count | number:2 | comment:# x`},
+		{Docker, "FROM golang:1.25 AS build\nrun go build # bin", "keyword:FROM | number:1.25 | keyword:AS | keyword:run | comment:# bin"},
 		{Markdown, "# Title\n#hashtag\nSub\n===", "heading:# Title | heading:==="},
 		{Markdown, "- a **b** and *c*, not snake_case_name", "number:- | strong:**b** | emphasis:*c*"},
 		{Markdown, "1. see [docs](https://x.y) and `a*b*`", "number:1. | keyword:[docs] | comment:(https://x.y) | string:`a*b*`"},
@@ -46,10 +50,21 @@ func TestLex(t *testing.T) {
 
 func TestForPath(t *testing.T) {
 	for path, want := range map[string]*Lang{
-		"/x/main.go": Go, "a.TS": CLike, "run.sh": Hash, "go.mod": nil, "p.json": JSON, "README.md": Markdown, "Makefile": nil,
+		"/x/main.go": Go, "a.TS": CLike, "run.sh": Hash, "go.mod": nil, "p.json": JSON, "README.md": Markdown, "q.SQL": SQL, "gh.http": HTTP, "Makefile": nil,
+		"main.tf": HCL, "Dockerfile": Docker, "x/Dockerfile.dev": Docker, "app.dockerfile": Docker, "/h/.zshrc": Hash,
 	} {
 		if got := ForPath(path); got != want {
 			t.Errorf("ForPath(%q) = %v", path, got)
+		}
+	}
+}
+
+func TestForShebang(t *testing.T) {
+	for src, want := range map[string]*Lang{
+		"#!/bin/sh\necho": Hash, "#!/usr/bin/env node\nx()": CLike, "echo hi": nil, "": nil,
+	} {
+		if got := ForShebang([]byte(src)); got != want {
+			t.Errorf("ForShebang(%q) = %v", src, got)
 		}
 	}
 }

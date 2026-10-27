@@ -28,6 +28,9 @@ var syntaxStyles = map[syntax.Kind]tcell.Style{
 func highlight(path string, t text.Text, top, rows int) func(off int) tcell.Style {
 	plain := func(int) tcell.Style { return styleText }
 	lang := syntax.ForPath(path)
+	if lang == nil {
+		lang = syntax.ForShebang(t.Slice(0, min(t.Len(), 256)))
+	}
 	if lang == nil || t.Len() == 0 {
 		return plain
 	}

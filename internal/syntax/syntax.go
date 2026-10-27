@@ -36,6 +36,7 @@ type Lang struct {
 	Quotes       string    // characters that open strings
 	RawQuotes    string    // quotes without escapes that may span lines, e.g. "`" in Go
 	Keywords     map[string]bool
+	NoCase       bool // keywords match in any case, as in SQL
 
 	lex func(src []byte) []Span // replaces the rules above, if set
 }
@@ -62,6 +63,22 @@ var (
 			raise lambda pass break continue in not and or is None True False then fi do done case esac
 			function local export end true false null`)}
 	JSON = &Lang{Name: "json", Quotes: "\"", Keywords: words("true false null")}
+	SQL  = &Lang{Name: "sql", LineComment: "--", BlockComment: [2]string{"/*", "*/"}, Quotes: "'\"", NoCase: true,
+		Keywords: words(`select from where and or not in is null as join left right inner outer full cross on
+			using group by order having limit offset union all distinct insert into values update set delete
+			create table view index drop alter add column primary key foreign references unique default
+			if exists case when then else end begin commit rollback with returning asc desc like between
+			true false integer int text real blob boolean varchar timestamp date`)}
+	// HTTP is for .http files of curl commands run with sh.
+	HTTP = &Lang{Name: "http", LineComment: "#", Quotes: "\"'",
+		Keywords: words(`curl jq GET POST PUT PATCH DELETE HEAD OPTIONS if then else fi for do done export`)}
+	// HCL is Terraform's language; its // comments go unmarked.
+	HCL = &Lang{Name: "hcl", LineComment: "#", BlockComment: [2]string{"/*", "*/"}, Quotes: "\"",
+		Keywords: words(`resource data variable output module provider locals terraform backend
+			required_providers for_each count depends_on lifecycle dynamic for in if true false null`)}
+	Docker = &Lang{Name: "dockerfile", LineComment: "#", Quotes: "\"'", NoCase: true,
+		Keywords: words(`from as run cmd copy add env arg workdir expose entrypoint user volume label
+			healthcheck shell stopsignal onbuild`)}
 )
 
 var byExt = map[string]*Lang{
@@ -69,14 +86,39 @@ var byExt = map[string]*Lang{
 	".js": CLike, ".jsx": CLike, ".ts": CLike, ".tsx": CLike, ".mjs": CLike, ".rs": CLike, ".c": CLike,
 	".h": CLike, ".cc": CLike, ".cpp": CLike, ".hpp": CLike, ".java": CLike, ".kt": CLike, ".swift": CLike,
 	".cs": CLike, ".zig": CLike, ".dart": CLike, ".scala": CLike,
-	".py": Hash, ".sh": Hash, ".bash": Hash, ".zsh": Hash, ".fish": Hash, ".rb": Hash, ".yml": Hash,
+	".py": Hash, ".sh": Hash, ".bash": Hash, ".zsh": Hash, ".fish": Hash, ".ksh": Hash, ".rb": Hash, ".yml": Hash,
 	".yaml": Hash, ".toml": Hash,
+	// Dotfiles: filepath.Ext(".bashrc") is the whole name.
+	".bashrc": Hash, ".zshrc": Hash, ".profile": Hash, ".envrc": Hash, ".env": Hash, ".hissrun": Hash,
 	".json": JSON,
-	".md":   Markdown, ".markdown": Markdown,
+	".sql":  SQL, ".http": HTTP,
+	".tf": HCL, ".tfvars": HCL, ".hcl": HCL,
+	".dockerfile": Docker,
+	".md":         Markdown, ".markdown": Markdown,
 }
 
-// ForPath picks a language by file extension, or returns nil.
-func ForPath(path string) *Lang { return byExt[strings.ToLower(filepath.Ext(path))] }
+// ForPath picks a language by file name or extension, or returns nil.
+func ForPath(path string) *Lang {
+	if strings.HasPrefix(filepath.Base(path), "Dockerfile") { // also Dockerfile.dev
+		return Docker
+	}
+	return byExt[strings.ToLower(filepath.Ext(path))]
+}
+
+// ForShebang picks a language for a script without an extension by its
+// first line, or returns nil.
+func ForShebang(src []byte) *Lang {
+	if !bytes.HasPrefix(src, []byte("#!")) {
+		return nil
+	}
+	line := src[:lineEnd(src, 0)]
+	for _, js := range []string{"node", "deno", "bun"} {
+		if bytes.Contains(line, []byte(js)) {
+			return CLike
+		}
+	}
+	return Hash // sh, bash, python, ruby…
+}
 
 // Lex returns the highlighted spans of src in order.
 func (l *Lang) Lex(src []byte) []Span {
@@ -114,7 +156,11 @@ func (l *Lang) Lex(src []byte) []Span {
 			for j < len(src) && isIdent(src[j]) {
 				j++
 			}
-			if l.Keywords[string(src[i:j])] {
+			w := string(src[i:j])
+			if l.NoCase {
+				w = strings.ToLower(w)
+			}
+			if l.Keywords[w] {
 				out = append(out, Span{i, j, Keyword})
 			}
 			i = j
