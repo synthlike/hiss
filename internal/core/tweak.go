@@ -19,7 +19,8 @@ import (
 // tweakKeys are the normal-mode keys that edit, or select for editing, at the
 // cursor. On a proposed line they first put the proposal into the buffer.
 var tweakKeys = map[string]bool{"d": true, "c": true, "p": true, "P": true,
-	"i": true, "a": true, "o": true, "O": true, "x": true}
+	"i": true, "a": true, "A": true, "I": true, "o": true, "O": true, "x": true,
+	"r": true, ">": true, "<": true, "J": true}
 
 const userEdited = "the user edited this text before reviewing it"
 

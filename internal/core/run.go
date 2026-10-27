@@ -190,7 +190,7 @@ func (e *Editor) startRun(r *run) {
 	}
 	e.Menu = &Menu{Title: "run " + e.label(r) + "?", Items: []MenuItem{
 		{"y", "run it", func(e *Editor) { e.launch(r, en) }},
-	}, Else: func(e *Editor) {
+	}, Else: func(e *Editor, _ string) {
 		if p := r.proposal; p != nil {
 			p.runGoing, p.Ran = false, "not run: the user didn't confirm running it on "+en.name
 		}

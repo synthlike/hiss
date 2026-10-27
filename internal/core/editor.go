@@ -38,7 +38,7 @@ type Selection struct{ Anchor, Head int }
 type Menu struct {
 	Title string
 	Items []MenuItem
-	Else  func(*Editor) // for any other key; nil to just close
+	Else  func(e *Editor, key string) // for any other key; nil to just close
 }
 
 type MenuItem struct {
@@ -133,7 +133,7 @@ func (e *Editor) HandleKey(k string) {
 		case i >= 0:
 			m.Items[i].Run(e)
 		case m.Else != nil:
-			m.Else(e)
+			m.Else(e, k)
 		}
 	case e.Mode == Insert:
 		e.insertKey(k)
@@ -157,6 +157,11 @@ var normalKeys = map[string]func(*Editor){
 	"C-u": func(e *Editor) { e.moveLines(-max(e.Height/2, 1)) },
 	"w":   (*Editor).wordNext, "b": (*Editor).wordPrev, "e": (*Editor).wordEnd,
 	"x":   (*Editor).selectLine,
+	"%":   (*Editor).selectAll,
+	"f":   func(e *Editor) { e.awaitChar("find", func(e *Editor, c string) { e.findChar(c, false, false) }) },
+	"t":   func(e *Editor) { e.awaitChar("till", func(e *Editor, c string) { e.findChar(c, true, false) }) },
+	"F":   func(e *Editor) { e.awaitChar("find back", func(e *Editor, c string) { e.findChar(c, false, true) }) },
+	"T":   func(e *Editor) { e.awaitChar("till back", func(e *Editor, c string) { e.findChar(c, true, true) }) },
 	";":   func(e *Editor) { e.Sel.Anchor = e.Sel.Head },
 	"v":   (*Editor).toggleSelect,
 	"esc": func(e *Editor) { e.Mode, e.search.shown, e.runs.panel = Normal, false, false },
@@ -174,8 +179,14 @@ var normalKeys = map[string]func(*Editor){
 	"P": func(e *Editor) { e.paste(false) },
 	"i": func(e *Editor) { from, _ := e.selRange(); e.startInsert(from) },
 	"a": func(e *Editor) { _, to := e.selRange(); e.startInsert(to) },
+	"A": func(e *Editor) { e.startInsert(e.Buf.LineEnd(e.line())) },
+	"I": func(e *Editor) { first, _ := e.selLines(); e.startInsert(e.firstNonBlank(first)) },
 	"o": (*Editor).openBelow,
 	"O": (*Editor).openAbove,
+	"r": func(e *Editor) { e.awaitChar("replace with", (*Editor).replaceChars) },
+	">": func(e *Editor) { e.indentLines(true) },
+	"<": func(e *Editor) { e.indentLines(false) },
+	"J": (*Editor).joinLines,
 	"u": (*Editor).undoOnce,
 	"U": (*Editor).redoOnce,
 
@@ -198,6 +209,7 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 	{"e", "file end", (*Editor).fileEnd},
 	{"h", "line start", func(e *Editor) { e.setHead(e.Buf.Text.LineStart(e.line())) }},
 	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.LineEnd(e.line())) }},
+	{"s", "first non-blank", func(e *Editor) { e.setHead(e.firstNonBlank(e.line())) }},
 	{"d", "definition", (*Editor).gotoDefinition},
 	{"r", "references", (*Editor).findReferences},
 }}
