@@ -35,6 +35,10 @@ and running tests, queries and requests.
 
 ## Editing
 
+- Keys follow Helix, with one selection: besides the basics, `A` / `I` insert
+  at the line's end / first non-blank, `gs` goes there, `%` selects the file,
+  `f` `t` `F` `T` select to a character on the line, `r` replaces the
+  selection's characters, `>` / `<` indent and `J` joins lines.
 - `/` searches as you type, `n` / `N` repeat, `*` searches for the selection.
 - `:<line>` goes to a line; `C-o` / `C-i` jump back and forward.
 - `:` shows the commands as you type; `tab` completes them.
@@ -49,6 +53,9 @@ and running tests, queries and requests.
   `space s` lists the file's symbols.
   Resting the cursor on a name highlights its other uses; on `func` or
   `return`, the function's returns.
+- Light highlighting for Go, JS/TS and other C-like languages, shell (also
+  dotfiles and `#!` scripts), Python, Ruby, YAML, TOML, JSON, SQL, `.http`,
+  Terraform, Dockerfiles and Markdown.
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
   `dark` overrides.
 
