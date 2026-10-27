@@ -8,7 +8,7 @@ import (
 
 // marks renders spans as "kind:text" for readable comparisons.
 func marks(src string, spans []Span) string {
-	names := []string{"plain", "comment", "string", "number", "keyword", "heading", "strong", "emphasis"}
+	names := []string{"plain", "comment", "string", "number", "keyword", "heading", "strong", "emphasis", "good", "bad"}
 	var out []string
 	for _, s := range spans {
 		out = append(out, fmt.Sprintf("%s:%s", names[s.Kind], src[s.Start:s.End]))

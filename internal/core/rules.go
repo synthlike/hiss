@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/synthlike/hiss/internal/syntax"
 )
 
 // The rules file maps files to commands for Enter, ahead of the built-in Go
@@ -243,6 +245,17 @@ func findRule(rules []rule, rel string) *rule {
 	return nil
 }
 
+// output says what r's command prints, as far as its files tell: a table for
+// SQL; nil to guess from the output.
+func (r *rule) output() *syntax.Lang {
+	for _, g := range r.match {
+		if strings.HasSuffix(g, ".sql") {
+			return syntax.Table
+		}
+	}
+	return nil
+}
+
 // runRule runs r for the cursor with input, from lines from to to, as stdin;
 // a find rule without input searches for its captures instead.
 func (e *Editor) runRule(r *rule, input string, from, to int) {
@@ -250,7 +263,7 @@ func (e *Editor) runRule(r *rule, input string, from, to int) {
 	line := e.line()
 	run := &run{title: r.name, what: e.relName(b), dir: e.Root, share: r.share, pin: r.env,
 		env: []string{"file=" + b.Path, "dir=" + filepath.Dir(b.Path),
-			"line=" + strconv.Itoa(line+1), "root=" + e.Root}}
+			"line=" + strconv.Itoa(line+1), "root=" + e.Root}, output: r.output()}
 	var show strings.Builder
 	show.WriteString(r.cmd)
 	if r.find != nil && input == "" {

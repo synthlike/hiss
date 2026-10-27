@@ -20,6 +20,8 @@ var syntaxStyles = map[syntax.Kind]tcell.Style{
 	syntax.Heading:  tcell.StyleDefault.Foreground(color.Blue).Bold(true),
 	syntax.Strong:   tcell.StyleDefault.Bold(true),
 	syntax.Emphasis: tcell.StyleDefault.Italic(true),
+	syntax.Good:     tcell.StyleDefault.Foreground(color.Green),
+	syntax.Bad:      tcell.StyleDefault.Foreground(color.Red),
 }
 
 // highlight lexes t in lang from the top of the file (or of the screen, for

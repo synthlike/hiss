@@ -475,9 +475,20 @@ func drawPanel(s Screen, w, y, rows int, ed *core.Editor) {
 	if kw := utf8.RuneCountInString(keys); len(title)+kw+2 <= w {
 		putString(s, w-kw, y, keys, styleMenu)
 	}
-	for i, l := range ed.OutTail(rows - 1) {
-		fill(s, 0, y+1+i, w, styleText)
-		drawText(s, 1, y+1+i, w, l, 0, style(styleText))
+	t := ed.OutText()
+	n := t.LineCount()
+	if n > 1 && t.LineStart(n-1) == t.Len() {
+		n-- // the empty line after the final newline
+	}
+	first := max(n-(rows-1), 0)
+	syn := highlight(ed.OutLang(), t, first, rows-1)
+	for i := first; i < n; i++ {
+		start, end := t.LineStart(i), t.Len()
+		if i+1 < t.LineCount() {
+			end = t.LineStart(i+1) - 1
+		}
+		fill(s, 0, y+1+i-first, w, styleText)
+		drawText(s, 1, y+1+i-first, w, string(t.Slice(start, end)), start, syn)
 	}
 }
 

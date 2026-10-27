@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/synthlike/hiss/internal/syntax"
 	"github.com/synthlike/hiss/internal/text"
 )
 
@@ -34,12 +35,13 @@ type run struct {
 	argv    []string // the command
 	env     []string // added to hiss's environment
 	stdin   string
-	show    string // the command as *out* shows it; set from argv if ""
-	warnDir string // say if files here have changes that aren't on disk; "" not to
-	share   bool   // the agent may see the output
-	what    string // what the history calls it: the file, or the test
-	pin     string // the env it always runs in; "" for the active one
-	envName string // the env it last ran in; "" with none
+	show    string       // the command as *out* shows it; set from argv if ""
+	warnDir string       // say if files here have changes that aren't on disk; "" not to
+	share   bool         // the agent may see the output
+	what    string       // what the history calls it: the file, or the test
+	pin     string       // the env it always runs in; "" for the active one
+	envName string       // the env it last ran in; "" with none
+	output  *syntax.Lang // what its output is, for highlighting; nil to guess
 
 	proposal *Proposal // the run proposal it's running, if it is one
 }
@@ -116,7 +118,7 @@ func (e *Editor) runAtCursor() {
 // package in dir.
 func (e *Editor) runGoTest(c *runConfig, dir, test string) {
 	e.startRun(&run{title: test, what: test, dir: dir, warnDir: dir, share: c.goShare, pin: c.goEnv,
-		argv: []string{"go", "test", "-run", runPattern(test), "-v", "."}})
+		argv: []string{"go", "test", "-run", runPattern(test), "-v", "."}, output: syntax.GoTest})
 }
 
 // enclosingTest returns the name of the top-level test function the cursor

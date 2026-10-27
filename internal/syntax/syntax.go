@@ -20,6 +20,8 @@ const (
 	Heading
 	Strong
 	Emphasis
+	Good // passing tests
+	Bad  // failures and errors
 )
 
 // Span is a highlighted byte range [Start, End).

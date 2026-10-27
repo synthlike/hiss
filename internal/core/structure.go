@@ -7,28 +7,59 @@ import (
 	"strings"
 
 	"github.com/synthlike/hiss/internal/syntax"
+	"github.com/synthlike/hiss/internal/text"
 )
 
 // Moving by the text's structure without parsing it: mm by brackets, ]e by
 // indentation, ]f by the lines that start functions.
 
 // Lang returns the language the buffer on screen is highlighted in, or nil:
-// by its name, else by a #! line; *out* is JSON when the output starts like it.
+// by its name, else by a #! line; *out* by the run it shows (see outLang).
 func (e *Editor) Lang() *syntax.Lang {
 	b := e.Buf
-	n := b.Text.Len()
 	if b == e.runs.out {
-		start := min(e.runs.header, n)
-		body := bytes.TrimLeft(b.Text.Slice(start, min(start+256, n)), " \t\n")
-		if len(body) > 0 && (body[0] == '{' || body[0] == '[') {
-			return syntax.JSON
-		}
-		return nil
+		return e.OutLang()
 	}
 	if l := syntax.ForPath(b.Path); l != nil {
 		return l
 	}
-	return syntax.ForShebang(b.Text.Slice(0, min(n, 256)))
+	return syntax.ForShebang(b.Text.Slice(0, min(b.Text.Len(), 256)))
+}
+
+// OutLang returns the language *out* is highlighted in, or nil: what the run
+// it shows said its output is, else what the output starts like.
+func (e *Editor) OutLang() *syntax.Lang {
+	b := e.runs.out
+	if b == nil {
+		return nil
+	}
+	lang := (*syntax.Lang)(nil)
+	if r := e.shownRun(); r != nil {
+		lang = r.output
+	}
+	if lang == nil {
+		n := b.Text.Len()
+		start := min(e.runs.header, n)
+		body := bytes.TrimLeft(b.Text.Slice(start, min(start+256, n)), " \t\n")
+		switch {
+		case len(body) > 0 && (body[0] == '{' || body[0] == '['):
+			lang = syntax.JSON
+		case bytes.HasPrefix(body, []byte("=== RUN")), bytes.HasPrefix(body, []byte("--- ")),
+			bytes.HasPrefix(body, []byte("ok  \t")), bytes.HasPrefix(body, []byte("FAIL")):
+			lang = syntax.GoTest
+		default:
+			return nil
+		}
+	}
+	return syntax.ForOutput(lang)
+}
+
+// OutText returns *out*'s text, empty before anything has run.
+func (e *Editor) OutText() text.Text {
+	if e.runs.out == nil {
+		return text.New(nil, text.Origin{})
+	}
+	return e.runs.out.Text
 }
 
 // matchBracket moves to the bracket that matches the one under the cursor

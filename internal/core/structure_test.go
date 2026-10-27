@@ -115,11 +115,31 @@ func TestLang(t *testing.T) {
 		t.Error("a .txt file has a language")
 	}
 	e.runs.out, e.runs.header = e.Buf, len("$ curl x\n# env dev\n")
-	if e.Lang() != syntax.JSON {
-		t.Error("JSON output isn't JSON")
+	name := func() string {
+		if l := e.Lang(); l != nil {
+			return l.Name
+		}
+		return ""
+	}
+	if got := name(); got != "json output" {
+		t.Errorf("JSON output is %q", got)
+	}
+	e.Buf.Replace(e.runs.header, e.Buf.Text.Len(), []byte("=== RUN   TestX\n"), You)
+	if got := name(); got != "go test output" {
+		t.Errorf("go test output is %q", got)
 	}
 	e.Buf.Replace(e.runs.header, e.Buf.Text.Len(), []byte("id  body\n"), You)
-	if e.Lang() != nil {
-		t.Error("table output is highlighted")
+	if got := name(); got != "" {
+		t.Errorf("a table from no rule is %q", got)
+	}
+	e.runs.last = &run{output: syntax.Table} // a SQL rule's run says so
+	if got := name(); got != "table output" {
+		t.Errorf("a SQL rule's output is %q", got)
+	}
+}
+
+func TestRuleOutput(t *testing.T) {
+	if (&rule{match: []string{"*.sql"}}).output() != syntax.Table || (&rule{match: []string{"*.http"}}).output() != nil {
+		t.Error("only SQL rules print tables")
 	}
 }
