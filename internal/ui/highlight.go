@@ -22,15 +22,11 @@ var syntaxStyles = map[syntax.Kind]tcell.Style{
 	syntax.Emphasis: tcell.StyleDefault.Italic(true),
 }
 
-// highlight lexes t from the top of the file (or of the screen, for very
-// large files) to the end of the last visible line. It returns the style of a
-// byte offset; offsets must be asked for in ascending order.
-func highlight(path string, t text.Text, top, rows int) func(off int) tcell.Style {
+// highlight lexes t in lang from the top of the file (or of the screen, for
+// very large files) to the end of the last visible line. It returns the style
+// of a byte offset; offsets must be asked for in ascending order.
+func highlight(lang *syntax.Lang, t text.Text, top, rows int) func(off int) tcell.Style {
 	plain := func(int) tcell.Style { return styleText }
-	lang := syntax.ForPath(path)
-	if lang == nil {
-		lang = syntax.ForShebang(t.Slice(0, min(t.Len(), 256)))
-	}
 	if lang == nil || t.Len() == 0 {
 		return plain
 	}

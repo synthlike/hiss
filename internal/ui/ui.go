@@ -148,7 +148,7 @@ func Draw(s Screen, ed *core.Editor) {
 	t := ed.Buf.Text
 	hunks := ed.Hunks()
 	trailRows := ed.TrailRows()
-	syn := highlight(ed.Buf.Path, t, ed.Top, h)
+	syn := highlight(ed.Lang(), t, ed.Top, h)
 	cursor := ed.Sel.Head
 	curLine, _ := ed.Cursor()
 	diffRow := ed.DiffRow()

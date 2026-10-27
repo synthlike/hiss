@@ -195,6 +195,7 @@ var normalKeys = map[string]func(*Editor){
 	"#": (*Editor).startComment,
 
 	"g":     func(e *Editor) { e.Menu = &gotoMenu },
+	"m":     func(e *Editor) { e.Menu = &matchMenu },
 	"]":     func(e *Editor) { e.Menu = &nextMenu },
 	"[":     func(e *Editor) { e.Menu = &prevMenu },
 	"space": func(e *Editor) { e.Menu = &spaceMenu },
@@ -218,14 +219,22 @@ var nextMenu = Menu{Title: "next", Items: []MenuItem{
 	{"h", "hunk", func(e *Editor) { e.jumpHunk(1) }},
 	{"s", "step", func(e *Editor) { e.stepTrail(1) }},
 	{"d", "diagnostic", func(e *Editor) { e.jumpDiag(1) }},
-	{"r", "run's output", func(e *Editor) { e.stepRun(1) }},
+	{"r", "run", func(e *Editor) { e.stepRun(1) }},
+	{"f", "function", func(e *Editor) { e.jumpFunc(1) }},
+	{"e", "entry", func(e *Editor) { e.jumpEntry(1) }},
 }}
 
 var prevMenu = Menu{Title: "previous", Items: []MenuItem{
 	{"h", "hunk", func(e *Editor) { e.jumpHunk(-1) }},
 	{"s", "step", func(e *Editor) { e.stepTrail(-1) }},
 	{"d", "diagnostic", func(e *Editor) { e.jumpDiag(-1) }},
-	{"r", "run's output", func(e *Editor) { e.stepRun(-1) }},
+	{"r", "run", func(e *Editor) { e.stepRun(-1) }},
+	{"f", "function", func(e *Editor) { e.jumpFunc(-1) }},
+	{"e", "entry", func(e *Editor) { e.jumpEntry(-1) }},
+}}
+
+var matchMenu = Menu{Title: "match", Items: []MenuItem{
+	{"m", "matching bracket", (*Editor).matchBracket},
 }}
 
 var spaceMenu = Menu{Title: "space", Items: []MenuItem{

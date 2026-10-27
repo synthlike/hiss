@@ -39,6 +39,10 @@ and running tests, queries and requests.
   at the line's end / first non-blank, `gs` goes there, `%` selects the file,
   `f` `t` `F` `T` select to a character on the line, `r` replaces the
   selection's characters, `>` / `<` indent and `J` joins lines.
+- `]f` / `[f` go to the next / previous function. `]e` / `[e` go to the next /
+  previous line indented like the cursor's, within its block: the next element
+  of a JSON array, the next statement, or at the top of a Go file the next
+  declaration. `mm` goes to the matching bracket.
 - `/` searches as you type, `n` / `N` repeat, `*` searches for the selection.
 - `:<line>` goes to a line; `C-o` / `C-i` jump back and forward.
 - `:` shows the commands as you type; `tab` completes them.
