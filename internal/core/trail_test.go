@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -70,5 +71,23 @@ func TestTrail(t *testing.T) {
 	e.execute("comment anyone?")
 	if !strings.HasPrefix(e.Msg, "nothing to comment on") {
 		t.Errorf("msg = %q", e.Msg)
+	}
+}
+
+func TestTrailNoteWraps(t *testing.T) {
+	e := newEditor(t, "a\n")
+	e.Width = 30 // 25 columns of text after the gutter
+	if err := e.ShowTrail("claude", "tour", []StepInput{
+		{Path: e.Buf.Path, Line: 1, Note: "the parser skips blank lines before reading the header"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range e.TrailRows()[0] {
+		got = append(got, r.Text)
+	}
+	want := []string{"1. the parser skips blank", "   lines before reading", "   the header"}
+	if !slices.Equal(got, want) {
+		t.Errorf("rows = %q, want %q", got, want)
 	}
 }

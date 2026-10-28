@@ -185,7 +185,6 @@ func (e *Editor) Supersede(old, p *Proposal) {
 
 // threadLines wraps a thread to width columns, each comment led by its author.
 func threadLines(thread []Comment, width int) []NoteLine {
-	width = max(width, 20)
 	var out []NoteLine
 	for _, c := range thread {
 		mine := c.Author == You.Author
@@ -193,19 +192,29 @@ func threadLines(thread []Comment, width int) []NoteLine {
 		if c.At != "" {
 			label += " (" + c.At + ")"
 		}
-		indent := strings.Repeat(" ", utf8.RuneCountInString(label)+1)
-		line, empty := label+":", true
-		for w := range strings.FieldsSeq(c.Text) {
-			if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
-				out = append(out, NoteLine{Mine: mine, Text: line})
-				line = indent
-			}
-			line += " " + w
-			empty = false
+		for _, l := range labeledLines(label+":", c.Text, width) {
+			out = append(out, NoteLine{Mine: mine, Text: l})
 		}
-		out = append(out, NoteLine{Mine: mine, Text: line})
 	}
 	return out
+}
+
+// labeledLines wraps text at spaces to width columns after lead, indenting
+// the rows after the first to line up with the text.
+func labeledLines(lead, text string, width int) []string {
+	width = max(width, 20)
+	indent := strings.Repeat(" ", utf8.RuneCountInString(lead))
+	var out []string
+	line, empty := lead, true
+	for w := range strings.FieldsSeq(text) {
+		if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
+			out = append(out, line)
+			line = indent
+		}
+		line += " " + w
+		empty = false
+	}
+	return append(out, line)
 }
 
 // rationaleLines wraps a proposal's rationale as note rows: "#3 claude: why".

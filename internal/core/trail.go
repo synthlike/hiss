@@ -99,11 +99,13 @@ func (e *Editor) TrailRows() map[int][]NoteLine {
 		if rows == nil {
 			rows = map[int][]NoteLine{}
 		}
-		l, note := s.Line(), fmt.Sprintf("%d. %s", s.N, s.Note)
+		l, note := s.Line(), s.Note
 		if s.Changed {
 			note += " (changed since saved)"
 		}
-		rows[l] = append(rows[l], NoteLine{Note: true, Text: note})
+		for _, t := range labeledLines(fmt.Sprintf("%d.", s.N), note, e.TextWidth()) {
+			rows[l] = append(rows[l], NoteLine{Note: true, Text: t})
+		}
 		rows[l] = append(rows[l], threadLines(s.Thread, e.TextWidth())...)
 	}
 	return rows
