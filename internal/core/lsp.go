@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -32,6 +33,42 @@ var startServer = func(srv lsp.Server, root string, diags func(lsp.Diagnostics))
 	return lsp.Start(srv, root, diags)
 }
 
+// onPath reports whether a command is installed; replaced in tests.
+var onPath = func(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
+}
+
+// serverFor picks a file's language server from the built-in table: the
+// first one on PATH. What it finds is remembered, so a server installed
+// later is used after a restart. The error says what's missing.
+func (e *Editor) serverFor(path string) (lsp.Server, error) {
+	srvs := lsp.For(path)
+	if len(srvs) == 0 {
+		return lsp.Server{}, fmt.Errorf("no language server for %s files", filepath.Ext(path))
+	}
+	if e.installed == nil {
+		e.installed = map[string]bool{}
+	}
+	var names []string
+	for _, s := range srvs {
+		ok, seen := e.installed[s.Name()]
+		if !seen {
+			ok = onPath(s.Name())
+			e.installed[s.Name()] = ok
+		}
+		if ok {
+			return s, nil
+		}
+		names = append(names, s.Name())
+	}
+	or := names[len(names)-1]
+	if len(names) > 1 {
+		or = strings.Join(names[:len(names)-1], ", ") + " or " + or
+	}
+	return lsp.Server{}, fmt.Errorf("no language server for %s files on PATH (install %s)", filepath.Ext(path), or)
+}
+
 // The language server sees each buffer as it would be with its pending
 // proposals accepted, so diagnostics show what a proposal breaks before the
 // user accepts it. Problems in a proposal's new text are drawn on its
@@ -49,8 +86,8 @@ func (e *Editor) SyncLSP() {
 		if b.Path == "" || b.lspOpen && b.lspKey == b.syncKey() {
 			continue
 		}
-		srv, ok := lsp.For(b.Path)
-		if !ok {
+		srv, err := e.serverFor(b.Path)
+		if err != nil {
 			continue
 		}
 		c := e.langServer(srv, b)
@@ -64,7 +101,7 @@ func (e *Editor) SyncLSP() {
 			c.Change(b.Path, s.seq, s.text)
 		} else {
 			c.Open(b.Path, srv.Lang, s.seq, s.text)
-			b.lspOpen = true
+			b.lspOpen, b.lspName = true, srv.Name()
 		}
 		b.lspKey = b.syncKey()
 		b.sent = append(b.sent, s)
@@ -177,10 +214,10 @@ type AddedDiag struct {
 // proposals are on the hunks.
 func (b *Buffer) Diags() []*Diag { return b.diags }
 
-// langServer returns the running server for srv's language, starting it on
-// first use. A server that fails to start is not retried.
+// langServer returns the running srv, starting it on first use. A server
+// that fails to start is not retried.
 func (e *Editor) langServer(srv lsp.Server, b *Buffer) langServer {
-	if c, ok := e.servers[srv.Lang]; ok {
+	if c, ok := e.servers[srv.Name()]; ok {
 		return c
 	}
 	if e.servers == nil {
@@ -194,11 +231,11 @@ func (e *Editor) langServer(srv lsp.Server, b *Buffer) langServer {
 		e.Post(func(e *Editor) { e.SetDiagnostics(d) })
 	})
 	if err != nil {
-		e.Msg = failed("starting "+srv.Cmd[0], err)
-		e.servers[srv.Lang] = nil
+		e.Msg = failed("starting "+srv.Name(), err)
+		e.servers[srv.Name()] = nil
 		return nil
 	}
-	e.servers[srv.Lang] = c
+	e.servers[srv.Name()] = c
 	return c
 }
 
@@ -420,17 +457,17 @@ type Diagnostic struct {
 // needed. Fresh is false while the server has yet to answer for the text as
 // it is now; the caller can ask again shortly.
 func (e *Editor) Diagnostics(path string) (ds []Diagnostic, fresh bool, err error) {
-	srv, ok := lsp.For(path)
-	if !ok {
-		return nil, false, fmt.Errorf("no language server for %s files", filepath.Ext(path))
+	srv, err := e.serverFor(path)
+	if err != nil {
+		return nil, false, err
 	}
 	b, err := e.OpenBuffer(path)
 	if err != nil {
 		return nil, false, err
 	}
-	if c, started := e.servers[srv.Lang]; started {
+	if c, started := e.servers[srv.Name()]; started {
 		if c == nil {
-			return nil, false, fmt.Errorf("%s isn't available", srv.Cmd[0])
+			return nil, false, fmt.Errorf("%s isn't available", srv.Name())
 		}
 		if err := c.Err(); err != nil {
 			return nil, false, errors.New("the language server stopped: " + err.Error())

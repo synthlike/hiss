@@ -112,6 +112,20 @@ func TestDefaultEncodingIsUTF16(t *testing.T) {
 	}
 }
 
+func TestRefusedInitialize(t *testing.T) {
+	c, s := newFake(t, nil)
+	m := s.expect("initialize")
+	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID,
+		"error": map[string]any{"code": -32603, "message": "no TypeScript installation"}})
+	_, err := c.Symbols("/proj/a.ts", 2*time.Second)
+	if err == nil || !strings.Contains(err.Error(), "no TypeScript installation") {
+		t.Errorf("Symbols err = %v, want the server's reason", err)
+	}
+	if err := c.Err(); err == nil || !strings.Contains(err.Error(), "no TypeScript installation") {
+		t.Errorf("Err() = %v, want the server's reason", err)
+	}
+}
+
 func TestQueuedChangesCoalesce(t *testing.T) {
 	c, s := newFake(t, nil)
 	t0 := text.New([]byte("a"), text.Origin{})
@@ -126,6 +140,33 @@ func TestQueuedChangesCoalesce(t *testing.T) {
 	}
 	c.Close("/proj/a.go")
 	s.expect("textDocument/didClose") // not a second didChange
+}
+
+func TestPulledDiagnostics(t *testing.T) {
+	got := make(chan Diagnostics, 1)
+	c, s := newFake(t, func(d Diagnostics) { got <- d })
+	c.pull = true
+	t0 := text.New([]byte("a"), text.Origin{})
+	c.Open("/proj/a.ts", "typescript", 1, t0)
+	c.Change("/proj/a.ts", 2, t0.Insert(1, []byte("b"), text.Origin{}))
+	s.initialize("")
+	s.expect("textDocument/didOpen")
+	s.expect("textDocument/diagnostic")
+	if got := changedText(t, s.expect("textDocument/didChange")); got != "ab" {
+		t.Errorf("change text = %q", got)
+	}
+	m := s.expect("textDocument/diagnostic")
+	s.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"kind": "full", "items": []any{map[string]any{
+		"range":   map[string]any{"start": map[string]any{"line": 0, "character": 1}, "end": map[string]any{"line": 0, "character": 2}},
+		"message": "Cannot find name 'ab'."}}}})
+	select {
+	case d := <-got:
+		if d.Path != "/proj/a.ts" || d.Version != 2 || d.UTF8 || len(d.Diags) != 1 || d.Diags[0].Message != "Cannot find name 'ab'." {
+			t.Errorf("diagnostics = %+v", d)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no diagnostics")
+	}
 }
 
 func TestDiagnosticsAndServerRequests(t *testing.T) {
@@ -306,6 +347,29 @@ func TestURIRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFor(t *testing.T) {
+	for _, c := range []struct{ path, lang, first string }{
+		{"/p/a.go", "go", "gopls"},
+		{"/p/A.sol", "solidity", "forge"},
+		{"/p/main.rs", "rust", "rust-analyzer"},
+		{"/p/app.tsx", "typescriptreact", "tsc"},
+		{"/p/index.js", "javascript", "tsc"},
+		{"/p/x.py", "python", "basedpyright-langserver"},
+		{"/p/x.hpp", "cpp", "clangd"},
+	} {
+		srvs := For(c.path)
+		if len(srvs) == 0 || srvs[0].Lang != c.lang || srvs[0].Name() != c.first {
+			t.Errorf("For(%s) = %+v, want %s first, for %s", c.path, srvs, c.first, c.lang)
+		}
+	}
+	if srvs := For("/p/notes.txt"); srvs != nil {
+		t.Errorf("For(notes.txt) = %+v, want none", srvs)
+	}
+	if srvs := For("/p/x.py"); len(srvs) != 3 || srvs[2].Name() != "pylsp" {
+		t.Errorf("python servers = %+v, want pylsp last of three", srvs)
+	}
+}
+
 // TestGopls runs the real server, when it is installed.
 func TestGopls(t *testing.T) {
 	if testing.Short() {
@@ -320,7 +384,7 @@ func TestGopls(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module a\n\ngo 1.21\n"), 0o600)
 	os.WriteFile(path, []byte(src), 0o600)
 	got := make(chan Diagnostics, 10)
-	srv, _ := For(path)
+	srv := For(path)[0]
 	c, err := Start(srv, dir, func(d Diagnostics) { got <- d })
 	if err != nil {
 		t.Fatal(err)
@@ -356,7 +420,7 @@ func TestGoplsDefinition(t *testing.T) {
 	src := "package a\n\nfunc f() int { return g() }\n\nfunc g() int { return 1 }\n"
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module a\n\ngo 1.21\n"), 0o600)
 	os.WriteFile(path, []byte(src), 0o600)
-	srv, _ := For(path)
+	srv := For(path)[0]
 	c, err := Start(srv, dir, nil)
 	if err != nil {
 		t.Fatal(err)

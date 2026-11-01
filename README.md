@@ -9,10 +9,10 @@ always wait for review, and you can undo a whole turn.
 
 The rest of the loop happens in the editor too. Claude walks you through code
 and asks you questions there; you run tests, SQL queries and HTTP requests with
-`enter`, in the environment you pick, and Claude sees how they went. Go and
-Solidity files get diagnostics and navigation from gopls and `forge lsp`,
-proposed lines included. Editing is inspired by Helix and Kakoune: select first,
-then act.
+`enter`, in the environment you pick, and Claude sees how they went. Go, Rust,
+TypeScript, Python, C, Zig, Solidity and a few more get diagnostics and
+navigation from their language server when it's on your PATH, proposed lines
+included. Editing is inspired by Helix and Kakoune: select first, then act.
 
 ## In action
 
@@ -89,7 +89,7 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   you go, Claude answers in real time, and `:rf` finishes early.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
-- **Check.** In Go and Solidity, the language server checks the code as if the
+- **Check.** The language server checks the code as if the
   pending hunks were accepted; in Go, Claude can also vet and test them before
   you see them.
 - **Tour.** Ask "walk me through the auth flow" and follow Claude's notes step
@@ -107,7 +107,7 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 | `enter` | run what's under the cursor |
 | `space f` `b` `h` `t` | pick a file, buffer, hunk or tour step |
 
-The [guide](docs/guide.md) covers the rest: editing, gopls, run output and
+The [guide](docs/guide.md) covers the rest: editing, language servers, run output and
 `.hissrun` with environments.
 
 ## Status

@@ -60,8 +60,9 @@ func (f *fakeServer) Err() error { return nil }
 func fakeLSP(t *testing.T, e *Editor) (f *fakeServer, diags *func(lsp.Diagnostics)) {
 	f = &fakeServer{}
 	diags = new(func(lsp.Diagnostics))
-	old := startServer
-	t.Cleanup(func() { startServer = old })
+	old, oldPath := startServer, onPath
+	t.Cleanup(func() { startServer, onPath = old, oldPath })
+	onPath = func(string) bool { return true }
 	startServer = func(_ lsp.Server, _ string, d func(lsp.Diagnostics)) (langServer, error) {
 		*diags = d
 		return f, nil
@@ -270,5 +271,47 @@ func TestDiagnosticsWithoutServer(t *testing.T) {
 	e := newEditor(t, "hello\n")
 	if _, _, err := e.Diagnostics(e.Buf.Path); err == nil || !strings.Contains(err.Error(), ".txt") {
 		t.Errorf("err = %v, want no server for .txt", err)
+	}
+}
+
+func TestServerForTakesTheFirstOnPath(t *testing.T) {
+	old := onPath
+	t.Cleanup(func() { onPath = old })
+	installed := map[string]bool{"pylsp": true}
+	onPath = func(cmd string) bool { return installed[cmd] }
+	e := newEditor(t, "")
+	if srv, err := e.serverFor("a.py"); err != nil || srv.Name() != "pylsp" || srv.Lang != "python" {
+		t.Errorf("serverFor(a.py) = %+v, %v; want pylsp", srv, err)
+	}
+	_, err := e.serverFor("a.rs")
+	if err == nil || !strings.Contains(err.Error(), "(install rust-analyzer)") {
+		t.Errorf("err = %v, want it to name rust-analyzer", err)
+	}
+	e = newEditor(t, "")
+	installed = nil
+	_, err = e.serverFor("a.py")
+	if want := "install basedpyright-langserver, pyright-langserver or pylsp"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("err = %v, want %q", err, want)
+	}
+}
+
+func TestOneServerForTypeScriptAndJavaScript(t *testing.T) {
+	e := newEditor(t, "")
+	fakeLSP(t, e)
+	var started []string
+	fake := startServer
+	startServer = func(srv lsp.Server, root string, d func(lsp.Diagnostics)) (langServer, error) {
+		started = append(started, srv.Name())
+		return fake(srv, root, d)
+	}
+	dir := t.TempDir()
+	for _, name := range []string{"a.ts", "b.js", "c.tsx"} {
+		if _, err := e.OpenBuffer(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.SyncLSP()
+	if !slices.Equal(started, []string{"tsc"}) {
+		t.Errorf("started %v, want one tsc", started)
 	}
 }

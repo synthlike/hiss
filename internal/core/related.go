@@ -88,8 +88,7 @@ func (e *Editor) relatedKey() (relatedKey, bool) {
 
 func (e *Editor) askRelated(key relatedKey) {
 	b := key.buf
-	srv, _ := lsp.For(b.Path)
-	c := e.servers[srv.Lang]
+	c := e.servers[b.lspName]
 	if c == nil || c.Err() != nil {
 		return
 	}

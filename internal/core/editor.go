@@ -91,7 +91,8 @@ type Editor struct {
 	jumps     jumpList
 	questions []*Question // agents' questions, oldest first, until their agents collect the answers
 	nextQ     int
-	servers   map[string]langServer // by language; nil if it failed to start
+	servers   map[string]langServer // by name; nil if it failed to start
+	installed map[string]bool       // language servers looked up on PATH, by name
 	related   relatedState
 	runs      runState
 	persist   persist

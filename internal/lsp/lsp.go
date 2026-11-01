@@ -25,21 +25,58 @@ import (
 	"github.com/synthlike/hiss/internal/text"
 )
 
-// Server is how to start a language server for one language.
+// Server is how to start a language server for a file.
 type Server struct {
-	Lang string   // LSP language ID, such as "go"
+	Lang string   // the file's LSP language ID, such as "go" or "typescriptreact"
 	Cmd  []string // command and arguments; it speaks LSP on stdio
+	Pull bool     // it doesn't publish diagnostics, so they're asked for after each change
 }
 
-var servers = map[string]Server{
-	".go":  {Lang: "go", Cmd: []string{"gopls"}},
-	".sol": {Lang: "solidity", Cmd: []string{"forge", "lsp", "--stdio"}},
+// pullOnly names the servers in the table that only answer diagnostic
+// requests. Servers that do both publish what the requests give and more.
+var pullOnly = map[string]bool{"tsc": true}
+
+// Name is the server's command. One process serves every file that names
+// it, so .ts and .js files share a typescript-language-server.
+func (s Server) Name() string { return s.Cmd[0] }
+
+// language is one row of the built-in table.
+type language struct {
+	ids  map[string]string // extension → LSP language ID
+	cmds [][]string        // servers to try, in order; the first on PATH runs
 }
 
-// For returns the server for a file, by its extension.
-func For(path string) (Server, bool) {
-	s, ok := servers[filepath.Ext(path)]
-	return s, ok
+var languages = []language{
+	{map[string]string{".go": "go"}, [][]string{{"gopls"}}},
+	{map[string]string{".sol": "solidity"}, [][]string{{"forge", "lsp", "--stdio"}}},
+	{map[string]string{".rs": "rust"}, [][]string{{"rust-analyzer"}}},
+	{map[string]string{".ts": "typescript", ".mts": "typescript", ".cts": "typescript", ".tsx": "typescriptreact",
+		".js": "javascript", ".mjs": "javascript", ".cjs": "javascript", ".jsx": "javascriptreact"},
+		[][]string{{"tsc", "--lsp", "--stdio"}, {"typescript-language-server", "--stdio"}}},
+	{map[string]string{".py": "python", ".pyi": "python"},
+		[][]string{{"basedpyright-langserver", "--stdio"}, {"pyright-langserver", "--stdio"}, {"pylsp"}}},
+	{map[string]string{".c": "c", ".h": "c", ".cc": "cpp", ".cpp": "cpp", ".cxx": "cpp", ".hh": "cpp", ".hpp": "cpp"},
+		[][]string{{"clangd"}}},
+	{map[string]string{".zig": "zig"}, [][]string{{"zls"}}},
+	{map[string]string{".lua": "lua"}, [][]string{{"lua-language-server"}}},
+	{map[string]string{".sh": "shellscript", ".bash": "shellscript"}, [][]string{{"bash-language-server", "start"}}},
+	{map[string]string{".tf": "terraform", ".tfvars": "terraform-vars"}, [][]string{{"terraform-ls", "serve"}}},
+}
+
+// For returns the servers that can serve a file, by its extension, in the
+// order to try them; none for a file type outside the table.
+func For(path string) []Server {
+	ext := filepath.Ext(path)
+	for _, l := range languages {
+		if id, ok := l.ids[ext]; ok {
+			srvs := make([]Server, len(l.cmds))
+			for i, cmd := range l.cmds {
+				srvs[i] = Server{Lang: id, Cmd: cmd, Pull: pullOnly[cmd[0]]}
+			}
+			return srvs
+		}
+	}
+	return nil
 }
 
 // Severity values; 0 means the server didn't say.
@@ -116,6 +153,7 @@ type Client struct {
 	once   sync.Once
 	exited chan struct{} // closed when the process exits; nil without one
 	kill   func()
+	pull   bool // ask for diagnostics after each open and change
 
 	mu    sync.Mutex
 	queue []outgoing
@@ -155,6 +193,7 @@ func Start(srv Server, root string, diags func(Diagnostics)) (*Client, error) {
 		return nil, err
 	}
 	c := newClient(out, in, root, diags)
+	c.pull = srv.Pull
 	c.exited = make(chan struct{})
 	c.kill = func() { cmd.Process.Kill() }
 	go func() {
@@ -194,10 +233,13 @@ func (c *Client) Open(path, lang string, version int, t text.Text) {
 		return notification("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 			"uri": URI(path), "languageId": lang, "version": version, "text": string(t.Bytes())}})
 	}})
+	c.pullDiags(path, version)
 }
 
 // Change sends a document's whole text at version. A change still queued for
 // the same document is replaced, so a slow server only sees the latest text.
+// With a diagnostics request queued after it, it isn't, so the request is
+// answered for the text it names.
 func (c *Client) Change(path string, version int, t text.Text) {
 	uri := URI(path)
 	c.send(outgoing{change: uri, build: func() any {
@@ -205,6 +247,32 @@ func (c *Client) Change(path string, version int, t text.Text) {
 			"textDocument":   map[string]any{"uri": uri, "version": version},
 			"contentChanges": []any{map[string]any{"text": string(t.Bytes())}}})
 	}})
+	c.pullDiags(path, version)
+}
+
+// pullDiags asks a server that doesn't publish diagnostics for the
+// document's, and hands them on as if published for version.
+func (c *Client) pullDiags(path string, version int) {
+	if !c.pull || c.diags == nil {
+		return
+	}
+	ch := c.call("textDocument/diagnostic", map[string]any{"textDocument": map[string]any{"uri": URI(path)}})
+	go func() {
+		var r reply
+		select {
+		case r = <-ch:
+		case <-c.dead:
+			return
+		}
+		var rep struct {
+			Kind  string       `json:"kind"`
+			Items []Diagnostic `json:"items"`
+		}
+		if r.err != nil || json.Unmarshal(r.result, &rep) != nil || rep.Kind != "full" {
+			return
+		}
+		c.diags(Diagnostics{Path: path, Version: version, UTF8: c.UTF8(), Diags: rep.Items})
+	}()
 }
 
 // Close tells the server a document is no longer open.
@@ -485,6 +553,9 @@ func (c *Client) handshake() error {
 	case r = <-ch:
 	case <-c.dead:
 		return c.Err()
+	}
+	if r.err != nil {
+		return r.err
 	}
 	var init struct {
 		Capabilities struct {

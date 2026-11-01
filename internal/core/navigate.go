@@ -30,18 +30,22 @@ func (e *Editor) findReferences() { e.lookup("references") }
 // returns nil.
 func (e *Editor) bufServer() (langServer, sentText) {
 	b := e.Buf
-	srv, ok := lsp.For(b.Path)
-	if b.Path == "" || !ok {
+	if b.Path == "" {
 		e.Msg = "no language server for this file"
+		return nil, sentText{}
+	}
+	srv, err := e.serverFor(b.Path)
+	if err != nil {
+		e.Msg = err.Error()
 		return nil, sentText{}
 	}
 	if e.Post == nil {
 		return nil, sentText{}
 	}
 	e.SyncLSP()
-	c := e.servers[srv.Lang]
+	c := e.servers[srv.Name()]
 	if c == nil || !b.lspOpen {
-		e.Msg = srv.Cmd[0] + " isn't available"
+		e.Msg = srv.Name() + " isn't available"
 		return nil, sentText{}
 	}
 	if err := c.Err(); err != nil {

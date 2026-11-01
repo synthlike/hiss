@@ -20,7 +20,7 @@ and running tests, queries and requests.
 - **Review it.** `+` accepts and saves. `-` rejects, asking for an optional reason
   to tell Claude.
 - **Tweak it.** Edit the green lines, then `+`. Claude is told what you changed.
-- **See what it breaks.** In Go and Solidity files, the language server checks
+- **See what it breaks.** In files with a language server, it checks
   the code as if the pending hunks were accepted: problems in a hunk show on its
   green lines, ones it causes elsewhere on those lines. Claude can check its own
   with get_diagnostics, and in Go run `go vet` / `go test` on them before you
@@ -74,7 +74,24 @@ and running tests, queries and requests.
 - `:note <text>` (`:n`) adds a line to `.hiss/notes.md` with the date, the
   commit (`+` if the file has changed since) and the cursor's `path:line`;
   `space n` lists the notes, newest first.
-- In Go files (gopls) and Solidity files (`forge lsp`, which checks with solar),
+- Files get a language server from a built-in table, the first one on your
+  PATH; no config. Install one later and restart hiss to use it.
+
+  | Files | Servers, in order |
+  | --- | --- |
+  | Go | gopls |
+  | Solidity | `forge lsp` (checks with solar) |
+  | Rust | rust-analyzer |
+  | TypeScript, JavaScript | `tsc --lsp` (TypeScript 7), typescript-language-server |
+  | Python | basedpyright, pyright, pylsp |
+  | C, C++ | clangd |
+  | Zig | zls |
+  | Lua | lua-language-server |
+  | Shell (`.sh`, `.bash`) | bash-language-server |
+  | Terraform | terraform-ls |
+
+  Without one, `gd` says what to install. Servers start in the project root.
+- With a language server,
   diagnostics are marked in the gutter and underlined; the cursor line's message
   shows below, and `]d` / `[d` go to the next / previous.
   `gd` goes to a definition and `gr` lists references, also from proposed lines;

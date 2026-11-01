@@ -148,7 +148,7 @@ func TestSymbolPicker(t *testing.T) {
 func TestLookupWithoutServer(t *testing.T) {
 	e := newEditor(t, "hello\n")
 	keys(e, "g d")
-	if e.Msg != "no language server for this file" {
+	if e.Msg != "no language server for .txt files" {
 		t.Errorf("msg %q", e.Msg)
 	}
 }

@@ -28,6 +28,7 @@ type Buffer struct {
 
 	diags   []*Diag    // the language server's latest outside pending proposals, by start
 	lspOpen bool       // the language server has the buffer open
+	lspName string     // that server's name, once open
 	lspKey  string     // syncKey when last sent
 	lspSeq  int        // document version last sent
 	diagSeq int        // document version the diagnostics are for
