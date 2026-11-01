@@ -5,12 +5,13 @@ import (
 	"slices"
 )
 
-// A change set is what an agent proposed in one turn: its proposals with the
-// same session and turn. Superseded proposals drop out and their revisions
-// count instead. Without hooks there are no sessions or turns, so each
-// agent's proposals form one set. :sa and :sr review the set of the hunk
-// under the cursor; a set reviewed only in part may leave the tree broken,
-// so the status line says so.
+// A change set is what an agent did in one turn: its proposals with the same
+// session and turn. Superseded proposals drop out and their revisions count
+// instead. Without hooks there are no sessions or turns, so each agent's
+// proposals form one set. :sa and :sr review the set of the hunk under the
+// cursor; a set reviewed only in part may leave the tree broken, so the status
+// line says so. What applied without review isn't in the count: :su undoes it
+// by the same sets.
 
 type setKey struct {
 	agent, session string
@@ -19,11 +20,11 @@ type setKey struct {
 
 func (p *Proposal) set() setKey { return setKey{p.Agent, p.Session, p.Turn} }
 
-// SetOf returns the proposals in p's set, oldest first.
+// SetOf returns the proposals for review in p's set, oldest first.
 func (e *Editor) SetOf(p *Proposal) []*Proposal {
 	var ps []*Proposal
 	for _, q := range e.proposals {
-		if q.set() == p.set() && q.Status != Superseded {
+		if q.set() == p.set() && q.Status != Superseded && q.Status != Applied && q.Status != Undone {
 			ps = append(ps, q)
 		}
 	}

@@ -16,28 +16,42 @@ type ProposeEditIn struct {
 	Path        string `json:"path" jsonschema:"absolute path, or relative to the project root; the file need not be open"`
 	OldString   string `json:"old_string" jsonschema:"exact text to replace; must occur exactly once unless replace_all is set"`
 	NewString   string `json:"new_string" jsonschema:"replacement text"`
-	ReplaceAll  bool   `json:"replace_all,omitempty" jsonschema:"propose replacing every occurrence"`
+	ReplaceAll  bool   `json:"replace_all,omitempty" jsonschema:"replace every occurrence"`
 	BaseVersion *int   `json:"base_version,omitempty" jsonschema:"buffer version you read; the edit is refused if the user changed this text since"`
-	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change"`
-	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over"`
-	Run         bool   `json:"run,omitempty" jsonschema:"run the block you changed once the user accepts, as Enter there would: for a query, request or script in a file a .hissrun rule matches"`
+	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change; with review, say what you want them to look at"`
+	Review      bool   `json:"review,omitempty" jsonschema:"hold this for the user's review instead of applying it"`
+	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over; the revision stays pending"`
+	Run         bool   `json:"run,omitempty" jsonschema:"run the block you changed once the user accepts, as Enter there would: for a query, request or script in a file a .hissrun rule matches; always held for review"`
 }
 
 type WriteFileIn struct {
 	Path        string `json:"path" jsonschema:"absolute path, or relative to the project root"`
 	Content     string `json:"content" jsonschema:"the complete new file content"`
 	BaseVersion *int   `json:"base_version,omitempty" jsonschema:"buffer version you read, for an existing file"`
-	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change"`
-	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over"`
-	Run         bool   `json:"run,omitempty" jsonschema:"run the first block you changed once the user accepts, as Enter there would: for a query, request or script in a file a .hissrun rule matches"`
+	Rationale   string `json:"rationale,omitempty" jsonschema:"one line shown to the user next to the change; with review, say what you want them to look at"`
+	Review      bool   `json:"review,omitempty" jsonschema:"hold this for the user's review instead of applying it"`
+	Supersedes  int    `json:"supersedes,omitempty" jsonschema:"id of your pending proposal this revises; it is replaced and its comment thread carries over; the revision stays pending"`
+	Run         bool   `json:"run,omitempty" jsonschema:"run the first block you changed once the user accepts, as Enter there would: for a query, request or script in a file a .hissrun rule matches; always held for review"`
 }
 
 type ProposeOut struct {
-	IDs  []int  `json:"ids"`
-	Path string `json:"path"`
+	IDs     []int  `json:"ids"`
+	Path    string `json:"path"`
+	Applied bool   `json:"applied" jsonschema:"applied and saved; otherwise pending the user's review"`
+	Held    string `json:"held,omitempty" jsonschema:"why it was held for review though you didn't ask"`
+	Problem string `json:"problem,omitempty"`
 }
 
 func (o ProposeOut) Text() string {
+	switch {
+	case o.Problem != "":
+		return fmt.Sprintf("Applied %v in %s, but: %s", o.IDs, o.Path, o.Problem)
+	case o.Applied:
+		return fmt.Sprintf("Applied %v in %s and saved it.", o.IDs, o.Path)
+	case o.Held != "":
+		return fmt.Sprintf("Held %v in %s for the user's review, because %s. Call await_review with these ids "+
+			"before relying on the change.", o.IDs, o.Path, o.Held)
+	}
 	return fmt.Sprintf("Proposed %v in %s; pending the user's review. Call await_review with these ids "+
 		"before relying on the change.", o.IDs, o.Path)
 }
@@ -47,7 +61,7 @@ type ProposalInfo struct {
 	Path      string `json:"path"`
 	Session   string `json:"session,omitempty"`
 	Turn      int    `json:"turn,omitempty"`
-	Status    string `json:"status" jsonschema:"pending, accepted, rejected or stale"`
+	Status    string `json:"status" jsonschema:"applied, pending, accepted, rejected, stale or undone"`
 	Reason    string `json:"reason,omitempty" jsonschema:"why it was rejected or went stale"`
 	Rationale string `json:"rationale,omitempty"`
 	Edited    bool   `json:"edited,omitempty" jsonschema:"the user changed your text before accepting it"`
@@ -107,7 +121,7 @@ func proposeEdit(ed *core.Editor, agent string, in ProposeEditIn) (ProposeOut, e
 	if in.Run && in.ReplaceAll {
 		return ProposeOut{}, fmt.Errorf("run takes one edit; drop replace_all")
 	}
-	return superseding(ed, agent, in.Supersedes, func() ([]*core.Proposal, error) {
+	return superseding(ed, agent, in.Supersedes, in.Review || in.Run, func() ([]*core.Proposal, error) {
 		if err := canRun(ed, in.Run, path); err != nil {
 			return nil, err
 		}
@@ -118,7 +132,7 @@ func proposeEdit(ed *core.Editor, agent string, in ProposeEditIn) (ProposeOut, e
 
 func writeFile(ed *core.Editor, agent string, in WriteFileIn) (ProposeOut, error) {
 	path := resolve(ed, in.Path)
-	return superseding(ed, agent, in.Supersedes, func() ([]*core.Proposal, error) {
+	return superseding(ed, agent, in.Supersedes, in.Review || in.Run, func() ([]*core.Proposal, error) {
 		if err := canRun(ed, in.Run, path); err != nil {
 			return nil, err
 		}
@@ -148,7 +162,9 @@ func runOnAccept(ed *core.Editor, run bool, ps []*core.Proposal) []*core.Proposa
 
 // superseding runs propose, first withdrawing the proposal it revises (if any)
 // so the revision may overlap it, and restoring that proposal if propose fails.
-func superseding(ed *core.Editor, agent string, old int, propose func() ([]*core.Proposal, error)) (ProposeOut, error) {
+// What it proposes then applies, unless review asks for the user or it revises
+// something already in review.
+func superseding(ed *core.Editor, agent string, old int, review bool, propose func() ([]*core.Proposal, error)) (ProposeOut, error) {
 	undo := func() {}
 	if old != 0 {
 		var err error
@@ -161,10 +177,11 @@ func superseding(ed *core.Editor, agent string, old int, propose func() ([]*core
 		undo()
 		return ProposeOut{}, err
 	}
+	held := ed.Settle(agent, ps, review || old != 0)
 	if old != 0 {
 		ed.Supersede(ed.Proposal(old), ps[0])
 	}
-	out := ProposeOut{Path: ps[0].Buf.Path}
+	out := ProposeOut{Path: ps[0].Buf.Path, Held: held, Applied: ps[0].Status == core.Applied, Problem: ps[0].Reason}
 	for _, p := range ps {
 		out.IDs = append(out.IDs, p.ID)
 	}

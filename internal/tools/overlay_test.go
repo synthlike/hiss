@@ -11,7 +11,7 @@ func TestGoOverlay(t *testing.T) {
 	if got := text(res); !strings.HasPrefix(got, "Nothing is pending or unsaved") {
 		t.Errorf("before proposing: %q", got)
 	}
-	call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "package main\n", "new_string": "package main\n\nfunc main() {}\n"})
+	call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "package main\n", "new_string": "package main\n\nfunc main() {}\n", "review": true})
 	res = call(t, cs, "go_overlay", map[string]any{})
 	out := structured[OverlayOut](t, res)
 	if len(out.Files) != 1 || out.Files[0] != "main.go" || len(out.Proposals) != 1 {

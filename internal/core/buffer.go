@@ -22,6 +22,7 @@ type Buffer struct {
 
 	log     []logged    // every edit, for checking proposals against old versions
 	pending []*Proposal // pending proposals, kept in step with edits
+	applied []*Proposal // proposals applied without review, likewise
 	anchors []*anchor   // offsets other things point at, kept in step with edits
 
 	diags   []*Diag    // the language server's latest outside pending proposals, by start
@@ -113,6 +114,9 @@ func (b *Buffer) record(e text.Edit) {
 	b.log = append(b.log, logged{b.Version, e})
 	for _, a := range b.anchors {
 		a.off = e.Map(a.off, false) // text typed at an anchor goes after it
+	}
+	for _, p := range b.applied {
+		p.trackApplied(e.Start, e.End, e.Len)
 	}
 	keep := b.pending[:0]
 	for _, p := range b.pending {

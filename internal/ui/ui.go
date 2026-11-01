@@ -160,6 +160,7 @@ func Draw(s Screen, ed *core.Editor) {
 	inMatch := func(off int) bool { return inSpans(matches, off) }
 	related := ed.Related()
 	diags := ed.Buf.Diags()
+	changed := ed.ChangedLines()
 	lineSeverity := map[int]int{} // the most severe diagnostic starting on each line
 	for _, d := range diags {
 		start, _ := d.Range()
@@ -244,6 +245,8 @@ func Draw(s Screen, ed *core.Editor) {
 			if i == 0 {
 				if sev := lineSeverity[line]; sev != 0 && mark == " " {
 					s.Put(0, row, diagMark(sev), diagStyle(sev))
+				} else if mark == " " && changed[line] {
+					s.Put(0, row, "▏", styleDim)
 				} else {
 					s.Put(0, row, mark, base)
 				}

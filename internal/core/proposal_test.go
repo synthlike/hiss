@@ -16,6 +16,7 @@ func propose(t *testing.T, e *Editor, old, new string) *Proposal {
 	if err != nil {
 		t.Fatal(err)
 	}
+	e.Settle("claude", ps, true)
 	return ps[0]
 }
 

@@ -29,7 +29,11 @@ import (
 //
 // [env] sections name environments; runs source the active one's script
 // first, and a rule's env = <name> pins it to one. [go] and [forge] configure
-// the built-in runners.
+// the built-in runners. [review] lists files agents' edits always wait for
+// review in:
+//
+//	[review]
+//	match = migrations/* *.sol
 
 // rulesFile is the rules file, relative to the project root.
 const rulesFile = ".hissrun"
@@ -59,6 +63,7 @@ type runConfig struct {
 	goShare    bool
 	forgeEnv   string
 	forgeShare bool
+	review     []string // globs of files agents' edits are always held for review in
 }
 
 func (c *runConfig) env(name string) *env {
@@ -89,7 +94,7 @@ func parseRules(src string) (*runConfig, error) {
 	c := &runConfig{goShare: true, forgeShare: true}
 	var r *rule
 	var en *env
-	section := "" // "rule", "env", "go" or "forge"
+	section := "" // "rule", "env", "go", "forge" or "review"
 	start := 0    // the line the section starts on
 	type pin struct {
 		env  string
@@ -129,7 +134,7 @@ func parseRules(src string) (*runConfig, error) {
 			switch name {
 			case "env":
 				section, en = "env", &env{}
-			case "go", "forge":
+			case "go", "forge", "review":
 				section = name
 			default:
 				section, r = "rule", &rule{name: name}
@@ -140,6 +145,15 @@ func parseRules(src string) (*runConfig, error) {
 		key, val = strings.TrimSpace(key), strings.TrimSpace(val)
 		bad := func(format string, a ...any) error {
 			return fmt.Errorf("%s:%d: %s", rulesFile, n, fmt.Sprintf(format, a...))
+		}
+		globs := func() ([]string, error) {
+			gs := strings.Fields(val)
+			for _, g := range gs {
+				if _, err := filepath.Match(g, ""); err != nil {
+					return nil, bad("match %q: %v", g, err)
+				}
+			}
+			return gs, nil
 		}
 		boolean := func() (bool, error) {
 			b, err := strconv.ParseBool(val)
@@ -178,15 +192,17 @@ func parseRules(src string) (*runConfig, error) {
 			default:
 				return nil, bad("unknown key %q in [%s] (env, share)", key, section)
 			}
+		case section == "review":
+			if key != "match" {
+				return nil, bad("unknown key %q in [review] (match)", key)
+			}
+			var gs []string
+			gs, err = globs()
+			c.review = append(c.review, gs...)
 		default:
 			switch key {
 			case "match":
-				r.match = strings.Fields(val)
-				for _, g := range r.match {
-					if _, err := filepath.Match(g, ""); err != nil {
-						return nil, bad("match %q: %v", g, err)
-					}
-				}
+				r.match, err = globs()
 			case "cmd":
 				r.cmd = val
 			case "find":

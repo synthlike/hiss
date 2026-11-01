@@ -241,6 +241,7 @@ var spaceMenu = Menu{Title: "space", Items: []MenuItem{
 	{"f", "files", (*Editor).openFilePicker},
 	{"b", "buffers", (*Editor).openBufferPicker},
 	{"h", "hunks", (*Editor).openHunkPicker},
+	{"g", "changes", (*Editor).openChangePicker},
 	{"t", "steps", (*Editor).openTrailPicker},
 	{"s", "symbols", (*Editor).openSymbolPicker},
 	{"n", "notes", (*Editor).openNotePicker},

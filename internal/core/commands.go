@@ -38,6 +38,8 @@ var commands = []command{
 	{[]string{"hr", "hunk-reject"}, "[reason]", "reject the hunk, telling the agent why", func(e *Editor, arg string) { e.reviewHunk(false, arg) }},
 	{[]string{"sa", "set-accept"}, "", "accept the hunk's change set: what the agent proposed with it", func(e *Editor, _ string) { e.reviewSet(true, "") }},
 	{[]string{"sr", "set-reject"}, "[reason]", "reject the hunk's change set, telling the agent why", func(e *Editor, arg string) { e.reviewSet(false, arg) }},
+	{[]string{"su", "set-undo"}, "[reason]", "undo the agent's applied changes of a turn: the one under the cursor, or the newest", (*Editor).undoSet},
+	{[]string{"cc", "changes-clear"}, "", "clear the gutter marks on agents' changes", func(e *Editor, _ string) { e.clearChanges() }},
 	{[]string{"haa", "hunk-accept-all"}, "", "accept every pending hunk", func(e *Editor, _ string) { e.reviewAll(true, "") }},
 	{[]string{"hra", "hunk-reject-all"}, "[reason]", "reject every pending hunk", func(e *Editor, arg string) { e.reviewAll(false, arg) }},
 	{[]string{"c", "comment"}, "<text>", "comment on the hunk, line or trail step", (*Editor).comment},

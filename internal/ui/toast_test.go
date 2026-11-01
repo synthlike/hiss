@@ -17,9 +17,11 @@ func TestToast(t *testing.T) {
 	ed := core.New(b)
 	ed.Root = dir
 	ed.Resize(60, 8)
-	if _, err := ed.WriteFile("claude", dir+"/g.go", "package g\n", nil, ""); err != nil {
+	p, err := ed.WriteFile("claude", dir+"/g.go", "package g\n", nil, "")
+	if err != nil {
 		t.Fatal(err)
 	}
+	ed.Settle("claude", []*core.Proposal{p}, true)
 	g := newGrid(60, 8)
 	Draw(g, ed)
 	if got := g.row(0); !strings.HasSuffix(got, "claude") {

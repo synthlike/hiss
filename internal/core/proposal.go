@@ -17,11 +17,15 @@ const (
 	Accepted Status = "accepted"
 	Rejected Status = "rejected"
 	Stale    Status = "stale"
+	Applied  Status = "applied" // saved without review; see applied.go
+	Undone   Status = "undone"
 )
 
-// Proposal is an agent's suggested replacement of a region of a buffer. While
-// pending, Start and End track the region as the buffer is edited. Once the
-// user tweaks it, the region holds the proposed text as the user edits it.
+// Proposal is an agent's replacement of a region of a buffer, applied right
+// away (see applied.go) or held pending for review. While pending, Start and
+// End track the region as the buffer is edited. Once the user tweaks it, the
+// region holds the proposed text as the user edits it. Once applied, the
+// region holds the new text.
 type Proposal struct {
 	ID        int
 	Agent     string
@@ -47,16 +51,19 @@ type Proposal struct {
 	diags     []hunkDiag // the language server's problems in New
 	runAt     int        // where in New the run starts: the first line it changes
 	runGoing  bool       // accepted, and its run hasn't finished
+
+	applied appliedState // once applied
 }
 
 func (p *Proposal) origin() text.Origin {
 	return text.Origin{Author: p.Agent, Session: p.Session, Turn: p.Turn, Proposal: p.ID}
 }
 
-// ProposeEdit proposes replacing old with new in the file at path, using the
-// semantics of Claude Code's Edit tool: old must occur exactly once unless all
-// is set. With a base version, the edit is refused if the user has changed the
-// matched text since the agent read that version.
+// ProposeEdit adds pending proposals replacing old with new in the file at
+// path, using the semantics of Claude Code's Edit tool: old must occur exactly
+// once unless all is set. With a base version, the edit is refused if the user
+// has changed the matched text since the agent read that version. Settle says
+// what becomes of them.
 func (e *Editor) ProposeEdit(agent, path, old, new string, all bool, base *int, rationale string) ([]*Proposal, error) {
 	if old == new {
 		return nil, errors.New("old_string and new_string are the same")
@@ -97,11 +104,11 @@ func (e *Editor) ProposeEdit(agent, path, old, new string, all bool, base *int, 
 	for _, s := range starts {
 		ps = append(ps, e.addProposal(agent, rationale, b, s, s+len(old), new))
 	}
-	e.announce(agent, b, len(ps))
 	return ps, nil
 }
 
-// WriteFile proposes replacing the whole file at path, which may not exist yet.
+// WriteFile adds a pending proposal replacing the whole file at path, which
+// may not exist yet. Settle says what becomes of it.
 func (e *Editor) WriteFile(agent, path, content string, base *int, rationale string) (*Proposal, error) {
 	b, err := e.OpenBuffer(path)
 	if err != nil {
@@ -113,9 +120,7 @@ func (e *Editor) WriteFile(agent, path, content string, base *int, rationale str
 	if err := e.checkRegion(b, 0, b.Text.Len(), base); err != nil {
 		return nil, err
 	}
-	p := e.addProposal(agent, rationale, b, 0, b.Text.Len(), content)
-	e.announce(agent, b, 1)
-	return p, nil
+	return e.addProposal(agent, rationale, b, 0, b.Text.Len(), content), nil
 }
 
 func (e *Editor) checkRegion(b *Buffer, start, end int, base *int) error {

@@ -26,6 +26,9 @@ share = false
 env   = staging
 share = false
 
+[review]
+match = migrations/* *.sol
+
 [sql]
 match = *.sql
 cmd   = psql
@@ -43,6 +46,9 @@ env   = staging
 	if c.forgeEnv != "staging" || c.forgeShare {
 		t.Errorf("forge: env %q share %v", c.forgeEnv, c.forgeShare)
 	}
+	if len(c.review) != 2 || c.review[1] != "*.sol" {
+		t.Errorf("review %v", c.review)
+	}
 	if len(c.rules) != 1 || c.rules[0].env != "staging" {
 		t.Errorf("rules %+v", c.rules)
 	}
@@ -59,6 +65,8 @@ func TestParseEnvErrors(t *testing.T) {
 		"[env]\nname = a\nconfirm = yes\n":          ".hissrun:3: confirm is true or false, not \"yes\"",
 		"[go]\nmatch = *.go\n":                      ".hissrun:2: unknown key \"match\" in [go] (env, share)",
 		"[go]\nenv = prod\n[env]\nname = dev\n":     ".hissrun:2: no [env] is named prod",
+		"[review]\ncmd = x\n":                       ".hissrun:2: unknown key \"cmd\" in [review] (match)",
+		"[review]\nmatch = [\n":                     ".hissrun:2: match \"[\": syntax error in pattern",
 		"[forge]\nmatch = *.sol\n":                  ".hissrun:2: unknown key \"match\" in [forge] (env, share)",
 		"[a]\nmatch = *.sql\ncmd = x\nenv = prod\n": ".hissrun:4: no [env] is named prod",
 	}

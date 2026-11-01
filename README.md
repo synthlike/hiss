@@ -2,9 +2,10 @@
 
 A small modal terminal editor for working alongside Claude Code.
 
-Claude doesn't write your files. It proposes edits, which you review inline:
-accept or reject each one, tweak it before accepting, or comment and let Claude
-revise.
+Claude's edits land in your files as it works, and you see them in the gutter.
+When something deserves a look, Claude asks for your review: accept or reject
+inline, tweak before accepting, or comment and let Claude revise. Files you name
+always wait for review, and you can undo a whole turn.
 
 The rest of the loop happens in the editor too. Claude walks you through code
 and asks you questions there; you run tests, SQL queries and HTTP requests with
@@ -75,14 +76,19 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 
 ## How it works
 
-- **Review.** Claude's edits arrive as pending hunks. `+` accepts and saves, `-`
-  rejects with an optional reason, and you can edit the green lines first. A
-  turn's hunks form a change set you can take or leave whole.
+- **Edits land.** Claude's routine edits apply and save right away, marked in
+  the gutter. `space g` lists them and `:su` undoes a turn's.
+- **Review when it matters.** Claude holds back what you should look at: auth,
+  deletions, migrations, real choices. Those arrive as pending hunks, as do
+  edits to `[review]` files in `.hissrun` and to files with your unsaved
+  changes. `+` accepts and saves, `-` rejects with an optional reason, and you
+  can edit the green lines first. A turn's hunks form a change set you can take
+  or leave whole.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
 - **Check.** In Go and Solidity, the language server checks the code as if the
-  pending hunks were accepted; in Go, Claude can also vet and test its proposals
-  before you see them.
+  pending hunks were accepted; in Go, Claude can also vet and test them before
+  you see them.
 - **Tour.** Ask "walk me through the auth flow" and follow Claude's notes step
   by step.
 - **Run.** `enter` runs the Go or Foundry test, SQL query or HTTP request under

@@ -5,8 +5,18 @@ and running tests, queries and requests.
 
 ## Working with Claude
 
-- **Ask for a change.** It appears as a pending hunk: old lines in red, proposed
-  lines in green, Claude's reason above. `]h` takes you to it.
+- **Ask for a change.** Routine edits apply and save right away, with a faint
+  mark in the gutter. `space g` lists what agents changed, newest first, and
+  `:cc` clears the marks. `:su [reason]` undoes a turn's applied changes, the
+  one under the cursor or else the newest, and tells Claude; text edited since
+  stays, and so does what you accepted in review. This history lasts the session;
+  after a restart, git is the way back.
+- **Get asked to look.** Claude asks for review when you should see something
+  before it lands: auth, deletions, migrations, public APIs, changes beyond what
+  you asked, real choices. It appears as a pending hunk: old lines in red,
+  proposed lines in green, Claude's reason above. `]h` takes you to it. Edits are
+  also held when the file has your unsaved changes or is outside the project,
+  for `.hissrun` itself, for proposed runs, and for files `[review]` names.
 - **Review it.** `+` accepts and saves. `-` rejects, asking for an optional reason
   to tell Claude.
 - **Tweak it.** Edit the green lines, then `+`. Claude is told what you changed.
@@ -97,6 +107,15 @@ the text, so the cursor stays put. `esc` hides the panel and `C-c` cancels.
   shares.
 
 ### .hissrun
+
+Agents' edits to some files should always wait for you, whatever the agent
+thinks. `[review]` names them, by the same globs as rules: without a `/` on the
+file name, with one on the path from the root, and `*` stays within a directory.
+
+```ini
+[review]
+match = migrations/* *.sol
+```
 
 `.hissrun` at the project root holds the rules. Each `[name]` section matches
 files by glob and gives a command, which runs with `sh -c` in the project root

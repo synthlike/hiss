@@ -205,7 +205,7 @@ func TestProposeReviewAwait(t *testing.T) {
 	version := structured[ReadBufferOut](t, res).Version
 	res = call(t, cs, "propose_edit", map[string]any{
 		"path": "main.go", "old_string": "func main() {}", "new_string": "func main() { run() }",
-		"base_version": version, "rationale": "call run",
+		"base_version": version, "rationale": "call run", "review": true,
 	})
 	if res.IsError {
 		t.Fatalf("propose_edit: %s", text(res))
@@ -279,7 +279,7 @@ func TestProposeRun(t *testing.T) {
 func TestAwaitReviewTimesOut(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	cs, _ := setup(t, "x\n")
-	res := call(t, cs, "write_file", map[string]any{"path": "new.txt", "content": "hello\n"})
+	res := call(t, cs, "write_file", map[string]any{"path": "new.txt", "content": "hello\n", "review": true})
 	id := structured[ProposeOut](t, res).IDs[0]
 	start := time.Now()
 	res = call(t, cs, "await_review", map[string]any{"ids": []int{id}, "timeout_seconds": 1})
@@ -292,7 +292,7 @@ func TestAwaitReviewTimesOut(t *testing.T) {
 func TestCommentEndsAwaitAndRevisionSupersedes(t *testing.T) {
 	pollInterval = 10 * time.Millisecond
 	cs, reqs := setup(t, "a := 1\n")
-	res := call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "1", "new_string": "2"})
+	res := call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "1", "new_string": "2", "review": true})
 	id := structured[ProposeOut](t, res).IDs[0]
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -364,7 +364,7 @@ func TestGetDiagnostics(t *testing.T) {
 	if out := structured[DiagnosticsOut](t, res); !out.UpToDate || len(out.Diagnostics) != 0 {
 		t.Fatalf("before proposing: %s", text(res))
 	}
-	call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "println(1)", "new_string": "println(1)\n\tundefinedThing()"})
+	call(t, cs, "propose_edit", map[string]any{"path": "main.go", "old_string": "println(1)", "new_string": "println(1)\n\tundefinedThing()", "review": true})
 	res = call(t, cs, "get_diagnostics", map[string]any{"path": "main.go"})
 	out := structured[DiagnosticsOut](t, res)
 	if !out.UpToDate || len(out.Diagnostics) != 1 {

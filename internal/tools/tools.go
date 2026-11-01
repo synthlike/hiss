@@ -17,20 +17,32 @@ import (
 )
 
 // Instructions are sent to MCP clients when they connect.
-const Instructions = `hiss is the user's text editor, and the user reviews every change you make in it.
+const Instructions = `hiss is the user's text editor. Your edits apply and save right away; you ask for
+the user's review when they should look at something.
 
-- Do not change files with Edit, Write or shell commands. Propose changes with
-  propose_edit (same rules as Edit: old_string must match exactly once) or, for
-  new files and full rewrites, write_file.
+- Do not change files with Edit, Write or shell commands. Use propose_edit
+  (same rules as Edit: old_string must match exactly once) or, for new files
+  and full rewrites, write_file.
 - Read files with read_buffer: open buffers may have unsaved changes. Pass the
-  version it returns as base_version when proposing.
-- Each proposal is pending until the user accepts or rejects it. Call
-  await_review before depending on a change (running tests, building on it).
+  version it returns as base_version.
+- Set review on an edit when the user should look before it lands, and say
+  what you want them to look at in rationale: auth, money or other security
+  sensitive code; deletions, migrations and anything hard to undo; public
+  APIs and schemas; changes beyond what they asked for; a real choice between
+  approaches. Routine edits within the task don't need it: reviewing everything
+  is tiresome, so ask when it matters.
+- hiss holds some edits for review anyway (unsaved changes, files outside the
+  project, [review] rules); the result says so when it does. Don't work around
+  a hold.
+- A held edit is pending until the user accepts or rejects it. Call
+  await_review before depending on it (running tests, building on it).
   Accepted changes are saved to disk; for rejected ones, read the reason and
   adjust. A stale proposal means the user edited that text: re-read and retry.
-- After proposing code changes, check them with get_diagnostics; fix what they
-  break with a revision (supersedes) before the user reviews them. In Go, also
-  call go_overlay and run go vet / go test with -overlay=<path>.
+- After code changes, check them with get_diagnostics, and run the tests.
+  Fix applied edits with another edit; fix a pending one with a revision
+  (supersedes) before the user reviews it. To check pending edits in Go, call
+  go_overlay and run go vet / go test with -overlay=<path>.
+- The user can undo a turn's applied changes; you'll be told like a comment.
 - If you end your turn with proposals still pending, you are woken when the
   user has reviewed them all; continue the task then.
 - The user may comment on a pending proposal. Comments arrive through
@@ -118,12 +130,13 @@ var all = []tool{
 	}, readBuffer),
 	define(&mcp.Tool{
 		Name: "propose_edit",
-		Description: "Propose replacing old_string with new_string in a file, for the user to review in the editor. " +
-			"Same matching rules as the Edit tool. Returns proposal ids.",
+		Description: "Replace old_string with new_string in a file. It applies and saves right away, unless review " +
+			"is set or hiss holds it for the user's review. Same matching rules as the Edit tool. Returns proposal ids.",
 	}, proposeEdit),
 	define(&mcp.Tool{
-		Name:        "write_file",
-		Description: "Propose creating a file or replacing its whole content, for the user to review.",
+		Name: "write_file",
+		Description: "Create a file or replace its whole content. It applies and saves right away, unless review is " +
+			"set or hiss holds it for the user's review.",
 	}, writeFile),
 	define(&mcp.Tool{
 		Name:        "get_proposals",
