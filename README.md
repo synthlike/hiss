@@ -89,9 +89,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   you go, Claude answers in real time, and `:rf` finishes early.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
-- **Check.** The language server checks the code as if the
-  pending hunks were accepted; in Go, Claude can also vet and test them before
-  you see them.
+- **Check.** The language server checks the code as if the pending hunks were
+  accepted; in Go, Claude can also vet and test them before you see them.
 - **Tour.** Ask "walk me through the auth flow" and follow Claude's notes step
   by step.
 - **Run.** `enter` runs the Go or Foundry test, SQL query or HTTP request under
@@ -107,16 +106,16 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
 | `enter` | run what's under the cursor |
 | `space f` `b` `h` `t` | pick a file, buffer, hunk or tour step |
 
-The [guide](docs/guide.md) covers the rest: editing, language servers, run output and
-`.hissrun` with environments.
+The [guide](docs/guide.md) covers the rest: editing, language servers, run
+output and `.hissrun` with environments.
 
 ## Status
 
-v0.5: early and small. Runs get environments (with a confirm for the risky
-ones), `enter` runs the table case or subtest under the cursor, the last 20
-runs' output stays at hand, and Claude can propose a query that runs when you
-accept it. Since v0.4, an agent turn's proposals are reviewed as one change
-set, and agents can vet and test them before you do.
+v0.6: early and small. Claude's edits now land as it works, and it asks for
+review where it matters; you can also review what already landed, hunk by
+hunk. Language servers come from a built-in table, the first on your PATH, with
+no config; Solidity and Foundry tests join Go. Since v0.5, runs get
+environments, and Claude can propose a query that runs when you accept it.
 
 ## License
 
