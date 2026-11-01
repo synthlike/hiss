@@ -56,6 +56,15 @@ func TestEditAppliesAndSaves(t *testing.T) {
 	}
 }
 
+func TestEditKeepsChangesMadeOutside(t *testing.T) {
+	e := projectEditor(t, "a\nb\n")
+	os.WriteFile(e.Buf.Path, []byte("a\nb\nfrom a shell\n"), 0o600)
+	agentEdit(t, e, "a\n", "A\n")
+	if got := onDisk(t, e); got != "A\nb\nfrom a shell\n" {
+		t.Errorf("on disk %q", got)
+	}
+}
+
 func TestEditsAreHeld(t *testing.T) {
 	root := func(e *Editor, rules string) {
 		os.WriteFile(filepath.Join(e.Root, rulesFile), []byte(rules), 0o600)

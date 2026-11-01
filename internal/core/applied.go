@@ -189,6 +189,7 @@ func (e *Editor) undoSet(reason string) {
 	var undone []int
 	var stuck, failed []string
 	for b, ps := range byBuf {
+		b.Refresh()
 		dirty := b.Dirty()
 		u, s := e.undoIn(b, ps)
 		undone, stuck = append(undone, u...), append(stuck, s...)

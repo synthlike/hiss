@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
@@ -178,6 +179,21 @@ func overlaps(a, b, s, e int) bool {
 		return a < s && s < b
 	}
 	return a < e && b > s
+}
+
+// Refresh rereads the file if it has changed on disk and the buffer has no
+// unsaved changes of its own, so that saving never overwrites a change made
+// outside hiss.
+func (b *Buffer) Refresh() {
+	if b.Path == "" || b.output || b.Dirty() {
+		return
+	}
+	data, err := os.ReadFile(b.Path)
+	if err != nil || bytes.Equal(data, b.Text.Bytes()) {
+		return
+	}
+	b.Restore(text.New(data, text.Origin{}))
+	b.saved = b.Version
 }
 
 // Save writes the buffer atomically, keeping the file's permissions.

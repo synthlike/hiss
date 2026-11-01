@@ -280,6 +280,7 @@ func readBuffer(ed *core.Editor, _ string, in ReadBufferIn) (ReadBufferOut, erro
 			}
 		}
 	}
+	b.Refresh()
 	t := b.Text
 	first := max(in.Offset, 1) - 1
 	limit := in.Limit

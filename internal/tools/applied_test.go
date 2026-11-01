@@ -54,3 +54,13 @@ func TestEditsApplyUnlessHeld(t *testing.T) {
 		t.Errorf("q.sql written before review: %v", err)
 	}
 }
+
+func TestReadBufferSeesChangesOnDisk(t *testing.T) {
+	cs, reqs := setup(t, "package main\n")
+	var path string
+	onEditor(reqs, func(ed *core.Editor) { path = ed.Buf.Path })
+	os.WriteFile(path, []byte("package outside\n"), 0o600)
+	if got := text(call(t, cs, "read_buffer", map[string]any{"path": "main.go"})); !strings.Contains(got, "package outside") {
+		t.Errorf("read_buffer: %q", got)
+	}
+}

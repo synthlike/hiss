@@ -502,6 +502,7 @@ func (e *Editor) Find(path string) *Buffer {
 // OpenBuffer returns the buffer for path, opening it in the background if needed.
 func (e *Editor) OpenBuffer(path string) (*Buffer, error) {
 	if b := e.Find(path); b != nil {
+		b.Refresh()
 		return b, nil
 	}
 	b, err := Open(path)
