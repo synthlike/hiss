@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,13 +18,19 @@ type CommentInfo struct {
 	LineNo int    `json:"line_no,omitempty" jsonschema:"1-based line of the trail step"`
 	Text   string `json:"text"`
 	Line   string `json:"line,omitempty" jsonschema:"diff line the comment is on: '+ text' for a proposed line, '- text' for a replaced one"`
+	Review string `json:"review,omitempty" jsonschema:"the change the user was reviewing, when the step is from a review"`
+	Report string `json:"report,omitempty" jsonschema:"how a review ended"`
 }
 
 func commentInfos(ds []core.Delivery) []CommentInfo {
 	var out []CommentInfo
 	for _, d := range ds {
+		if d.Report != "" {
+			out = append(out, CommentInfo{Review: d.Review, Report: d.Report})
+			continue
+		}
 		if s := d.Step; s != nil {
-			out = append(out, CommentInfo{Step: s.N, Path: s.Buf.Path, LineNo: s.Line() + 1, Text: d.Text})
+			out = append(out, CommentInfo{Step: s.N, Path: s.Buf.Path, LineNo: s.Line() + 1, Text: d.Text, Review: d.Review})
 			continue
 		}
 		out = append(out, CommentInfo{ID: d.Proposal.ID, Path: d.Proposal.Buf.Path, Text: d.Text, Line: d.Line})
@@ -35,7 +42,13 @@ func commentInfos(ds []core.Delivery) []CommentInfo {
 func CommentsText(cs []CommentInfo) string {
 	var sb strings.Builder
 	for _, c := range cs {
+		if c.Report != "" {
+			sb.WriteString(c.Report)
+			continue
+		}
 		switch {
+		case c.Review != "":
+			fmt.Fprintf(&sb, "The user commented in hiss on step %d of the review of %s (%s:%d):\n", c.Step, c.Review, c.Path, c.LineNo)
 		case c.Step > 0:
 			fmt.Fprintf(&sb, "The user commented in hiss on step %d of your trail (%s:%d):\n", c.Step, c.Path, c.LineNo)
 		case c.Line != "":
@@ -45,9 +58,11 @@ func CommentsText(cs []CommentInfo) string {
 		}
 		fmt.Fprintf(&sb, "> %s\n", c.Text)
 	}
-	sb.WriteString("Answer each in the editor with the hiss reply tool (id for a proposal, step for a trail step). " +
-		"If a comment asks for a change to a proposal, propose a revision with propose_edit or write_file, " +
-		"setting supersedes to the proposal's id.\n")
+	if slices.ContainsFunc(cs, func(c CommentInfo) bool { return c.Report == "" }) {
+		sb.WriteString("Answer each in the editor with the hiss reply tool (id for a proposal, step for a trail step). " +
+			"If a comment asks for a change to a proposal, propose a revision with propose_edit or write_file, " +
+			"setting supersedes to the proposal's id.\n")
+	}
 	return sb.String()
 }
 

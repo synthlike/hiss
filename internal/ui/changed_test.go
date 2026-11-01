@@ -33,3 +33,25 @@ func TestDrawChangedLines(t *testing.T) {
 		t.Errorf("unchanged line %q", got)
 	}
 }
+
+func TestDrawRemovedRow(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/f.go"
+	os.WriteFile(path, []byte("a\nb\n"), 0o600)
+	b, err := core.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ed := core.New(b)
+	ed.Root = dir
+	ed.Resize(40, 10)
+	if err := ed.ShowTrail("claude", "t", []core.StepInput{{Path: path, Line: 1, Note: "n"}}); err != nil {
+		t.Fatal(err)
+	}
+	ed.Trail().Steps[0].Removed = []string{"old"}
+	g := newGrid(40, 10)
+	Draw(g, ed)
+	if got := g.row(2); !strings.HasPrefix(got, "-") || !strings.Contains(got, "old") {
+		t.Errorf("rows %q %q %q", g.row(0), g.row(1), g.row(2))
+	}
+}

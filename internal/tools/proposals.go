@@ -72,16 +72,28 @@ type ProposalInfo struct {
 }
 
 type GetProposalsIn struct {
-	IDs []int `json:"ids,omitempty" jsonschema:"proposals to report; all of yours if empty"`
+	IDs    []int `json:"ids,omitempty" jsonschema:"proposals to report; all of yours if empty"`
+	Review bool  `json:"review,omitempty" jsonschema:"report on the review you sent with show_review instead"`
 }
 
 type ProposalsOut struct {
 	Proposals []ProposalInfo `json:"proposals"`
 	Comments  []CommentInfo  `json:"new_comments,omitempty" jsonschema:"comments the user made since you last checked"`
 	TimedOut  bool           `json:"timed_out,omitempty"`
+	Review    bool           `json:"review,omitempty" jsonschema:"this is about a review, not proposals"`
+	Finished  bool           `json:"finished,omitempty" jsonschema:"the review is over"`
 }
 
 func (o ProposalsOut) Text() string {
+	if o.Review {
+		switch {
+		case len(o.Comments) > 0:
+			return CommentsText(o.Comments)
+		case o.Finished:
+			return "The review is over.\n"
+		}
+		return "Still waiting for the user; call await_review again or continue with other work.\n"
+	}
 	var sb strings.Builder
 	for _, p := range o.Proposals {
 		fmt.Fprintf(&sb, "#%d %s: %s", p.ID, p.Path, p.Status)
@@ -189,6 +201,10 @@ func superseding(ed *core.Editor, agent string, old int, review bool, propose fu
 }
 
 func getProposals(ed *core.Editor, agent string, in GetProposalsIn) (ProposalsOut, error) {
+	if in.Review {
+		ds, done := ed.TakeReview()
+		return ProposalsOut{Proposals: []ProposalInfo{}, Comments: commentInfos(ds), Review: true, Finished: done}, nil
+	}
 	var ps []*core.Proposal
 	if len(in.IDs) == 0 {
 		ps = ed.ProposalsBy(agent)
@@ -217,7 +233,8 @@ func proposalInfo(p *core.Proposal) ProposalInfo {
 }
 
 type AwaitReviewIn struct {
-	IDs            []int `json:"ids" jsonschema:"proposals to wait for"`
+	IDs            []int `json:"ids,omitempty" jsonschema:"proposals to wait for"`
+	Review         bool  `json:"review,omitempty" jsonschema:"wait for news of the review you sent with show_review instead: a comment, a rejection or its end"`
 	TimeoutSeconds int   `json:"timeout_seconds,omitempty" jsonschema:"how long to wait (default 120, at most 600)"`
 }
 
@@ -241,14 +258,15 @@ var awaitReview = tool{
 			deadline := time.Now().Add(timeout)
 			for {
 				var out ProposalsOut
-				raw, err := fwd(ctx, agentName(req), "await_poll", GetProposalsIn{IDs: in.IDs})
+				raw, err := fwd(ctx, agentName(req), "await_poll", GetProposalsIn{IDs: in.IDs, Review: in.Review})
 				if err == nil {
 					err = json.Unmarshal(raw, &out)
 				}
 				if err != nil {
 					return nil, out, err
 				}
-				waiting := slices.ContainsFunc(out.Proposals, func(p ProposalInfo) bool { return p.Status == string(core.Pending) || p.Running })
+				waiting := slices.ContainsFunc(out.Proposals, func(p ProposalInfo) bool { return p.Status == string(core.Pending) || p.Running }) ||
+					in.Review && !out.Finished
 				if !waiting || len(out.Comments) > 0 || time.Now().After(deadline) {
 					out.TimedOut = waiting && len(out.Comments) == 0
 					return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out.Text()}}}, out, nil

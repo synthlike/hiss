@@ -109,7 +109,8 @@ func (e *Editor) appliedProposals() []*Proposal {
 }
 
 // ChangedLines returns the lines of the visible buffer that agents changed
-// and the user hasn't cleared with :cc, for the gutter.
+// and the user hasn't cleared with :cc, and those :review is showing, for the
+// gutter.
 func (e *Editor) ChangedLines() map[int]bool {
 	lines := map[int]bool{}
 	t := e.Buf.Text
@@ -117,6 +118,15 @@ func (e *Editor) ChangedLines() map[int]bool {
 		if !p.applied.seen {
 			for l := t.LineOf(p.Start); l <= t.LineOf(max(p.End-1, p.Start)); l++ {
 				lines[l] = true
+			}
+		}
+	}
+	if e.trail != nil {
+		for _, s := range e.trail.Steps {
+			if s.Buf == e.Buf {
+				for l := s.Line(); l < s.Line()+s.Lines; l++ {
+					lines[l] = true
+				}
 			}
 		}
 	}

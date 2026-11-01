@@ -84,6 +84,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   changes. `+` accepts and saves, `-` rejects with an optional reason, and you
   can edit the green lines first. A turn's hunks form a change set you can take
   or leave whole.
+- **Review what landed.** Claude sends you a change hunk by hunk, like a trail,
+  or `:review` starts one. Accept, reject (which reverts the hunk) or comment as
+  you go, Claude answers in real time, and `:rf` finishes early.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
 - **Check.** In Go and Solidity, the language server checks the code as if the

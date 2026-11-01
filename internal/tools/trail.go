@@ -57,6 +57,59 @@ func showTrail(ed *core.Editor, agent string, in ShowTrailIn) (ShowTrailOut, err
 	return ShowTrailOut{Steps: len(steps)}, nil
 }
 
+type ShowReviewIn struct {
+	Title string   `json:"title" jsonschema:"what the user is reviewing, e.g. 'retry logic for the importer'"`
+	Rev   string   `json:"rev,omitempty" jsonschema:"a commit or a range such as main..HEAD; by default uncommitted changes, or the last commit if there are none"`
+	Paths []string `json:"paths,omitempty" jsonschema:"files or directories to include; all of the change if empty"`
+	Notes []StepIn `json:"notes,omitempty" jsonschema:"what to look at in particular: each note goes on the hunk holding its line, in the file as it is now"`
+}
+
+type ShowReviewOut struct {
+	Hunks     int `json:"hunks"`
+	Unmatched int `json:"unmatched_notes,omitempty"`
+}
+
+func (o ShowReviewOut) Text() string {
+	s := fmt.Sprintf("Sent %s for review. The user walks them with ]s; comments and rejections reach you as they "+
+		"happen (a rejection has already restored the old text), and you get a report when the review ends. "+
+		"Wait with await_review and review set, or end your turn and be woken.", plural(o.Hunks, "hunk"))
+	if o.Unmatched > 0 {
+		s += fmt.Sprintf(" %s matched no hunk.", plural(o.Unmatched, "note"))
+	}
+	return s
+}
+
+func plural(n int, s string) string {
+	if n == 1 {
+		return "1 " + s
+	}
+	return fmt.Sprintf("%d %ss", n, s)
+}
+
+func showReview(ed *core.Editor, agent string, in ShowReviewIn) (ShowReviewOut, error) {
+	var paths []string
+	for _, p := range in.Paths {
+		paths = append(paths, resolve(ed, p))
+	}
+	var notes []core.StepInput
+	for _, n := range in.Notes {
+		notes = append(notes, core.StepInput{Path: resolve(ed, n.Path), Line: max(n.Line, 1), Note: n.Note})
+	}
+	hunks, unmatched, err := ed.ShowReview(agent, in.Title, in.Rev, paths, notes)
+	if err != nil {
+		return ShowReviewOut{}, err
+	}
+	return ShowReviewOut{Hunks: hunks, Unmatched: unmatched}, nil
+}
+
+var showReviewTool = define(&mcp.Tool{
+	Name: "show_review",
+	Description: "Send the user changes that have landed to review, hunk by hunk: uncommitted changes, a commit or " +
+		"a range, narrowed to paths, with notes on what to look at. They accept, reject or comment on each hunk, and " +
+		"can finish early. A rejected hunk is reverted in the working tree. Answer comments with reply (step). " +
+		"Replaces any trail being shown.",
+}, showReview)
+
 var showTrailTool = define(&mcp.Tool{
 	Name: "show_trail",
 	Description: "Walk the user through code: a titled, ordered list of steps (file, line, short note), " +

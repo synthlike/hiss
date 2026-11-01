@@ -12,7 +12,11 @@ import (
 type Trail struct {
 	Agent, Session, Title string
 	Steps                 []*Step
-	current               int // index of the step last visited, -1 before the first
+	current               int  // index of the step last visited, -1 before the first
+	review                bool // a review of hunks; see review.go
+	finished, told        bool // the review is over; the agent has its report
+	summary               string
+	rev, commit           string // what a review shows, and HEAD when it was made
 }
 
 // Step is one stop on a trail.
@@ -23,6 +27,17 @@ type Step struct {
 	Note    string
 	Thread  []Comment
 	Changed bool // loaded from a file whose saved line text no longer matches
+
+	// In a review:
+	Lines    int      // the lines of new text from the step's line
+	Removed  []string // the lines they replaced, as drawn
+	Offset   int      // where the changed lines start, from the step's line
+	Old, New []string // the changed lines before and after
+	OldNoEOL bool     // the old text ended the file without a newline
+	Created  bool     // the change created the file
+	Verdict  Status   // Accepted, Rejected or ""
+	Reason   string   // why it was rejected
+	Reverted bool     // rejecting it put the old text back
 }
 
 // StepInput is a step as an agent describes it.
@@ -103,8 +118,14 @@ func (e *Editor) TrailRows() map[int][]NoteLine {
 		if s.Changed {
 			note += " (changed since saved)"
 		}
+		if s.Verdict != "" {
+			note += " · " + string(s.Verdict)
+		}
 		for _, t := range labeledLines(fmt.Sprintf("%d.", s.N), note, e.TextWidth()) {
 			rows[l] = append(rows[l], NoteLine{Note: true, Text: t})
+		}
+		for _, r := range s.Removed {
+			rows[l] = append(rows[l], NoteLine{Removed: true, Text: r})
 		}
 		rows[l] = append(rows[l], threadLines(s.Thread, e.TextWidth())...)
 	}
@@ -151,6 +172,9 @@ func (e *Editor) goToStep(i int) {
 	e.setHead(s.Buf.Text.LineStart(line))
 	e.centerOn(line)
 	e.Msg = fmt.Sprintf("step %d/%d: %s", s.N, len(t.Steps), s.Note)
+	if t.review && !t.finished && s.Verdict == "" {
+		e.Msg += " (+ accept · - reject · # comment)"
+	}
 }
 
 // centerOn scrolls so that line, with the rows drawn around it, sits in the
@@ -198,8 +222,9 @@ func (e *Editor) stepAtCursor() *Step {
 	if e.trail == nil {
 		return nil
 	}
+	l := e.line()
 	for _, s := range e.trail.Steps {
-		if s.Buf == e.Buf && s.Line() == e.line() {
+		if s.Buf == e.Buf && s.Line() <= l && l < s.Line()+max(s.Lines, 1) {
 			return s
 		}
 	}
@@ -223,18 +248,35 @@ func (e *Editor) ReplyStep(agent string, n int, text string) error {
 // takeTrailComments returns the user's new comments on the session's trail
 // and marks them delivered.
 func (e *Editor) takeTrailComments(session string) []Delivery {
-	t := e.trail
-	if t == nil || t.Session != session {
+	if e.trail == nil || e.trail.Session != session {
 		return nil
 	}
+	return e.trailDeliveries()
+}
+
+// trailDeliveries returns the trail's undelivered comments, then a finished
+// review's report, and marks them delivered.
+func (e *Editor) trailDeliveries() []Delivery {
+	t := e.trail
 	var out []Delivery
 	for _, s := range t.Steps {
 		for i := range s.Thread {
 			if c := &s.Thread[i]; c.Author == You.Author && !c.delivered {
 				c.delivered = true
-				out = append(out, Delivery{Step: s, Text: c.Text})
+				d := Delivery{Step: s, Text: c.Text}
+				if t.review {
+					d.Review = t.Title
+				}
+				out = append(out, d)
 			}
 		}
 	}
+	if t.finished && !t.told {
+		t.told = true
+		out = append(out, Delivery{Review: t.Title, Report: t.report(e)})
+	}
 	return out
 }
+
+// Trail returns the trail being shown, or nil.
+func (e *Editor) Trail() *Trail { return e.trail }

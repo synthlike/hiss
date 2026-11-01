@@ -270,6 +270,10 @@ func (e *Editor) HunkAtCursor() *Hunk {
 func (e *Editor) reviewHunk(accept bool, reason string) {
 	h := e.HunkAtCursor()
 	if h == nil {
+		if s := e.reviewStep(); s != nil {
+			e.decideStep(s, accept, reason)
+			return
+		}
 		e.Msg = "no pending hunk on this line"
 		return
 	}
@@ -288,7 +292,7 @@ func (e *Editor) reviewHunk(accept bool, reason string) {
 // startReject opens the command line on ":hr " for the hunk under the cursor:
 // enter rejects it, with whatever was typed as the reason.
 func (e *Editor) startReject() {
-	if e.HunkAtCursor() == nil {
+	if e.HunkAtCursor() == nil && e.reviewStep() == nil {
 		e.Msg = "no pending hunk on this line"
 		return
 	}

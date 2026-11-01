@@ -313,6 +313,8 @@ func Draw(s Screen, ed *core.Editor) {
 			switch {
 			case n.Note:
 				mark = "▸"
+			case n.Removed:
+				mark, st = "-", styleRemoved
 			case n.Mine:
 				st = styleYourNote
 			}

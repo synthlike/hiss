@@ -21,9 +21,10 @@ type Comment struct {
 
 // NoteLine is one drawn row of a thread.
 type NoteLine struct {
-	Mine bool // written by the user
-	Note bool // a trail step's note rather than a comment
-	Text string
+	Mine    bool // written by the user
+	Note    bool // a trail step's note rather than a comment
+	Removed bool // a line a reviewed hunk removed
+	Text    string
 }
 
 // Delivery is a user comment handed to an agent.
@@ -32,6 +33,8 @@ type Delivery struct {
 	Step     *Step
 	Text     string
 	Line     string // diff line the comment is on, if any
+	Review   string // what the user was reviewing, for a step of a review
+	Report   string // how a review ended; set without Step or Proposal
 }
 
 const nothingToComment = "nothing to comment on here: move to a pending hunk or a trail step"
@@ -58,6 +61,9 @@ func (e *Editor) comment(text string) {
 	case h == nil:
 		s.Thread = append(s.Thread, Comment{Author: You.Author, Text: text})
 		e.Msg = fmt.Sprintf("commented on step %d; %s will see it", s.N, e.trail.Agent)
+		if e.trail.review && e.trail.Session == "" {
+			e.Msg = fmt.Sprintf("commented on step %d; no agent is here to see it", s.N)
+		}
 	default:
 		c := Comment{Author: You.Author, Text: text}
 		line := e.line()

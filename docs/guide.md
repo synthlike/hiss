@@ -25,6 +25,18 @@ and running tests, queries and requests.
   green lines, ones it causes elsewhere on those lines. Claude can check its own
   with get_diagnostics, and in Go run `go vet` / `go test` on them before you
   review, through go_overlay.
+- **Review what landed.** Claude sends a change for review like a trail, narrowed
+  to what matters and with notes on what to check; `:review` (`:rv`) starts one
+  yourself: uncommitted changes, else the last commit, or a revision or range
+  (`:rv HEAD~2`, `:rv main..fix`). `]s` walks the hunks, with what was removed
+  under the new lines. `+` accepts a hunk. `-` rejects it, asking for an optional
+  reason: the old text goes back in your working tree, unsaved edits stay
+  unsaved, and history isn't touched. If the text has changed since, it stays
+  and Claude hears that. `#` comments, and Claude answers as you go. The review
+  finishes when every hunk is decided, or with `:rf [word for Claude]`, and
+  Claude gets a report. `:rs <path>` and `:rl <path>` save and load a
+  review as JSON, with its diff, verdicts and discussion, so it can be picked up
+  later. Untracked and deleted files aren't shown.
 - **Discuss it.** `#` comments on the hunk or the line under the cursor; Claude
   replies inline or sends a revision, even after its turn has ended.
 - **Get a tour.** Ask "walk me through the auth flow": Claude shares a trail of

@@ -43,6 +43,10 @@ the user's review when they should look at something.
   (supersedes) before the user reviews it. To check pending edits in Go, call
   go_overlay and run go vet / go test with -overlay=<path>.
 - The user can undo a turn's applied changes; you'll be told like a comment.
+- When a body of work is ready for a look, send it with show_review, narrowed to
+  what matters, with notes on what to check. Use review on an edit when it
+  shouldn't land before they've seen it. In a review, a rejected hunk is already
+  reverted; fix it with a new edit, and reply to comments as they come.
 - If you end your turn with proposals still pending, you are woken when the
   user has reviewed them all; continue the task then.
 - The user may comment on a pending proposal. Comments arrive through
@@ -148,6 +152,7 @@ var all = []tool{
 	overlayTool,
 	replyTool,
 	showTrailTool,
+	showReviewTool,
 	askTool,
 	askPoll,
 	watchComments,
