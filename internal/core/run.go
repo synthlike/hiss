@@ -19,11 +19,12 @@ import (
 )
 
 // Enter in normal mode runs the thing under the cursor: what a rule in
-// .hissrun says (see rules.go), or else the Go test it's in. The command runs
-// on a worker goroutine, and its output streams into the *out* buffer, where
-// Enter on a file:line goes there. One run at a time; C-c cancels it and
-// :rerun repeats the last. The cursor stays put: the end of *out* shows in a
-// panel below the text until esc, and space o opens *out* itself.
+// .hissrun says (see rules.go), or else the Go or Foundry test it's in. The
+// command runs on a worker goroutine, and its output streams into the *out*
+// buffer, where Enter on a file:line goes there. One run at a time; C-c
+// cancels it and :rerun repeats the last. The cursor stays put: the end of
+// *out* shows in a panel below the text until esc, and space o opens *out*
+// itself.
 
 // outName names the buffer runs write to.
 const outName = "*out*"
@@ -37,6 +38,7 @@ type run struct {
 	stdin   string
 	show    string       // the command as *out* shows it; set from argv if ""
 	warnDir string       // say if files here have changes that aren't on disk; "" not to
+	warnAll bool         // and in the directories below it
 	share   bool         // the agent may see the output
 	what    string       // what the history calls it: the file, or the test
 	pin     string       // the env it always runs in; "" for the active one
@@ -97,6 +99,10 @@ func (e *Editor) runAtCursor() {
 		return
 	}
 	if e.runByRule(c.rules) {
+		return
+	}
+	if strings.HasSuffix(e.Buf.Path, ".t.sol") {
+		e.runForgeTest(c)
 		return
 	}
 	if !strings.HasSuffix(e.Buf.Path, "_test.go") {
@@ -219,7 +225,7 @@ func (e *Editor) launch(r *run, en *env) {
 		}
 		header += "\n"
 	}
-	if w := e.diskWarning(r.warnDir); w != "" {
+	if w := e.diskWarning(r.warnDir, r.warnAll); w != "" {
 		header += "# " + w + "\n"
 	}
 	out.Replace(0, out.Text.Len(), []byte(header), text.Origin{})
@@ -320,7 +326,7 @@ func (e *Editor) finishRun(r *run, err error, cancelled bool) {
 	e.keep(r, status)
 	if !e.runs.panel && e.Buf != out { // otherwise the line above is on screen
 		e.Msg = fmt.Sprintf("%s: %s (%s)", e.label(r), status, took)
-		if w := e.diskWarning(r.warnDir); w != "" {
+		if w := e.diskWarning(r.warnDir, r.warnAll); w != "" {
 			e.Msg += "; " + w
 		}
 	}
@@ -447,13 +453,13 @@ func (e *Editor) outBuffer() *Buffer {
 
 // diskWarning says what the run doesn't see: pending hunks and unsaved
 // changes in files under dir, since commands read the files on disk.
-func (e *Editor) diskWarning(dir string) string {
+func (e *Editor) diskWarning(dir string, below bool) string {
 	if dir == "" {
 		return ""
 	}
 	hunks, unsaved := 0, 0
 	for _, b := range e.Bufs {
-		if b.Path == "" || filepath.Dir(b.Path) != dir {
+		if b.Path == "" || filepath.Dir(b.Path) != dir && !(below && strings.HasPrefix(b.Path, dir+string(filepath.Separator))) {
 			continue
 		}
 		hunks += len(b.pending)

@@ -8,9 +8,10 @@ revise.
 
 The rest of the loop happens in the editor too. Claude walks you through code
 and asks you questions there; you run tests, SQL queries and HTTP requests with
-`enter`, in the environment you pick, and Claude sees how they went. Go files
-get gopls diagnostics and navigation, proposed lines included. Editing is
-inspired by Helix and Kakoune: select first, then act.
+`enter`, in the environment you pick, and Claude sees how they went. Go and
+Solidity files get diagnostics and navigation from gopls and `forge lsp`,
+proposed lines included. Editing is inspired by Helix and Kakoune: select first,
+then act.
 
 ## In action
 
@@ -79,13 +80,14 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   turn's hunks form a change set you can take or leave whole.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
-- **Check.** In Go, gopls checks the code as if the pending hunks were
-  accepted, and Claude can vet and test its proposals before you see them.
+- **Check.** In Go and Solidity, the language server checks the code as if the
+  pending hunks were accepted; in Go, Claude can also vet and test its proposals
+  before you see them.
 - **Tour.** Ask "walk me through the auth flow" and follow Claude's notes step
   by step.
-- **Run.** `enter` runs the Go test, SQL query or HTTP request under the
-  cursor, in the environment you pick; `.hissrun` says how. Claude can see the
-  result, and propose a query that runs when you accept it.
+- **Run.** `enter` runs the Go or Foundry test, SQL query or HTTP request under
+  the cursor, in the environment you pick; `.hissrun` says how. Claude can see
+  the result, and propose a query that runs when you accept it.
 - **Resume.** Pending hunks and their threads survive a crash or restart.
 
 | Keys | |

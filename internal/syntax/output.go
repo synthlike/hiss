@@ -5,12 +5,14 @@ import (
 	"regexp"
 )
 
-// Lexers for what runs print: go test's output and query results. ForOutput
+// Lexers for what runs print: test output and query results. ForOutput
 // wraps any of them, or JSON, for *out* as hiss writes it.
 
 var (
 	// GoTest is go test -v's output.
 	GoTest = &Lang{Name: "go test", lex: lexGoTest}
+	// ForgeTest is forge test's output.
+	ForgeTest = &Lang{Name: "forge test", lex: lexForgeTest}
 	// Table is a query's result as a table, as sqlite3 -column or psql print it.
 	Table = &Lang{Name: "table", lex: lexTable}
 )
@@ -80,6 +82,32 @@ func lexGoTest(src []byte) []Span {
 			out = append(out, Span{start, end, Comment})
 		default:
 			if m := goFileLine.FindIndex(src[start:end]); m != nil {
+				out = append(out, Span{start + m[0], start + m[1], Keyword})
+			}
+		}
+	})
+	return out
+}
+
+// solFileLine is a location forge prints, which Enter in *out* jumps to.
+var solFileLine = regexp.MustCompile(`[\w./-]+\.sol:\d+(?::\d+)?`)
+
+// lexForgeTest marks failures and compiler errors Bad and passes Good, dims
+// the progress lines and marks file:line locations as keywords.
+func lexForgeTest(src []byte) []Span {
+	var out []Span
+	lines(src, func(start, end int) {
+		t := bytes.TrimLeft(src[start:end], " \t")
+		switch {
+		case hasPrefix(t, "[FAIL", "Suite result: FAILED", "Failing tests:", "Encountered", "Error", "error"):
+			out = append(out, Span{start, end, Bad})
+		case hasPrefix(t, "[PASS", "Suite result: ok"):
+			out = append(out, Span{start, end, Good})
+		case hasPrefix(t, "[SKIP", "Compiling", "Compiler run", "No files changed", "Solc ", "Solar ",
+			"Warning", "warning", "Ran ", "Tip:"):
+			out = append(out, Span{start, end, Comment})
+		default:
+			if m := solFileLine.FindIndex(src[start:end]); m != nil {
 				out = append(out, Span{start + m[0], start + m[1], Keyword})
 			}
 		}

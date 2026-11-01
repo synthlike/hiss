@@ -14,7 +14,7 @@ import (
 )
 
 // The rules file maps files to commands for Enter, ahead of the built-in Go
-// test runner:
+// and Foundry test runners:
 //
 //	[sql]
 //	match = *.sql
@@ -28,8 +28,8 @@ import (
 // fenced block (```sql) runs with the rule for a file of that extension.
 //
 // [env] sections name environments; runs source the active one's script
-// first, and a rule's env = <name> pins it to one. [go] configures the
-// built-in Go runner.
+// first, and a rule's env = <name> pins it to one. [go] and [forge] configure
+// the built-in runners.
 
 // rulesFile is the rules file, relative to the project root.
 const rulesFile = ".hissrun"
@@ -53,10 +53,12 @@ type env struct {
 
 // runConfig is what the rules file says.
 type runConfig struct {
-	rules   []rule
-	envs    []env
-	goEnv   string // the built-in test runner's env
-	goShare bool
+	rules      []rule
+	envs       []env
+	goEnv      string // the built-in test runners' envs
+	goShare    bool
+	forgeEnv   string
+	forgeShare bool
 }
 
 func (c *runConfig) env(name string) *env {
@@ -84,10 +86,10 @@ func loadRules(root string) (*runConfig, error) {
 }
 
 func parseRules(src string) (*runConfig, error) {
-	c := &runConfig{goShare: true}
+	c := &runConfig{goShare: true, forgeShare: true}
 	var r *rule
 	var en *env
-	section := "" // "rule", "env" or "go"
+	section := "" // "rule", "env", "go" or "forge"
 	start := 0    // the line the section starts on
 	type pin struct {
 		env  string
@@ -127,8 +129,8 @@ func parseRules(src string) (*runConfig, error) {
 			switch name {
 			case "env":
 				section, en = "env", &env{}
-			case "go":
-				section = "go"
+			case "go", "forge":
+				section = name
 			default:
 				section, r = "rule", &rule{name: name}
 			}
@@ -163,14 +165,18 @@ func parseRules(src string) (*runConfig, error) {
 			default:
 				return nil, bad("unknown key %q in [env] (name, source, confirm)", key)
 			}
-		case section == "go":
+		case section == "go", section == "forge":
+			name, share := &c.goEnv, &c.goShare
+			if section == "forge" {
+				name, share = &c.forgeEnv, &c.forgeShare
+			}
 			switch key {
 			case "env":
-				c.goEnv, pins = val, append(pins, pin{val, n})
+				*name, pins = val, append(pins, pin{val, n})
 			case "share":
-				c.goShare, err = boolean()
+				*share, err = boolean()
 			default:
-				return nil, bad("unknown key %q in [go] (env, share)", key)
+				return nil, bad("unknown key %q in [%s] (env, share)", key, section)
 			}
 		default:
 			switch key {
@@ -246,11 +252,14 @@ func findRule(rules []rule, rel string) *rule {
 }
 
 // output says what r's command prints, as far as its files tell: a table for
-// SQL; nil to guess from the output.
+// SQL, forge test's for Solidity; nil to guess from the output.
 func (r *rule) output() *syntax.Lang {
 	for _, g := range r.match {
-		if strings.HasSuffix(g, ".sql") {
+		switch {
+		case strings.HasSuffix(g, ".sql"):
 			return syntax.Table
+		case strings.HasSuffix(g, ".sol"):
+			return syntax.ForgeTest
 		}
 	}
 	return nil

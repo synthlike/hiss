@@ -48,7 +48,7 @@ const Instructions = `hiss is the user's text editor, and the user reviews every
   user has active, and await_review reports how it went (the output only if
   the rule shares it). Don't use it for tests: run those yourself.
   Its [env] sections name environments; when you run tests yourself, source
-  the script of the one [go] pins (set -a; . <source>; set +a) first.
+  the script of the one [go] or [forge] pins (set -a; . <source>; set +a) first.
 - When you need the user to decide or confirm something, ask with the ask
   tool rather than in chat or with AskUserQuestion: it pops up in the editor
   and waits for the answer. Offer short options when the answers are predictable.`

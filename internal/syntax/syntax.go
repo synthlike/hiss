@@ -87,7 +87,7 @@ var byExt = map[string]*Lang{
 	".go": Go,
 	".js": CLike, ".jsx": CLike, ".ts": CLike, ".tsx": CLike, ".mjs": CLike, ".rs": CLike, ".c": CLike,
 	".h": CLike, ".cc": CLike, ".cpp": CLike, ".hpp": CLike, ".java": CLike, ".kt": CLike, ".swift": CLike,
-	".cs": CLike, ".zig": CLike, ".dart": CLike, ".scala": CLike,
+	".cs": CLike, ".zig": CLike, ".dart": CLike, ".scala": CLike, ".sol": Solidity,
 	".py": Hash, ".sh": Hash, ".bash": Hash, ".zsh": Hash, ".fish": Hash, ".ksh": Hash, ".rb": Hash, ".yml": Hash,
 	".yaml": Hash, ".toml": Hash,
 	// Dotfiles: filepath.Ext(".bashrc") is the whole name.

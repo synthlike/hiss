@@ -32,7 +32,8 @@ type Server struct {
 }
 
 var servers = map[string]Server{
-	".go": {Lang: "go", Cmd: []string{"gopls"}},
+	".go":  {Lang: "go", Cmd: []string{"gopls"}},
+	".sol": {Lang: "solidity", Cmd: []string{"forge", "lsp", "--stdio"}},
 }
 
 // For returns the server for a file, by its extension.

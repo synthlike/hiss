@@ -40,6 +40,9 @@ func TestLex(t *testing.T) {
 		{Markdown, "1. see [docs](https://x.y) and `a*b*`", "number:1. | keyword:[docs] | comment:(https://x.y) | string:`a*b*`"},
 		{Markdown, "```go\n# not a heading\n```\n> quote\n---", "string:```go | string:# not a heading | string:``` | comment:> quote | comment:---"},
 		{Markdown, "<!-- a\nb --> after\n2 * 3 * 4", "comment:<!-- a\nb -->"},
+		{Solidity, "contract C { uint256 x = 0xff; bytes32 y; uint7 z; } // c", "keyword:contract | keyword:uint256 | number:0xff | keyword:bytes32 | comment:// c"},
+		{Solidity, `string s = 'it' ; emit Log(unicode"a\"b", 1 ether);` + "\n/// @notice x\n/* y */",
+			`keyword:string | string:'it' | keyword:emit | string:"a\"b" | number:1 | keyword:ether | comment:/// @notice x | comment:/* y */`},
 		{Lisp, "(defn add-one? [x] ; c\n  (let [s \"a\\\"b\" c \\( k :key] (+ x 1/2 -3.5e2 .5)))",
 			`keyword:defn | comment:; c | keyword:let | string:"a\"b" | string:\( | number::key | number:1/2 | number:-3.5e2 | number:.5`},
 		{Lisp, "#| block\n|# (define-syntax my-let #\\space 'if #t \"two\nlines\")",
@@ -56,7 +59,7 @@ func TestForPath(t *testing.T) {
 	for path, want := range map[string]*Lang{
 		"/x/main.go": Go, "a.TS": CLike, "run.sh": Hash, "go.mod": nil, "p.json": JSON, "README.md": Markdown, "q.SQL": SQL, "gh.http": HTTP, "Makefile": nil,
 		"main.tf": HCL, "Dockerfile": Docker, "x/Dockerfile.dev": Docker, "app.dockerfile": Docker, "/h/.zshrc": Hash,
-		"init.el": Lisp, "core.CLJ": Lisp, "x.scm": Lisp,
+		"Counter.t.sol": Solidity, "init.el": Lisp, "core.CLJ": Lisp, "x.scm": Lisp,
 	} {
 		if got := ForPath(path); got != want {
 			t.Errorf("ForPath(%q) = %v", path, got)

@@ -22,6 +22,10 @@ confirm = true
 env   = dev
 share = false
 
+[forge]
+env   = staging
+share = false
+
 [sql]
 match = *.sql
 cmd   = psql
@@ -36,11 +40,14 @@ env   = staging
 	if c.goEnv != "dev" || c.goShare {
 		t.Errorf("go: env %q share %v", c.goEnv, c.goShare)
 	}
+	if c.forgeEnv != "staging" || c.forgeShare {
+		t.Errorf("forge: env %q share %v", c.forgeEnv, c.forgeShare)
+	}
 	if len(c.rules) != 1 || c.rules[0].env != "staging" {
 		t.Errorf("rules %+v", c.rules)
 	}
-	if c, _ := parseRules(""); !c.goShare {
-		t.Error("go tests don't share by default")
+	if c, _ := parseRules(""); !c.goShare || !c.forgeShare {
+		t.Error("tests don't share by default")
 	}
 }
 
@@ -52,6 +59,7 @@ func TestParseEnvErrors(t *testing.T) {
 		"[env]\nname = a\nconfirm = yes\n":          ".hissrun:3: confirm is true or false, not \"yes\"",
 		"[go]\nmatch = *.go\n":                      ".hissrun:2: unknown key \"match\" in [go] (env, share)",
 		"[go]\nenv = prod\n[env]\nname = dev\n":     ".hissrun:2: no [env] is named prod",
+		"[forge]\nmatch = *.sol\n":                  ".hissrun:2: unknown key \"match\" in [forge] (env, share)",
 		"[a]\nmatch = *.sql\ncmd = x\nenv = prod\n": ".hissrun:4: no [env] is named prod",
 	}
 	for src, want := range cases {

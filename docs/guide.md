@@ -10,10 +10,11 @@ and running tests, queries and requests.
 - **Review it.** `+` accepts and saves. `-` rejects, asking for an optional reason
   to tell Claude.
 - **Tweak it.** Edit the green lines, then `+`. Claude is told what you changed.
-- **See what it breaks.** In Go files, gopls checks the code as if the pending
-  hunks were accepted: problems in a hunk show on its green lines, ones it
-  causes elsewhere on those lines. Claude can check its own with get_diagnostics,
-  and run `go vet` / `go test` on them before you review, through go_overlay.
+- **See what it breaks.** In Go and Solidity files, the language server checks
+  the code as if the pending hunks were accepted: problems in a hunk show on its
+  green lines, ones it causes elsewhere on those lines. Claude can check its own
+  with get_diagnostics, and in Go run `go vet` / `go test` on them before you
+  review, through go_overlay.
 - **Discuss it.** `#` comments on the hunk or the line under the cursor; Claude
   replies inline or sends a revision, even after its turn has ended.
 - **Get a tour.** Ask "walk me through the auth flow": Claude shares a trail of
@@ -51,14 +52,15 @@ and running tests, queries and requests.
 - `:note <text>` (`:n`) adds a line to `.hiss/notes.md` with the date, the
   commit (`+` if the file has changed since) and the cursor's `path:line`;
   `space n` lists the notes, newest first.
-- In Go files, gopls's diagnostics are marked in the gutter and underlined; the
-  cursor line's message shows below, and `]d` / `[d` go to the next / previous.
+- In Go files (gopls) and Solidity files (`forge lsp`, which checks with solar),
+  diagnostics are marked in the gutter and underlined; the cursor line's message
+  shows below, and `]d` / `[d` go to the next / previous.
   `gd` goes to a definition and `gr` lists references, also from proposed lines;
   `space s` lists the file's symbols.
   Resting the cursor on a name highlights its other uses; on `func` or
   `return`, the function's returns.
-- Light highlighting for Go, JS/TS and other C-like languages, shell (also
-  dotfiles and `#!` scripts), Python, Ruby, YAML, TOML, JSON, SQL, `.http`,
+- Light highlighting for Go, Solidity, JS/TS and other C-like languages, shell
+  (also dotfiles and `#!` scripts), Python, Ruby, YAML, TOML, JSON, SQL, `.http`,
   Terraform, Dockerfiles, Markdown and Lisps (Common Lisp, Scheme, Racket,
   Clojure, Emacs Lisp, Fennel, Janet).
 - Colours follow your terminal's light or dark background; `HISS_THEME=light` or
@@ -72,6 +74,11 @@ the text, so the cursor stays put. `esc` hides the panel and `C-c` cancels.
 - **Go tests.** In a test, `enter` runs it with `go test -run` on the files as
   saved; in a table case (a `name:` field or a map key) or a `t.Run("…")`,
   just that subtest.
+- **Foundry tests.** In a `.t.sol` test (`test…`, `invariant…` or `table…`),
+  `enter` runs it with `forge test --use solar -vvv` from the nearest
+  `foundry.toml`, on the files as saved. Solar's code generation is experimental
+  and its gas figures differ from solc's; a rule matching `*.t.sol` runs
+  something else instead.
 - **Queries, requests, scripts.** `.hissrun` says what to run in other files
   (see below). In Markdown, a fenced block runs with the rule for its language.
 - **Output.** `space o` opens the whole output as `*out*`, where `enter` on a
@@ -82,8 +89,8 @@ the text, so the cursor stays put. `esc` hides the panel and `C-c` cancels.
   `space r` lists the ones a rule matches.
 - **Claude sees the result.** With `share = true`, Claude gets the command, its
   exit status and the last 20 lines of output with your next prompt (or its
-  next tool call). Go runs share unless `[go]` says `share = false`; rules
-  don't unless asked.
+  next tool call). Test runs share unless `[go]` or `[forge]` says
+  `share = false`; rules don't unless asked.
 - **Claude proposes runs.** The hunk says how it will run (`▶ runs [sql] on
   dev`), and accepting it saves the file and runs it in the active
   environment. Claude hears how it went, with the output only when the rule
@@ -112,9 +119,9 @@ cmd   = sh
 `set -a`, fresh each time) and get its name as `$env`. The first is active at
 start; `:env <name>` switches (`:env` alone picks), and the status line shows
 the name in teal. `confirm = true` asks before each run there and shows the
-name in red. A rule's `env = <name>` always runs in that one. `[go]` sets the
-built-in Go runner's `env` and `share`; a rule matching `*.go` replaces the
-runner instead.
+name in red. A rule's `env = <name>` always runs in that one. `[go]` and
+`[forge]` set the built-in test runners' `env` and `share`; a rule matching
+`*.go` or `*.t.sol` replaces the runner instead.
 
 ```ini
 [env]
@@ -128,4 +135,13 @@ confirm = true
 
 [go]
 env = dev
+```
+
+To run Foundry tests with the project's own compiler:
+
+```ini
+[tests]
+match = *.t.sol
+find  = function ((?:test|invariant|table)\w*)
+cmd   = cd "$(dirname "$file")" && forge test --match-test "^$1\(" -vvv
 ```
