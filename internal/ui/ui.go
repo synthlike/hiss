@@ -3,6 +3,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -335,11 +336,11 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Buf.Dirty() {
 		dirty = " [+]"
 	}
-	left := fmt.Sprintf(" %s  %s%s", ed.Mode, ed.Buf.Name, dirty)
+	left, right := fitStatus(fmt.Sprintf(" %s  ", ed.Mode), ed.Buf.Name, dirty, statusRight(ed), w)
 	fill(s, 0, status, w, styleStatus)
 	putString(s, 0, status, left, styleStatus)
 	x := w
-	for _, sg := range statusRight(ed) { // right to left
+	for _, sg := range right { // right to left
 		x -= utf8.RuneCountInString(sg.text)
 		putString(s, x, status, sg.text, sg.style)
 		x -= 2
@@ -531,46 +532,92 @@ func diagSummary(errs, warns int) string {
 type segment struct {
 	text  string
 	style tcell.Style
+	short string // a shorter text for a narrow window; "" if there is none
+	rank  int    // narrow windows drop the lowest first
 }
 
 // statusRight returns the status line's right side, from the right: the
 // cursor, problems, pending hunks, questions, the env, the run going and
-// the agent.
+// the agent. What matters most when the window is narrow ranks highest:
+// the agent's state and pending hunks.
 func statusRight(ed *core.Editor) []segment {
 	line, col := ed.Cursor()
-	segs := []segment{{fmt.Sprintf("%d:%d ", line+1, col+1), styleStatus}}
-	add := func(s string) { segs = append(segs, segment{s, styleStatus}) }
+	segs := []segment{{text: fmt.Sprintf("%d:%d ", line+1, col+1), style: styleStatus}}
+	add := func(text, short string, rank int) {
+		segs = append(segs, segment{text, styleStatus, short, rank})
+	}
 	if errs, warns := ed.Buf.DiagCounts(); errs+warns > 0 {
-		add(diagSummary(errs, warns))
+		add(diagSummary(errs, warns), fmt.Sprintf("%dE %dW", errs, warns), 3)
 	}
 	if n := ed.PendingCount(); n > 0 {
 		pending := fmt.Sprintf("%d pending", n)
+		short := pending
 		if r, t := ed.HalfReviewed(); t > 0 {
 			pending += fmt.Sprintf(", set %d/%d reviewed", r, t) // the rest may be needed to build
+			short += fmt.Sprintf(", set %d/%d", r, t)
 		}
-		add(pending)
+		add(pending, short, 5)
 	}
 	if n := ed.QuestionCount(); n > 0 && ed.Asking == nil {
 		noun := "questions"
 		if n == 1 {
 			noun = "question"
 		}
-		add(fmt.Sprintf("%d %s (:an)", n, noun))
+		add(fmt.Sprintf("%d %s (:an)", n, noun), fmt.Sprintf("%d? :an", n), 4)
 	}
 	if env, confirm := ed.EnvName(); env != "" {
 		st := styleEnv
 		if confirm { // staging or prod: runs there ask first
 			st = styleEnvConfirm
 		}
-		segs = append(segs, segment{" " + env + " ", st})
+		segs = append(segs, segment{" " + env + " ", st, "", 2})
 	}
 	if r := ed.RunTitle(); r != "" {
-		add(spinner(ed.Now()) + " " + r + " (C-c)")
+		add(spinner(ed.Now())+" "+r+" (C-c)", spinner(ed.Now())+" run", 1)
 	}
 	if a := agentStatus(ed); a != "" {
-		add(a)
+		short := strings.Replace(a, " "+core.HookAgent+" · ", " ", 1) // "◆ review"
+		add(a, strings.Replace(short, " "+core.HookAgent, "", 1), 6)
 	}
 	return segs
+}
+
+// minName is how far fitStatus shortens the file name, in cells.
+const minName = 12
+
+// fitStatus fits the status line into w cells: mode is the left side's
+// start, then the file name and dirty mark; right is from statusRight.
+// While the two sides would meet, it uses short forms from the agent's end,
+// then cuts the name from the front, then drops the lowest-ranked segments.
+func fitStatus(mode, name, dirty string, right []segment, w int) (string, []segment) {
+	right = slices.Clone(right)
+	width := func(s string) int { return utf8.RuneCountInString(s) }
+	fits := func() bool {
+		need := width(mode) + width(name) + width(dirty) + 2 // two cells between the sides
+		for _, sg := range right {
+			need += width(sg.text) + 2
+		}
+		return need-2 <= w
+	}
+	for i := len(right) - 1; i >= 0 && !fits(); i-- {
+		if right[i].short != "" {
+			right[i].text = right[i].short
+		}
+	}
+	for !fits() && width(name) > minName {
+		r := []rune(name)
+		name = "…" + string(r[len(r)-minName+1:])
+	}
+	for !fits() && len(right) > 0 {
+		low := 0
+		for i, sg := range right {
+			if sg.rank < right[low].rank {
+				low = i
+			}
+		}
+		right = slices.Delete(right, low, low+1)
+	}
+	return mode + name + dirty, right
 }
 
 // spinnerFrames turn while something is going; a frame lasts spinnerTick.

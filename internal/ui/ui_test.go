@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -290,6 +291,45 @@ func TestAgentStatus(t *testing.T) {
 	}
 	if got := g.row(3); got != "claude-code: Claude needs your permission to use Bash" {
 		t.Errorf("message = %q", got)
+	}
+}
+
+func TestFitStatus(t *testing.T) {
+	right := []segment{
+		{text: "12:5 "},
+		{text: "1 error", short: "1E 0W", rank: 3},
+		{text: "3 pending, set 1/3 reviewed", short: "3 pending, set 1/3", rank: 5},
+		{text: " dev ", rank: 2},
+		{text: "◆ claude-code · review", short: "◆ review", rank: 6},
+	}
+	texts := func(segs []segment) []string {
+		var out []string
+		for _, sg := range segs {
+			out = append(out, sg.text)
+		}
+		return out
+	}
+	left, got := fitStatus(" NOR  ", "internal/core/navigate.go", " [+]", right, 120)
+	if left != " NOR  internal/core/navigate.go [+]" || !slices.Equal(texts(got), texts(right)) {
+		t.Errorf("wide: %q %q", left, texts(got))
+	}
+	_, got = fitStatus(" NOR  ", "internal/core/navigate.go", "", right, 90)
+	if want := []string{"12:5 ", "1 error", "3 pending, set 1/3", " dev ", "◆ review"}; !slices.Equal(texts(got), want) {
+		t.Errorf("90 columns: %q, want %q", texts(got), want)
+	}
+	left, got = fitStatus(" NOR  ", "internal/core/navigate.go", "", right, 40)
+	if left != " NOR  …navigate.go" || !slices.Equal(texts(got), []string{"◆ review"}) {
+		t.Errorf("40 columns: %q %q", left, texts(got))
+	}
+	for w := 24; w <= 120; w++ {
+		left, got := fitStatus(" NOR  ", "internal/core/navigate.go", " [+]", right, w)
+		need := utf8.RuneCountInString(left)
+		for _, sg := range got {
+			need += 2 + utf8.RuneCountInString(sg.text)
+		}
+		if need > w {
+			t.Errorf("%d columns: %q and %q need %d", w, left, texts(got), need)
+		}
 	}
 }
 
