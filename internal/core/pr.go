@@ -25,6 +25,10 @@ type pullRequest struct {
 	URL   string
 	Head  string // the commit checked out
 	Back  string // what :pr-done checks out: the branch, or commit, :pr started from
+
+	Drafts []ghComment            // official comments not yet sent; see prcomment.go
+	ranges map[string][]lineRange // the lines GitHub takes comments on, by path
+	prefix string                 // the project root's path in the repository
 }
 
 // prView is the part of gh pr view's JSON that :pr reads.
@@ -149,6 +153,7 @@ func (e *Editor) checkoutPR(f *fetchedPR) {
 	}
 	e.pr = &pullRequest{N: v.Number, Title: v.Title, URL: v.URL, Head: v.HeadRefOid, Back: back}
 	e.refreshBuffers()
+	drafts := e.loadPRDiff(f.base)
 	title := fmt.Sprintf("#%d %s", v.Number, v.Title)
 	t, left, _, err := e.buildReview(&reviewScope{Agent: HookAgent, Title: title, Rev: f.base + ".." + v.HeadRefOid})
 	if err != nil {
@@ -158,7 +163,7 @@ func (e *Editor) checkoutPR(f *fetchedPR) {
 	t.pr = true
 	e.setTrail(t)
 	e.goToStep(0)
-	e.Msg = fmt.Sprintf("%s: %s (]s to walk it, :pr-done when finished)%s", title, plural(len(t.Steps), "hunk"), left)
+	e.Msg = fmt.Sprintf("%s: %s (]s to walk it, :pr-done when finished)%s%s", title, plural(len(t.Steps), "hunk"), left, drafts)
 }
 
 // leavePR leaves the PR: it checks out what :pr started from (:pr-done).

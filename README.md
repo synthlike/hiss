@@ -89,7 +89,8 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   you go, Claude answers in real time, and `:rf` finishes early. `:pr 123`
   checks out a GitHub PR (with `gh`, on a clean tree) and walks it the same
   way, except `+` marks a hunk viewed and `-` flags it without touching the
-  code; `:prd` goes back.
+  code. `:gc <text>` drafts a comment for GitHub on the line or selected lines
+  (kept in `.hiss/pr/`); `:prd` goes back.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
 - **Check.** The language server checks the code as if the pending hunks were

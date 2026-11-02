@@ -102,18 +102,16 @@ func (e *Editor) clearTrail() {
 }
 
 // TrailRows returns the rows drawn under lines of the visible buffer for the
-// trail: each step's note, then its comment thread.
+// trail: each step's note, then its comment thread; and a PR's draft comments.
 func (e *Editor) TrailRows() map[int][]NoteLine {
-	if e.trail == nil {
-		return nil
+	rows := map[int][]NoteLine{}
+	var steps []*Step
+	if e.trail != nil {
+		steps = e.trail.Steps
 	}
-	var rows map[int][]NoteLine
-	for _, s := range e.trail.Steps {
+	for _, s := range steps {
 		if s.Buf != e.Buf {
 			continue
-		}
-		if rows == nil {
-			rows = map[int][]NoteLine{}
 		}
 		l, note := s.Line(), s.Note
 		if s.Changed {
@@ -129,6 +127,10 @@ func (e *Editor) TrailRows() map[int][]NoteLine {
 			rows[l] = append(rows[l], NoteLine{Removed: true, Text: r})
 		}
 		rows[l] = append(rows[l], threadLines(s.Thread, e.TextWidth())...)
+	}
+	e.draftRows(rows)
+	if len(rows) == 0 {
+		return nil
 	}
 	return rows
 }

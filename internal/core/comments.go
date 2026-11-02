@@ -24,6 +24,7 @@ type NoteLine struct {
 	Mine    bool // written by the user
 	Note    bool // a trail step's note rather than a comment
 	Removed bool // a line a reviewed hunk removed
+	GitHub  bool // a draft official comment on a PR
 	Text    string
 }
 

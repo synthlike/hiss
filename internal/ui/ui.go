@@ -35,6 +35,7 @@ var (
 	styleAdded     = tcell.StyleDefault.Foreground(color.Green)
 	styleYourNote  = tcell.StyleDefault.Foreground(color.Yellow)
 	styleAgentNote = tcell.StyleDefault.Foreground(color.Teal)
+	styleGitHub    = tcell.StyleDefault.Foreground(tcell.NewRGBColor(0xa3, 0x71, 0xf7)) // draft PR comments
 	styleError     = tcell.StyleDefault.Foreground(color.Red)
 	styleWarning   = tcell.StyleDefault.Foreground(color.Yellow)
 	styleInfo      = tcell.StyleDefault.Foreground(color.Teal)
@@ -316,6 +317,8 @@ func Draw(s Screen, ed *core.Editor) {
 				mark = "▸"
 			case n.Removed:
 				mark, st = "-", styleRemoved
+			case n.GitHub:
+				mark, st = "▌", styleGitHub
 			case n.Mine:
 				st = styleYourNote
 			}
