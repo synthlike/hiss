@@ -47,6 +47,7 @@ var commands = []command{
 	{[]string{"pr", "pr-review"}, "<n>", "check out GitHub PR n, detached, and walk its hunks", (*Editor).openPR},
 	{[]string{"prd", "pr-done"}, "", "leave the PR: check out the branch :pr started from", func(e *Editor, _ string) { e.leavePR() }},
 	{[]string{"gc", "gh-comment"}, "<text>", "draft a GitHub comment on the PR's line, or selected lines", (*Editor).ghComment},
+	{[]string{"gca", "gh-comment-accept"}, "", "accept the agent's pending GitHub comments on this line", func(e *Editor, _ string) { e.acceptGHComment() }},
 	{[]string{"gcd", "gh-comment-drop"}, "", "drop the draft GitHub comments on this line", func(e *Editor, _ string) { e.dropGHComment() }},
 	{[]string{"prs", "pr-submit"}, "[approve|changes] [text]", "send the draft comments to GitHub as one review, after asking", (*Editor).submitPR},
 	{[]string{"rs", "review-save"}, "<path>", "save the review as JSON, with its diff and discussion", (*Editor).saveReview},

@@ -73,6 +73,62 @@ func TestPRSubmit(t *testing.T) {
 	}
 }
 
+func TestPRAgentDraftsWaitForAccept(t *testing.T) {
+	e, posted, _, _ := prProject(t)
+	apiDir := t.TempDir()
+	t.Setenv("GH_API_DIR", apiDir)
+	e.openPR("7")
+	(<-posted)(e)
+	a := filepath.Join(e.Root, "a.txt")
+	if _, _, err := e.DraftPRComment("claude-code", a, 9, 9, "far"); err == nil || !strings.Contains(err.Error(), "isn't in the PR's diff") {
+		t.Errorf("err %v", err)
+	}
+	where, n, err := e.DraftPRComment("claude-code", a, 1, 2, "why shout?")
+	if err != nil || where != "lines 1-2" || n != 7 {
+		t.Fatalf("%q %d %v", where, n, err)
+	}
+	if e.Toast.Title != "claude-code drafted a PR comment" {
+		t.Errorf("toast %+v", e.Toast)
+	}
+	// Under the review step's own rows on that line.
+	if rows := e.TrailRows()[1]; len(rows) != 3 || !rows[2].GitHub || rows[2].Text != "github draft (1-2, by claude-code, pending, :gca accepts): why shout?" {
+		t.Errorf("rows %+v", rows)
+	}
+	if d := readDrafts(t, e); len(d.Comments) != 1 || !d.Comments[0].Pending {
+		t.Errorf("kept %+v", d)
+	}
+
+	e.execute("prs")
+	if e.Msg != "pr-submit: nothing to send: the drafts are pending (:gca on one accepts it)" {
+		t.Errorf("msg %q", e.Msg)
+	}
+	e.execute("gc mine") // the cursor is on line 2
+	e.execute("prs")
+	(<-posted)(e)
+	if want := "send the review to #7: comment, 1 comment (not 1 pending draft)?"; e.Menu == nil || e.Menu.Title != want {
+		t.Errorf("menu %+v", e.Menu)
+	}
+	keys(e, "n")
+
+	e.setHead(e.Buf.Text.LineStart(0))
+	e.execute("gca")
+	if e.Msg != "accepted 1 draft; :prs sends it with the rest" || e.pr.Drafts[0].Pending {
+		t.Errorf("msg %q", e.Msg)
+	}
+	e.execute("gca")
+	if e.Msg != "gh-comment-accept: no pending draft on this line" {
+		t.Errorf("msg %q", e.Msg)
+	}
+	e.execute("prs")
+	(<-posted)(e)
+	keys(e, "y")
+	(<-posted)(e)
+	data, _ := os.ReadFile(filepath.Join(apiDir, "input"))
+	if s := string(data); strings.Contains(s, "author") || strings.Contains(s, "pending") || !strings.Contains(s, "why shout?") {
+		t.Errorf("sent %s", s)
+	}
+}
+
 func TestPRSubmitFailureKeepsDrafts(t *testing.T) {
 	e, posted, _, apiDir := prWithDraft(t)
 	os.WriteFile(filepath.Join(apiDir, "fail"), nil, 0o600)

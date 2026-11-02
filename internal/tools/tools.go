@@ -47,6 +47,9 @@ the user's review when they should look at something.
   what matters, with notes on what to check. Use review on an edit when it
   shouldn't land before they've seen it. In a review, a rejected hunk is already
   reverted; fix it with a new edit, and reply to comments as they come.
+- In a review of a GitHub PR (the user ran :pr), a rejected hunk is only
+  flagged, not reverted. When the user asks for review comments, draft them
+  with draft_pr_comment; they wait for the user's accept.
 - If you end your turn with proposals still pending, you are woken when the
   user has reviewed them all; continue the task then.
 - The user may comment on a pending proposal. Comments arrive through
@@ -153,6 +156,7 @@ var all = []tool{
 	replyTool,
 	showTrailTool,
 	showReviewTool,
+	draftPRCommentTool,
 	askTool,
 	askPoll,
 	watchComments,

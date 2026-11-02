@@ -41,21 +41,26 @@ func (e *Editor) submitPR(arg string) {
 			ev, body = x, strings.TrimSpace(rest)
 		}
 	}
-	switch {
-	case p == nil:
+	if p == nil {
 		e.Msg = "pr-submit: no PR checked out here"
 		return
+	}
+	ready := slices.DeleteFunc(slices.Clone(p.Drafts), func(c ghComment) bool { return c.Pending })
+	switch {
 	case e.prBusy:
 		e.Msg = "pr-submit: still busy with GitHub; try again in a moment"
 		return
 	case ev.api == "REQUEST_CHANGES" && body == "":
 		e.Msg = "pr-submit: say what to change: :prs changes <text>"
 		return
-	case ev.api == "COMMENT" && body == "" && len(p.Drafts) == 0:
+	case ev.api == "COMMENT" && body == "" && len(ready) == 0:
 		e.Msg = "pr-submit: nothing to send: draft comments with :gc, or :prs <text>"
+		if len(p.Drafts) > 0 {
+			e.Msg = "pr-submit: nothing to send: the drafts are pending (:gca on one accepts it)"
+		}
 		return
 	}
-	r := &ghReview{CommitID: p.Head, Event: ev.api, Body: body, Comments: slices.Clone(p.Drafts)}
+	r := &ghReview{CommitID: p.Head, Event: ev.api, Body: body, Comments: ready}
 	e.prBusy = true
 	e.Msg = fmt.Sprintf("pr-submit: checking #%d for new pushes…", p.N)
 	root := e.Root
@@ -88,6 +93,9 @@ func (e *Editor) confirmSubmit(p *pullRequest, ev reviewEvent, r *ghReview, head
 	what := ev.name + ", " + plural(len(r.Comments), "comment")
 	if r.Body != "" {
 		what += ", with a note"
+	}
+	if n := len(p.Drafts) - len(r.Comments); n > 0 {
+		what += " (not " + plural(n, "pending draft") + ")"
 	}
 	title := fmt.Sprintf("send the review to #%d: %s?", p.N, what)
 	if head != p.Head {
@@ -132,7 +140,12 @@ func postReview(root, prURL string, n int, r *ghReview) (string, error) {
 		return "", err
 	}
 	host, name, _ := strings.Cut(repo, "/")
-	data, err := json.Marshal(r)
+	sent := *r
+	sent.Comments = slices.Clone(r.Comments)
+	for i := range sent.Comments {
+		sent.Comments[i].Author, sent.Comments[i].Pending = "", false // hiss's own; empty, they're left out
+	}
+	data, err := json.Marshal(sent)
 	if err != nil {
 		return "", err
 	}

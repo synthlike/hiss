@@ -109,7 +109,7 @@ func TestPRCommentNeedsSavedBuffer(t *testing.T) {
 	(<-posted)(e)
 	e.Buf.Version++ // an unsaved edit
 	e.execute("gc hi")
-	if !strings.HasPrefix(e.Msg, "gh-comment: save or undo") {
+	if !strings.HasPrefix(e.Msg, "gh-comment: the file has unsaved changes") {
 		t.Errorf("msg %q", e.Msg)
 	}
 }

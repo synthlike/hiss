@@ -16,8 +16,13 @@ import (
 // are refused up front. Drafts are kept in .hiss/pr/<n>.json as they're
 // written, so a crash or :pr-done doesn't lose them; :pr <n> picks them up.
 // For now they're on the new side only: removed lines aren't cursor lines.
+//
+// An agent drafts them too, with draft_pr_comment. They publish in the user's
+// name, so an agent's draft is pending until the user accepts it (:gca);
+// :pr-submit leaves pending ones behind.
 
-// ghComment is a draft review comment, in the form GitHub's API takes.
+// ghComment is a draft review comment, in the form GitHub's API takes, plus
+// who drafted it.
 type ghComment struct {
 	Path      string `json:"path"` // from the repository's root, with slashes
 	Line      int    `json:"line"` // 1-based, in the PR's head
@@ -25,6 +30,17 @@ type ghComment struct {
 	StartLine int    `json:"start_line,omitempty"` // a multi-line comment's first line
 	StartSide string `json:"start_side,omitempty"`
 	Body      string `json:"body"`
+	Author    string `json:"author,omitempty"`  // the agent that drafted it; "" for the user
+	Pending   bool   `json:"pending,omitempty"` // an agent's, not yet accepted
+}
+
+// covers reports whether c is on line of path.
+func (c ghComment) covers(path string, line int) bool {
+	first := c.Line
+	if c.StartLine > 0 {
+		first = c.StartLine
+	}
+	return c.Path == path && first <= line && line <= c.Line
 }
 
 // prDrafts is what .hiss/pr/<n>.json holds.
@@ -136,12 +152,12 @@ func (e *Editor) saveDrafts(p *pullRequest) error {
 	return writeAtomic(e.draftsFile(p), append(data, '\n'))
 }
 
-// prPath returns b's path as GitHub names it, from the repository's root.
-func (e *Editor) prPath(b *Buffer) (string, bool) {
-	if b.Path == "" {
+// prPath returns path as GitHub names it, from the repository's root.
+func (e *Editor) prPath(path string) (string, bool) {
+	if path == "" {
 		return "", false
 	}
-	rel, ok := e.underRoot(b.Path)
+	rel, ok := e.underRoot(path)
 	if !ok {
 		return "", false
 	}
@@ -158,46 +174,93 @@ func (p *pullRequest) commentable(path string, first, last int) bool {
 	return false
 }
 
-// ghComment drafts an official comment on the selected lines (:gc).
-func (e *Editor) ghComment(text string) {
-	p, b := e.pr, e.Buf
-	from, to := e.selLines()
-	first, last := from+1, to+1
-	path, ok := "", false
-	if p != nil {
-		path, ok = e.prPath(b)
+// addDraft adds a draft on lines first..last of the file at abs, by agent, or
+// by the user if agent is "". It returns where the draft is, as "line 3" or
+// "lines 3-5", and a note if saving the drafts failed; or why GitHub
+// wouldn't take a comment there.
+func (e *Editor) addDraft(abs string, first, last int, body, agent string) (where, note string, err error) {
+	p := e.pr
+	if p == nil {
+		return "", "", errors.New("no PR checked out here (:pr <n>)")
 	}
-	where := fmt.Sprintf("line %d", last)
+	path, ok := e.prPath(abs)
+	where = fmt.Sprintf("line %d", last)
 	if first < last {
 		where = fmt.Sprintf("lines %d-%d", first, last)
 	}
-	switch {
-	case p == nil:
-		e.Msg = "gh-comment: no PR checked out here (:pr <n>)"
-		return
+	switch b := e.Find(abs); {
 	case p.ranges == nil:
-		e.Msg = "gh-comment: the PR's diff couldn't be read"
-		return
+		return "", "", errors.New("the PR's diff couldn't be read")
 	case !ok:
-		e.Msg = "gh-comment: this file isn't in the PR's repository"
-		return
-	case b.Dirty():
-		e.Msg = "gh-comment: save or undo your changes first, so lines match the PR's"
-		return
+		return "", "", errors.New("this file isn't in the PR's repository")
+	case b != nil && b.Dirty():
+		return "", "", errors.New("the file has unsaved changes, so its lines may not match the PR's: save or undo them first")
+	case strings.TrimSpace(body) == "":
+		return "", "", errors.New("the comment is empty")
+	case first < 1 || last < first:
+		return "", "", fmt.Errorf("no such lines: %d-%d", first, last)
+	case !p.commentable(path, first, last) && first < last:
+		return "", "", fmt.Errorf("%s of %s aren't in one hunk of the PR's diff; GitHub only takes comments there", where, path)
 	case !p.commentable(path, first, last):
-		e.Msg = fmt.Sprintf("gh-comment: %s of %s aren't in one hunk of the PR's diff; GitHub only takes comments there", where, path)
-		if first == last {
-			e.Msg = fmt.Sprintf("gh-comment: %s of %s isn't in the PR's diff; GitHub only takes comments there", where, path)
-		}
-		return
+		return "", "", fmt.Errorf("%s of %s isn't in the PR's diff; GitHub only takes comments there", where, path)
 	}
-	c := ghComment{Path: path, Line: last, Side: "RIGHT", Body: text}
+	c := ghComment{Path: path, Line: last, Side: "RIGHT", Body: body, Author: agent, Pending: agent != ""}
 	if first < last {
 		c.StartLine, c.StartSide = first, "RIGHT"
 	}
 	p.Drafts = append(p.Drafts, c)
+	if err := e.saveDrafts(p); err != nil {
+		note = "; saving drafts failed: " + err.Error()
+	}
+	return where, note, nil
+}
+
+// ghComment drafts an official comment on the selected lines (:gc).
+func (e *Editor) ghComment(text string) {
+	from, to := e.selLines()
+	where, note, err := e.addDraft(e.Buf.Path, from+1, to+1, text, "")
+	if err != nil {
+		e.Msg = "gh-comment: " + err.Error()
+		return
+	}
 	e.Mode = Normal
-	e.Msg = fmt.Sprintf("drafted a comment on %s for #%d (%s; :gcd drops it)", where, p.N, plural(len(p.Drafts), "draft"))
+	e.Msg = fmt.Sprintf("drafted a comment on %s for #%d (%s; :gcd drops it)%s", where, e.pr.N, plural(len(e.pr.Drafts), "draft"), note)
+}
+
+// DraftPRComment adds an agent's draft on lines first..last of the file at
+// abs, pending until the user accepts it, and returns where it is and the
+// PR's number.
+func (e *Editor) DraftPRComment(agent, abs string, first, last int, body string) (string, int, error) {
+	where, note, err := e.addDraft(abs, first, last, body, agent)
+	if err != nil {
+		return "", 0, err
+	}
+	path, _ := e.prPath(abs)
+	e.notify(agent+" drafted a PR comment", fmt.Sprintf("on %s of %s; :gca accepts it, :gcd drops it%s", where, path, note))
+	return where, e.pr.N, nil
+}
+
+// acceptGHComment accepts the agents' pending drafts on the cursor's line
+// (:gca), so :pr-submit sends them.
+func (e *Editor) acceptGHComment() {
+	p := e.pr
+	if p == nil {
+		e.Msg = "gh-comment-accept: no PR checked out here"
+		return
+	}
+	path, _ := e.prPath(e.Buf.Path)
+	n := 0
+	for i, c := range p.Drafts {
+		if c.Pending && c.covers(path, e.line()+1) {
+			p.Drafts[i].Pending = false
+			n++
+		}
+	}
+	if n == 0 {
+		e.Msg = "gh-comment-accept: no pending draft on this line"
+		return
+	}
+	e.Msg = fmt.Sprintf("accepted %s; :prs sends it with the rest", plural(n, "draft"))
 	if err := e.saveDrafts(p); err != nil {
 		e.Msg += "; saving drafts failed: " + err.Error()
 	}
@@ -210,15 +273,11 @@ func (e *Editor) dropGHComment() {
 		e.Msg = "gh-comment-drop: no PR checked out here"
 		return
 	}
-	path, _ := e.prPath(e.Buf)
+	path, _ := e.prPath(e.Buf.Path)
 	line, n := e.line()+1, 0
 	kept := p.Drafts[:0:0]
 	for _, c := range p.Drafts {
-		first := c.Line
-		if c.StartLine > 0 {
-			first = c.StartLine
-		}
-		if c.Path == path && first <= line && line <= c.Line {
+		if c.covers(path, line) {
 			n++
 			continue
 		}
@@ -242,7 +301,7 @@ func (e *Editor) draftRows(rows map[int][]NoteLine) {
 	if p == nil || len(p.Drafts) == 0 {
 		return
 	}
-	path, ok := e.prPath(e.Buf)
+	path, ok := e.prPath(e.Buf.Path)
 	if !ok {
 		return
 	}
@@ -251,9 +310,19 @@ func (e *Editor) draftRows(rows map[int][]NoteLine) {
 		if c.Path != path || l >= e.Buf.Text.LineCount() {
 			continue
 		}
-		label := "github draft:"
+		var tags []string
 		if c.StartLine > 0 {
-			label = fmt.Sprintf("github draft (%d-%d):", c.StartLine, c.Line)
+			tags = append(tags, fmt.Sprintf("%d-%d", c.StartLine, c.Line))
+		}
+		if c.Author != "" {
+			tags = append(tags, "by "+c.Author)
+		}
+		if c.Pending {
+			tags = append(tags, "pending, :gca accepts")
+		}
+		label := "github draft:"
+		if len(tags) > 0 {
+			label = "github draft (" + strings.Join(tags, ", ") + "):"
 		}
 		for _, t := range labeledLines(label, c.Body, e.TextWidth()) {
 			rows[l] = append(rows[l], NoteLine{GitHub: true, Text: t})
