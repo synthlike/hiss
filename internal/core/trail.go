@@ -14,6 +14,7 @@ type Trail struct {
 	Steps                 []*Step
 	current               int  // index of the step last visited, -1 before the first
 	review                bool // a review of hunks; see review.go
+	pr                    bool // a review of a PR (:pr): verdicts don't touch the tree
 	finished, told        bool // the review is over; the agent has its report
 	summary               string
 	rev, commit           string // what a review shows, and HEAD when it was made
@@ -119,7 +120,7 @@ func (e *Editor) TrailRows() map[int][]NoteLine {
 			note += " (changed since saved)"
 		}
 		if s.Verdict != "" {
-			note += " · " + string(s.Verdict)
+			note += " · " + e.trail.word(s.Verdict)
 		}
 		for _, t := range labeledLines(fmt.Sprintf("%d.", s.N), note, e.TextWidth()) {
 			rows[l] = append(rows[l], NoteLine{Note: true, Text: t})
@@ -172,7 +173,11 @@ func (e *Editor) goToStep(i int) {
 	e.setHead(s.Buf.Text.LineStart(line))
 	e.centerOn(line)
 	e.Msg = fmt.Sprintf("step %d/%d: %s", s.N, len(t.Steps), s.Note)
-	if t.review && !t.finished && s.Verdict == "" {
+	switch {
+	case !t.review || t.finished || s.Verdict != "":
+	case t.pr:
+		e.Msg += " (+ viewed · - flag · # comment)"
+	default:
 		e.Msg += " (+ accept · - reject · # comment)"
 	}
 }

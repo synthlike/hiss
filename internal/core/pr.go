@@ -13,7 +13,8 @@ import (
 
 // :pr <n> reviews a GitHub pull request in place: it fetches the PR's head and
 // base from the remote that points at the PR's repository, checks the head out
-// detached and walks merge-base..head as a review. The tree must be clean, so
+// detached and walks merge-base..head as a review, where + marks a hunk viewed
+// and - flags it, leaving the code as it is. The tree must be clean, so
 // nothing of the user's is in the way; :pr-done goes back to where :pr started.
 // gh finds the PR, so its login and default repository apply.
 
@@ -154,6 +155,7 @@ func (e *Editor) checkoutPR(f *fetchedPR) {
 		e.Msg = fmt.Sprintf("pr #%d: checked out, but %v (:pr-done goes back)", v.Number, err)
 		return
 	}
+	t.pr = true
 	e.setTrail(t)
 	e.goToStep(0)
 	e.Msg = fmt.Sprintf("%s: %s (]s to walk it, :pr-done when finished)%s", title, plural(len(t.Steps), "hunk"), left)

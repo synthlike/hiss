@@ -20,7 +20,9 @@ import (
 // lines it replaced below. Accepting a hunk leaves it; rejecting one puts the
 // old text back in the working tree, whatever the change was, and tells the
 // agent at once. Comments reach it the same way. The review finishes when every
-// hunk is decided, or with :rf, and the agent gets a report.
+// hunk is decided, or with :rf, and the agent gets a report. In a review of a
+// PR the code is the author's, so accepting a hunk marks it viewed and
+// rejecting one flags it, and neither touches the working tree.
 
 const (
 	maxReviewSteps = 500
@@ -333,10 +335,19 @@ func (e *Editor) decideStep(s *Step, accept bool, reason string) {
 		return
 	}
 	s.Lines = 0
-	if accept {
+	switch {
+	case accept:
 		s.Verdict = Accepted
-		e.Msg = fmt.Sprintf("accepted hunk %d", s.N)
-	} else {
+		e.Msg = fmt.Sprintf("%s hunk %d", t.word(Accepted), s.N)
+	case t.pr: // the author's code: flag it, leave it
+		s.Verdict, s.Reason = Rejected, reason
+		tell := "I flagged this hunk"
+		e.Msg = fmt.Sprintf("flagged hunk %d", s.N)
+		if reason != "" {
+			tell += ": " + reason
+		}
+		s.Thread = append(s.Thread, Comment{Author: You.Author, Text: tell})
+	default:
 		s.Verdict, s.Reason = Rejected, reason
 		s.Reverted = e.revertHunk(s)
 		tell := "I rejected this hunk and the old text is back"
@@ -433,7 +444,19 @@ func (t *Trail) tally() string {
 			r++
 		}
 	}
-	return fmt.Sprintf("%d accepted, %d rejected, %d not reviewed", a, r, len(t.Steps)-a-r)
+	return fmt.Sprintf("%d %s, %d %s, %d not reviewed", a, t.word(Accepted), r, t.word(Rejected), len(t.Steps)-a-r)
+}
+
+// word names a verdict as the review uses it: in a PR's, accepting a hunk
+// marks it viewed and rejecting flags it.
+func (t *Trail) word(v Status) string {
+	switch {
+	case t.pr && v == Accepted:
+		return "viewed"
+	case t.pr && v == Rejected:
+		return "flagged"
+	}
+	return string(v)
 }
 
 // report is what the agent is told when the review finishes.
@@ -444,8 +467,8 @@ func (t *Trail) report(e *Editor) string {
 		if s.Verdict != Rejected {
 			continue
 		}
-		fmt.Fprintf(&sb, "  rejected %s:%d", e.relName(s.Buf), s.Line()+1)
-		if !s.Reverted {
+		fmt.Fprintf(&sb, "  %s %s:%d", t.word(Rejected), e.relName(s.Buf), s.Line()+1)
+		if !s.Reverted && !t.pr {
 			sb.WriteString(" (changed since, so still in place)")
 		}
 		if s.Reason != "" {

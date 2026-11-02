@@ -97,6 +97,27 @@ func TestPRCheckoutAndLeave(t *testing.T) {
 	}
 }
 
+func TestPRFlagLeavesTheCode(t *testing.T) {
+	e, posted, _, _ := prProject(t)
+	e.openPR("7")
+	(<-posted)(e)
+	before := e.Buf.Text.String()
+	keys(e, "- t o o space l o u d enter")
+	s := e.trail.Steps[0]
+	if got := fileText(t, e.Buf.Path); got != before || e.Buf.Text.String() != before || s.Reverted {
+		t.Errorf("flagging changed the code: %q", got)
+	}
+	if s.Verdict != Rejected || e.Msg != "flagged hunk 1; finished the review: 0 viewed, 1 flagged, 0 not reviewed" {
+		t.Errorf("verdict %q, msg %q", s.Verdict, e.Msg)
+	}
+	if r := e.trail.report(e); !strings.Contains(r, "  flagged a.txt:2: too loud\n") || strings.Contains(r, "still in place") {
+		t.Errorf("report %q", r)
+	}
+	if err := e.prReady(); err != nil { // so :pr-done can go back
+		t.Errorf("tree not clean: %v", err)
+	}
+}
+
 func TestPRNeedsACleanTree(t *testing.T) {
 	e, _, _, _ := prProject(t)
 	os.WriteFile(filepath.Join(e.Root, "a.txt"), []byte("mine\n"), 0o600)
