@@ -86,7 +86,9 @@ Then run `hiss` in your project and Claude Code next to it, in either order.
   or leave whole.
 - **Review what landed.** Claude sends you a change hunk by hunk, like a trail,
   or `:review` starts one. Accept, reject (which reverts the hunk) or comment as
-  you go, Claude answers in real time, and `:rf` finishes early.
+  you go, Claude answers in real time, and `:rf` finishes early. `:pr 123`
+  checks out a GitHub PR (with `gh`, on a clean tree) and walks it the same
+  way; `:prd` goes back.
 - **Discuss.** `#` comments on a hunk or line; Claude replies inline or sends a
   revision, even after its turn has ended.
 - **Check.** The language server checks the code as if the pending hunks were

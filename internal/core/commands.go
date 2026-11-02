@@ -44,6 +44,8 @@ var commands = []command{
 	{[]string{"hra", "hunk-reject-all"}, "[reason]", "reject every pending hunk", func(e *Editor, arg string) { e.reviewAll(false, arg) }},
 	{[]string{"c", "comment"}, "<text>", "comment on the hunk, line or trail step", (*Editor).comment},
 	{[]string{"rv", "review"}, "[rev]", "walk a change's hunks: uncommitted, else the last commit, or a revision or range", (*Editor).review},
+	{[]string{"pr", "pr-review"}, "<n>", "check out GitHub PR n, detached, and walk its hunks", (*Editor).openPR},
+	{[]string{"prd", "pr-done"}, "", "leave the PR: check out the branch :pr started from", func(e *Editor, _ string) { e.leavePR() }},
 	{[]string{"rs", "review-save"}, "<path>", "save the review as JSON, with its diff and discussion", (*Editor).saveReview},
 	{[]string{"rl", "review-load"}, "<path>", "load a review saved with :rs", (*Editor).loadReview},
 	{[]string{"rf", "review-finish"}, "[word for the agent]", "finish the review, even with hunks left", (*Editor).finishReview},

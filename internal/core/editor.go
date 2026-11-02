@@ -87,6 +87,8 @@ type Editor struct {
 	now       func() time.Time // replaced in tests
 	notices   []Toast          // raised since the UI last took them
 	trail     *Trail           // the trail an agent shared, if any
+	pr        *pullRequest     // the PR :pr checked out, if any
+	prBusy    bool             // :pr is fetching one
 	search    searchState
 	jumps     jumpList
 	questions []*Question // agents' questions, oldest first, until their agents collect the answers
