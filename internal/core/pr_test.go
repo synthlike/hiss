@@ -45,7 +45,18 @@ func prProject(t *testing.T) (e *Editor, posted chan func(*Editor), branch, head
 
 	bin := t.TempDir()
 	js := fmt.Sprintf(`{"number":7,"title":"Shout two","url":"https://github.com/o/r/pull/7","baseRefName":%q,"baseRefOid":%q,"headRefOid":%q}`, branch, base, head)
-	script := "#!/bin/sh\n[ \"$1 $2 $3\" = 'pr view 7' ] || { echo 'no such PR' >&2; exit 1; }\necho '" + js + "'\n"
+	// gh api records its arguments and input in $GH_API_DIR, and fails like
+	// GitHub if a file named fail is there.
+	api := `if [ "$1" = api ]; then
+	echo "$@" > "$GH_API_DIR/args"; cat > "$GH_API_DIR/input"
+	if [ -e "$GH_API_DIR/fail" ]; then
+		echo '{"message":"Validation Failed","errors":["Line could not be resolved"]}'
+		echo 'gh: Validation Failed (HTTP 422)' >&2; exit 1
+	fi
+	echo '{"html_url":"https://github.com/o/r/pull/7#pullrequestreview-1"}'; exit 0
+fi
+`
+	script := "#!/bin/sh\n" + api + "[ \"$1 $2 $3\" = 'pr view 7' ] || { echo 'no such PR' >&2; exit 1; }\necho '" + js + "'\n"
 	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}

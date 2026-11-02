@@ -92,13 +92,13 @@ func (e *Editor) loadPRDiff(base string) string {
 	}
 	p.ranges = diffRanges(diff)
 	p.prefix, _ = git(e.Root, "rev-parse", "--show-prefix")
-	data, err := os.ReadFile(e.draftsFile())
+	data, err := os.ReadFile(e.draftsFile(p))
 	if err != nil {
 		return ""
 	}
 	var d prDrafts
 	if err := json.Unmarshal(data, &d); err != nil {
-		return "; " + e.relPath(e.draftsFile()) + " is unreadable"
+		return "; " + e.relPath(e.draftsFile(p)) + " is unreadable"
 	}
 	p.Drafts = d.Comments
 	msg := "; " + plural(len(p.Drafts), "draft comment")
@@ -108,9 +108,9 @@ func (e *Editor) loadPRDiff(base string) string {
 	return msg
 }
 
-// draftsFile is where the drafts for the checked-out PR are kept.
-func (e *Editor) draftsFile() string {
-	return filepath.Join(e.Root, ".hiss", "pr", strconv.Itoa(e.pr.N)+".json")
+// draftsFile is where the drafts for p are kept.
+func (e *Editor) draftsFile(p *pullRequest) string {
+	return filepath.Join(e.Root, ".hiss", "pr", strconv.Itoa(p.N)+".json")
 }
 
 // relPath returns path relative to the project root, if it's inside it.
@@ -121,11 +121,10 @@ func (e *Editor) relPath(path string) string {
 	return path
 }
 
-// saveDrafts writes the drafts, or removes the file when there are none.
-func (e *Editor) saveDrafts() error {
-	p := e.pr
+// saveDrafts writes p's drafts, or removes the file when there are none.
+func (e *Editor) saveDrafts(p *pullRequest) error {
 	if len(p.Drafts) == 0 {
-		if err := os.Remove(e.draftsFile()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(e.draftsFile(p)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		return nil
@@ -134,7 +133,7 @@ func (e *Editor) saveDrafts() error {
 	if err != nil {
 		return err
 	}
-	return writeAtomic(e.draftsFile(), append(data, '\n'))
+	return writeAtomic(e.draftsFile(p), append(data, '\n'))
 }
 
 // prPath returns b's path as GitHub names it, from the repository's root.
@@ -199,7 +198,7 @@ func (e *Editor) ghComment(text string) {
 	p.Drafts = append(p.Drafts, c)
 	e.Mode = Normal
 	e.Msg = fmt.Sprintf("drafted a comment on %s for #%d (%s; :gcd drops it)", where, p.N, plural(len(p.Drafts), "draft"))
-	if err := e.saveDrafts(); err != nil {
+	if err := e.saveDrafts(p); err != nil {
 		e.Msg += "; saving drafts failed: " + err.Error()
 	}
 }
@@ -231,7 +230,7 @@ func (e *Editor) dropGHComment() {
 	}
 	p.Drafts = kept
 	e.Msg = fmt.Sprintf("dropped %s; %s left", plural(n, "draft"), plural(len(kept), "draft"))
-	if err := e.saveDrafts(); err != nil {
+	if err := e.saveDrafts(p); err != nil {
 		e.Msg += "; saving drafts failed: " + err.Error()
 	}
 }

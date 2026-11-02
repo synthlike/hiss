@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -55,7 +56,7 @@ func (e *Editor) openPR(arg string) {
 		e.Msg = "pr: give a PR number"
 		return
 	case e.prBusy:
-		e.Msg = "pr: already fetching one"
+		e.Msg = "pr: still busy with GitHub; try again in a moment"
 		return
 	}
 	if err := e.prReady(); err != nil {
@@ -248,15 +249,25 @@ func shortRev(s string) string {
 // runTool runs a command in dir without a terminal to prompt on, and returns its
 // output, or an error with the first line it printed to stderr.
 func runTool(dir, name string, args ...string) (string, error) {
+	return runToolInput(dir, nil, name, args...)
+}
+
+// runToolInput is runTool with input on stdin. A failing gh api call's first
+// error from GitHub is added to the message.
+func runToolInput(dir string, input []byte, name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1")
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		var x *exec.ExitError
 		if errors.As(err, &x) {
 			if msg, _, _ := strings.Cut(strings.TrimSpace(string(x.Stderr)), "\n"); msg != "" {
-				return "", fmt.Errorf("%s: %s", name, msg)
+				msg = strings.TrimPrefix(msg, name+": ")
+				return "", fmt.Errorf("%s: %s%s", name, msg, apiError(out))
 			}
 		}
 		if errors.Is(err, exec.ErrNotFound) {
@@ -265,4 +276,23 @@ func runTool(dir, name string, args ...string) (string, error) {
 		return "", fmt.Errorf("%s: %v", name, err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// apiError returns ": <first error>" from a GitHub API error body, which
+// lists errors as strings or as objects with a message, or "".
+func apiError(body []byte) string {
+	var res struct{ Errors []json.RawMessage }
+	if json.Unmarshal(body, &res) != nil || len(res.Errors) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(res.Errors[0], &s) != nil {
+		var o struct{ Message string }
+		json.Unmarshal(res.Errors[0], &o)
+		s = o.Message
+	}
+	if s == "" {
+		return ""
+	}
+	return ": " + s
 }
