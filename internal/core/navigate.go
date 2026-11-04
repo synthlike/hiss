@@ -108,7 +108,7 @@ func (e *Editor) sentCursor(s sentText) (int, bool) {
 	case row < 0:
 		return 0, false
 	case row == 0:
-		return s.toSent(e.Sel.Head), true
+		return s.toSent(e.Sel.Head, false), true
 	}
 	line := e.line()
 	for _, h := range e.Hunks() {
@@ -116,7 +116,7 @@ func (e *Editor) sentCursor(s sentText) (int, bool) {
 			continue
 		}
 		// The hunk's Added lines are the sent text from its first line's start.
-		off := s.toSentBefore(e.Buf.Text.LineStart(h.First))
+		off := s.toSent(e.Buf.Text.LineStart(h.First), true)
 		for _, l := range h.Added[:row-1] {
 			off += len(l) + 1
 		}
@@ -131,31 +131,17 @@ func (e *Editor) sentCursor(s sentText) (int, bool) {
 		}
 		return off + i, true
 	}
-	return s.toSent(e.Sel.Head), true
+	return s.toSent(e.Sel.Head, false), true
 }
 
 // toSent maps an offset in the buffer at s.version to s. An offset in text a
-// proposal replaces goes to the start of its new text.
-func (s sentText) toSent(off int) int {
+// proposal replaces goes to the start of its new text. Where a proposal
+// inserts text at off, it goes after the new text, or before it if before is
+// set.
+func (s sentText) toSent(off int, before bool) int {
 	d := 0
 	for _, sp := range s.spans {
-		if off < sp.start {
-			break
-		}
-		if off < sp.end {
-			return sp.start + d
-		}
-		d += sp.n - (sp.end - sp.start)
-	}
-	return off + d
-}
-
-// toSentBefore is toSent, except that where a proposal inserts text at off,
-// it goes before the new text rather than after it.
-func (s sentText) toSentBefore(off int) int {
-	d := 0
-	for _, sp := range s.spans {
-		if off <= sp.start {
+		if off < sp.start || before && off == sp.start {
 			break
 		}
 		if off < sp.end {
