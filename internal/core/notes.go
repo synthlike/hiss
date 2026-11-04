@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -77,13 +76,8 @@ func noteCommit(root, path string, dirty bool) string {
 	return hash
 }
 
-// git runs git in dir and returns its trimmed output.
-func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
-}
+// git runs git in dir and returns its trimmed output, as runTool does.
+func git(dir string, args ...string) (string, error) { return runTool(dir, "git", args...) }
 
 // noteLine is one line of the notes file, split into the fields :note writes.
 // Lines edited by hand keep whatever fields still parse; the rest is text.
