@@ -77,3 +77,10 @@ func (e *Editor) openBufferPicker() {
 	}
 	e.Picker = p
 }
+
+// underRoot returns path relative to the project root, if it's inside it.
+func (e *Editor) underRoot(path string) (string, bool) {
+	rel, err := filepath.Rel(e.Root, path)
+	inside := rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	return rel, err == nil && e.Root != "" && inside
+}

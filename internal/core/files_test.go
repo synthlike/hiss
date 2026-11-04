@@ -68,3 +68,25 @@ func TestPickerCachesMatches(t *testing.T) {
 		t.Errorf("matches for b = %+v", ms)
 	}
 }
+
+func TestUnderRoot(t *testing.T) {
+	e := &Editor{Root: "/p/root"}
+	for _, c := range []struct {
+		path, rel string
+		ok        bool
+	}{
+		{"/p/root", ".", true},
+		{"/p/root/a/b.go", "a/b.go", true},
+		{"/p/root/..x/f", "..x/f", true}, // a name starting with "..", not a parent
+		{"/p", "..", false},
+		{"/p/other/f", "../other/f", false},
+	} {
+		rel, ok := e.underRoot(c.path)
+		if ok != c.ok || ok && rel != c.rel {
+			t.Errorf("underRoot(%q) = %q, %v; want %q, %v", c.path, rel, ok, c.rel, c.ok)
+		}
+	}
+	if _, ok := (&Editor{}).underRoot("/p/root/f"); ok {
+		t.Error("no root: path counted as inside it")
+	}
+}

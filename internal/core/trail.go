@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -217,12 +216,6 @@ func (e *Editor) relName(b *Buffer) string {
 		return rel
 	}
 	return b.Name
-}
-
-// underRoot returns path relative to the project root, if it's inside it.
-func (e *Editor) underRoot(path string) (string, bool) {
-	rel, err := filepath.Rel(e.Root, path)
-	return rel, err == nil && e.Root != "" && !strings.HasPrefix(rel, "..")
 }
 
 func (e *Editor) stepAtCursor() *Step {

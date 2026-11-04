@@ -508,7 +508,7 @@ func (e *Editor) OpenBuffer(path string) (*Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if rel, err := filepath.Rel(e.Root, path); err == nil && !strings.HasPrefix(rel, "..") {
+	if rel, ok := e.underRoot(path); ok {
 		b.Name = rel
 	}
 	e.Bufs = append(e.Bufs, b)

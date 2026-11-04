@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -255,11 +254,9 @@ func (e *Editor) showLocations(what string, locs []lsp.Location, err error, sent
 		if pl.err != nil {
 			continue
 		}
-		name := pl.path
+		name := e.shortPath(pl.path)
 		if pl.buf != nil {
 			name = pl.buf.Name
-		} else if rel, err := filepath.Rel(e.Root, pl.path); err == nil && !strings.HasPrefix(rel, "..") {
-			name = rel
 		}
 		line := l.Range.Start.Line + 1
 		detail := pl.line
