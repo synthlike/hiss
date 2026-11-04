@@ -151,7 +151,7 @@ func (e *Editor) enclosingTest() string {
 func (e *Editor) rerun() {
 	r := e.shownRun()
 	if r == nil {
-		e.Msg = "nothing run yet"
+		e.Msg = nothingRun
 		return
 	}
 	e.startRun(r)
@@ -160,8 +160,8 @@ func (e *Editor) rerun() {
 // startRun runs r into *out* in its environment, asking first if that has
 // confirm set.
 func (e *Editor) startRun(r *run) {
-	if g := e.runs.going; g != nil {
-		e.Msg = e.label(g) + " is still running (C-c to cancel)"
+	if e.runs.going != nil {
+		e.Msg = e.stillRunning()
 		return
 	}
 	if e.Post == nil {
@@ -228,13 +228,8 @@ func (e *Editor) launch(r *run, en *env) {
 	if w := e.diskWarning(r.warnDir, r.warnAll); w != "" {
 		header += "# " + w + "\n"
 	}
-	out.Replace(0, out.Text.Len(), []byte(header), text.Origin{})
-	e.runs.header = len(header)
-	out.undo, out.redo = nil, nil
-	if e.Buf == out {
-		e.setHead(out.Text.LineStart(out.Text.LineCount() - 1))
-		e.Top, e.TopSub = 0, 0
-	} else {
+	e.setOut(header, len(header))
+	if e.Buf != out {
 		e.runs.panel = true
 	}
 
@@ -262,6 +257,19 @@ func (e *Editor) launch(r *run, en *env) {
 		cancel()
 		e.Post(func(e *Editor) { e.finishRun(r, err, cancelled) })
 	}()
+}
+
+// setOut replaces *out*'s text with s, of which header bytes come before the
+// output, and shows its end if it's on screen.
+func (e *Editor) setOut(s string, header int) {
+	out := e.runs.out
+	out.Replace(0, out.Text.Len(), []byte(s), text.Origin{})
+	out.undo, out.redo = nil, nil
+	e.runs.header = header
+	if e.Buf == out {
+		e.setHead(out.Text.LineStart(out.Text.LineCount() - 1))
+		e.Top, e.TopSub = 0, 0
+	}
 }
 
 // outWriter hands output to the editor loop as it arrives.
@@ -381,6 +389,13 @@ func (e *Editor) StopRuns() {
 	}
 }
 
+const nothingRun = "nothing run yet"
+
+// stillRunning says that the run going blocks another.
+func (e *Editor) stillRunning() string {
+	return e.label(e.runs.going) + " is still running (C-c to cancel)"
+}
+
 // RunTitle names the run that's going, or "".
 func (e *Editor) RunTitle() string {
 	if g := e.runs.going; g != nil {
@@ -401,7 +416,7 @@ func (e *Editor) Running() string {
 func (e *Editor) openOutput() {
 	out := e.runs.out
 	if out == nil {
-		e.Msg = "nothing run yet"
+		e.Msg = nothingRun
 		return
 	}
 	e.runs.panel = false

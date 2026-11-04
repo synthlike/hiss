@@ -3,8 +3,6 @@ package core
 import (
 	"fmt"
 	"time"
-
-	"github.com/synthlike/hiss/internal/text"
 )
 
 // Finished runs' output is kept in memory, the newest last, and [r / ]r
@@ -49,10 +47,10 @@ func (e *Editor) stepRun(dir int) {
 	h := e.runs.history
 	switch {
 	case e.runs.going != nil:
-		e.Msg = e.label(e.runs.going) + " is still running (C-c to cancel)"
+		e.Msg = e.stillRunning()
 		return
 	case len(h) == 0:
-		e.Msg = "nothing run yet"
+		e.Msg = nothingRun
 		return
 	case e.Buf != e.runs.out && !e.runs.panel:
 		e.runs.panel = true
@@ -68,14 +66,8 @@ func (e *Editor) stepRun(dir int) {
 		return
 	}
 	e.runs.at = at
-	p := h[at]
-	out := e.runs.out
-	out.Replace(0, out.Text.Len(), []byte(p.out), text.Origin{})
-	out.undo, out.redo = nil, nil
-	e.runs.header = p.header
-	if e.Buf == out {
-		e.setHead(out.Text.LineStart(out.Text.LineCount() - 1))
-		e.Top, e.TopSub = 0, 0
+	e.setOut(h[at].out, h[at].header)
+	if e.Buf == e.runs.out {
 		e.Msg = e.OutInfo()
 	}
 }
