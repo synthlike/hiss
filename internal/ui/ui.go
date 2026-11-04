@@ -184,6 +184,15 @@ func Draw(s Screen, ed *core.Editor) {
 		}
 		return sev
 	}
+	// The hunks starting on each line, and the one each line is in.
+	starting, hunkOn := map[int][]*core.Hunk{}, map[int]*core.Hunk{}
+	for i := range hunks {
+		hk := &hunks[i]
+		starting[hk.First] = append(starting[hk.First], hk)
+		for l := max(hk.First, ed.Top); l <= hk.Last && l < ed.Top+h; l++ {
+			hunkOn[l] = hk
+		}
+	}
 	g := ed.Gutter() // a mark column, the line number and a space
 	panel := ed.PanelRows()
 	status := h - 1 - ed.MessageRows() // the status line's row, above the message area
@@ -205,32 +214,26 @@ func Draw(s Screen, ed *core.Editor) {
 			k++
 			return k > skip && row < textH
 		}
-		for _, hk := range hunks {
-			if hk.First == line {
-				for _, n := range hk.Above {
-					if visible() {
-						drawHunkNote(s, row, g, n)
-						row++
-					}
+		for _, hk := range starting[line] {
+			for _, n := range hk.Above {
+				if visible() {
+					drawHunkNote(s, row, g, n)
+					row++
 				}
-				for i, a := range hk.Removed { // a tweaked hunk's old lines
-					onIt := line == curLine && i-len(hk.Removed) == diffRow
-					for j, segs := 0, ed.Wrap(a); j < len(segs); j++ {
-						if visible() {
-							drawDiffLine(s, row, w, g, "-", a, segs, j, styleRemoved, onIt, nil, nil)
-							row++
-						}
+			}
+			for i, a := range hk.Removed { // a tweaked hunk's old lines
+				dl := diffLine{mark: "-", text: a, segs: ed.Wrap(a), style: styleRemoved,
+					cursor: line == curLine && i-len(hk.Removed) == diffRow}
+				for j := range dl.segs {
+					if visible() {
+						drawDiffLine(s, row, w, g, dl, j)
+						row++
 					}
 				}
 			}
 		}
 		base, mark := styleText, " "
-		var hunk *core.Hunk
-		for i := range hunks {
-			if line >= hunks[i].First && line <= hunks[i].Last {
-				hunk = &hunks[i]
-			}
-		}
+		hunk := hunkOn[line]
 		switch {
 		case hunk != nil && hunk.Removes:
 			base, mark = styleRemoved, "-"
@@ -291,11 +294,12 @@ func Draw(s Screen, ed *core.Editor) {
 		}
 		if hunk != nil && line == hunk.Last {
 			for i, a := range hunk.Added {
-				onIt := line == curLine && i+1 == diffRow
-				diags, related := rowDiags(hunk.AddedDiags, i), rowSpans(hunk.Related, i)
-				for j, segs := 0, ed.Wrap(a); j < len(segs); j++ {
+				dl := diffLine{mark: "+", text: a, segs: ed.Wrap(a), style: styleAdded,
+					cursor: line == curLine && i+1 == diffRow,
+					diags:  rowDiags(hunk.AddedDiags, i), related: rowSpans(hunk.Related, i)}
+				for j := range dl.segs {
 					if visible() {
-						drawDiffLine(s, row, w, g, "+", a, segs, j, styleAdded, onIt, diags, related)
+						drawDiffLine(s, row, w, g, dl, j)
 						row++
 					}
 				}
@@ -334,7 +338,29 @@ func Draw(s Screen, ed *core.Editor) {
 	if ed.Splash != "" && ed.Buf.Path == "" && t.Len() == 0 {
 		drawSplash(s, w, textH, ed.Splash)
 	}
+	drawStatus(s, ed, w, status)
+	drawMessage(s, ed, w, status+1)
+	if t := ed.ActiveToast(); t != nil {
+		drawToast(s, w, t)
+	}
+	if ed.Menu != nil {
+		drawMenu(s, w, status, ed.Menu, false)
+	}
+	if ed.Mode == core.Command {
+		if m := ed.CommandHints(); m != nil {
+			drawMenu(s, w, status, m, true) // by the command line it completes
+		}
+	}
+	if ed.Picker != nil {
+		drawPicker(s, w, h, ed.Picker)
+	}
+	if ed.Asking != nil {
+		drawAsk(s, w, h, ed.Asking)
+	}
+}
 
+// drawStatus draws the status line on row status.
+func drawStatus(s Screen, ed *core.Editor, w, status int) {
 	dirty := ""
 	if ed.Buf.Dirty() {
 		dirty = " [+]"
@@ -348,8 +374,10 @@ func Draw(s Screen, ed *core.Editor) {
 		putString(s, x, status, sg.text, sg.style)
 		x -= 2
 	}
+}
 
-	msg := status + 1
+// drawMessage draws the command line, or the message area from row msg.
+func drawMessage(s Screen, ed *core.Editor, w, msg int) {
 	switch {
 	case ed.Mode == core.Command:
 		putString(s, 0, msg, ":"+ed.Cmd, styleText)
@@ -371,60 +399,51 @@ func Draw(s Screen, ed *core.Editor) {
 			putString(s, 0, msg, d.Summary(), diagStyle(d.Severity))
 		}
 	}
-	if t := ed.ActiveToast(); t != nil {
-		drawToast(s, w, t)
-	}
-	if ed.Menu != nil {
-		drawMenu(s, w, status, ed.Menu, false)
-	}
-	if ed.Mode == core.Command {
-		if m := ed.CommandHints(); m != nil {
-			drawMenu(s, w, status, m, true) // by the command line it completes
-		}
-	}
-	if ed.Picker != nil {
-		drawPicker(s, w, h, ed.Picker)
-	}
-	if ed.Asking != nil {
-		drawAsk(s, w, h, ed.Asking)
-	}
 }
 
-// drawDiffLine draws row j of a diff line that isn't in the buffer, reversed
-// when the cursor is on it; segs is where its rows start, from Wrap.
-// diags are the line's problems, marked after mark and underlined; related
-// are the columns of its related highlights.
-func drawDiffLine(s Screen, row, w, g int, mark, text string, segs []int, j int, st tcell.Style, cursor bool, diags []core.AddedDiag, related [][2]int) {
-	if cursor {
+// diffLine is a line of a hunk that isn't in the buffer.
+type diffLine struct {
+	mark, text string
+	segs       []int // where its rows start, from Wrap
+	style      tcell.Style
+	cursor     bool             // the cursor is on it: drawn reversed
+	diags      []core.AddedDiag // its problems, marked after mark and underlined
+	related    [][2]int         // the columns of its related highlights
+}
+
+// drawDiffLine draws row j of dl.
+func drawDiffLine(s Screen, row, w, g int, dl diffLine, j int) {
+	st := dl.style
+	if dl.cursor {
 		st = st.Reverse(true)
 	}
 	fill(s, 0, row, w, st)
 	if j == 0 {
-		s.Put(0, row, mark, st)
+		s.Put(0, row, dl.mark, st)
 	}
 	sevAt := func(col int) int {
 		sev := 0
-		for _, d := range diags {
+		for _, d := range dl.diags {
 			if col >= d.Start && col < max(d.End, d.Start+1) && (sev == 0 || d.Severity < sev) {
 				sev = d.Severity
 			}
 		}
 		return sev
 	}
-	if len(diags) > 0 && j == 0 {
-		sev := diags[0].Severity
-		for _, d := range diags[1:] {
+	if len(dl.diags) > 0 && j == 0 {
+		sev := dl.diags[0].Severity
+		for _, d := range dl.diags[1:] {
 			sev = min(sev, d.Severity)
 		}
 		s.Put(1, row, diagMark(sev), diagStyle(sev)) // the mark column holds the + already
 	}
-	from, to := segs[j], len(text)
-	if j+1 < len(segs) {
-		to = segs[j+1]
+	from, to := dl.segs[j], len(dl.text)
+	if j+1 < len(dl.segs) {
+		to = dl.segs[j+1]
 	}
-	drawText(s, g, row, w, text[from:to], from, func(col int) tcell.Style {
+	drawText(s, g, row, w, dl.text[from:to], from, func(col int) tcell.Style {
 		st := st
-		if !cursor && inSpans(related, col) {
+		if !dl.cursor && inSpans(dl.related, col) {
 			st = st.Background(styleRelated.GetBackground())
 		}
 		if sev := sevAt(col); sev != 0 {
