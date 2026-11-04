@@ -158,7 +158,7 @@ func Draw(s Screen, ed *core.Editor) {
 		cursor = -1 // the cursor is on a diff line drawn below or above the buffer line
 	}
 	from, to := ed.SelRange()
-	matches := ed.Matches(t.LineStart(ed.Top), ed.Buf.LineEnd(min(ed.Top+h, t.LineCount()-1)))
+	matches := ed.Matches(t.LineStart(ed.Top), t.LineEnd(min(ed.Top+h, t.LineCount()-1)))
 	inMatch := func(off int) bool { return inSpans(matches, off) }
 	related := ed.Related()
 	diags := ed.Buf.Diags()
@@ -237,7 +237,7 @@ func Draw(s Screen, ed *core.Editor) {
 		case hunk != nil && hunk.Tweaked:
 			base, mark = styleAdded, "+"
 		}
-		start, end := t.LineStart(line), ed.Buf.LineEnd(line)
+		start, end := t.LineStart(line), t.LineEnd(line)
 		str := string(t.Slice(start, end))
 		segs := ed.Wrap(str)
 		for i, a := range segs {

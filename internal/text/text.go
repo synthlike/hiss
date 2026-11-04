@@ -204,6 +204,17 @@ func (t Text) LineStart(line int) int {
 	panic("text: line index out of sync")
 }
 
+// LineEnd returns the offset of line's newline, or Len() on the last line.
+func (t Text) LineEnd(line int) int {
+	if line < t.lines {
+		return t.LineStart(line+1) - 1
+	}
+	return t.size
+}
+
+// Line returns line's text without its newline.
+func (t Text) Line(line int) []byte { return t.Slice(t.LineStart(line), t.LineEnd(line)) }
+
 // LineOf returns the 0-based line containing off; off == Len() is on the last line.
 func (t Text) LineOf(off int) int {
 	t.check(off, off)

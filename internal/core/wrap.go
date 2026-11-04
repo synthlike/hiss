@@ -74,7 +74,7 @@ func (e *Editor) wrapRows(lines []string) int {
 // lineWrap returns where the rows of buffer line l start, as offsets in the line.
 func (e *Editor) lineWrap(l int) []int {
 	t := e.Buf.Text
-	return e.Wrap(string(t.Slice(t.LineStart(l), e.Buf.LineEnd(l))))
+	return e.Wrap(string(t.Line(l)))
 }
 
 // rowOf returns the row of rows (from Wrap) that holds offset off.

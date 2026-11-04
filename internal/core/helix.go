@@ -45,7 +45,7 @@ func (e *Editor) selectAll() {
 // if c isn't there.
 func (e *Editor) findChar(c string, till, back bool) {
 	t := e.Buf.Text
-	start, end := t.LineStart(e.line()), e.Buf.LineEnd(e.line())
+	start, end := t.LineStart(e.line()), e.Buf.Text.LineEnd(e.line())
 	line := string(t.Slice(start, end))
 	head := e.Sel.Head - start
 	if back {
@@ -132,7 +132,7 @@ func (e *Editor) indentLines(add bool) {
 	}
 	l := lineEdits{e: e}
 	for line := first; line <= last; line++ {
-		start, end := e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)
+		start, end := e.Buf.Text.LineStart(line), e.Buf.Text.LineEnd(line)
 		ind := e.indent(line)
 		switch {
 		case add && end > start:
@@ -176,11 +176,11 @@ func (e *Editor) joinLines() {
 	l := lineEdits{e: e}
 	for range last - first {
 		t := e.Buf.Text
-		start, nl := t.LineStart(first), e.Buf.LineEnd(first)
+		start, nl := t.LineStart(first), e.Buf.Text.LineEnd(first)
 		from := start + len(strings.TrimRight(string(t.Slice(start, nl)), " \t"))
 		to := e.firstNonBlank(first + 1)
 		sep := " "
-		if from == start || to == e.Buf.LineEnd(first+1) {
+		if from == start || to == e.Buf.Text.LineEnd(first+1) {
 			sep = ""
 		}
 		l.replace(from, to, sep)

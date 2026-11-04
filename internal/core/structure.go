@@ -119,7 +119,7 @@ func (e *Editor) matchBracket() {
 // comment and not only closing brackets.
 func (e *Editor) isEntry(line int) bool {
 	t := e.Buf.Text
-	s := strings.TrimSpace(string(t.Slice(t.LineStart(line), e.Buf.LineEnd(line))))
+	s := strings.TrimSpace(string(t.Line(line)))
 	if strings.Trim(s, ")]},;") == "" {
 		return false
 	}
@@ -162,7 +162,7 @@ var funcLine = regexp.MustCompile(`^[ \t]*(?:(?:export|default|pub(?:\([^)]*\))?
 func (e *Editor) jumpFunc(dir int) {
 	t := e.Buf.Text
 	for l := e.line() + dir; l >= 0 && l < t.LineCount(); l += dir {
-		if funcLine.Match(t.Slice(t.LineStart(l), e.Buf.LineEnd(l))) {
+		if funcLine.Match(t.Line(l)) {
 			e.setHead(e.firstNonBlank(l))
 			return
 		}

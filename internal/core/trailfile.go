@@ -64,7 +64,7 @@ type threadFile struct {
 // text returns the step's line, without its newline.
 func (s *Step) text() string {
 	l := s.Line()
-	return string(s.Buf.Text.Slice(s.Buf.Text.LineStart(l), s.Buf.LineEnd(l)))
+	return string(s.Buf.Text.Line(l))
 }
 
 func (e *Editor) saveTrail(path string) {

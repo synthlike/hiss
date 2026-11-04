@@ -316,7 +316,7 @@ func (e *Editor) runRule(r *rule, input string, from, to int) {
 func (e *Editor) findUp(re *regexp.Regexp) ([]string, int) {
 	t := e.Buf.Text
 	for l := e.line(); l >= 0; l-- {
-		if m := re.FindStringSubmatch(string(t.Slice(t.LineStart(l), e.Buf.LineEnd(l)))); m != nil {
+		if m := re.FindStringSubmatch(string(t.Line(l))); m != nil {
 			return m[1:], l
 		}
 	}
@@ -328,7 +328,7 @@ func (e *Editor) findUp(re *regexp.Regexp) ([]string, int) {
 func (e *Editor) paragraph() (string, int, int, bool) {
 	b := e.Buf
 	blank := func(l int) bool {
-		return strings.TrimSpace(string(b.Text.Slice(b.Text.LineStart(l), b.LineEnd(l)))) == ""
+		return strings.TrimSpace(string(b.Text.Line(l))) == ""
 	}
 	cur := e.line()
 	if cur >= b.Lines() || blank(cur) {
@@ -347,7 +347,7 @@ func (e *Editor) paragraph() (string, int, int, bool) {
 // lines returns lines from to to of the buffer, each ending in a newline.
 func (e *Editor) lines(from, to int) string {
 	b := e.Buf
-	s := string(b.Text.Slice(b.Text.LineStart(from), b.LineEnd(to)))
+	s := string(b.Text.Slice(b.Text.LineStart(from), b.Text.LineEnd(to)))
 	return s + "\n"
 }
 
@@ -371,7 +371,7 @@ func (e *Editor) fence() (lang string, from, to int, ok bool) {
 	cur := e.line()
 	open := -1
 	for l := range b.Lines() {
-		s := strings.TrimLeft(string(b.Text.Slice(b.Text.LineStart(l), b.LineEnd(l))), " ")
+		s := strings.TrimLeft(string(b.Text.Line(l)), " ")
 		if !strings.HasPrefix(s, "```") {
 			continue
 		}

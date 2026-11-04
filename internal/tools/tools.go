@@ -299,7 +299,7 @@ func readBuffer(ed *core.Editor, _ string, in ReadBufferIn) (ReadBufferOut, erro
 	total := b.Lines()
 	var sb strings.Builder
 	for line := first; line < min(first+limit, total); line++ {
-		fmt.Fprintf(&sb, "%6d\t%s\n", line+1, t.Slice(t.LineStart(line), b.LineEnd(line)))
+		fmt.Fprintf(&sb, "%6d\t%s\n", line+1, t.Line(line))
 	}
 	return ReadBufferOut{Path: b.Path, Version: b.Version, TotalLines: total, FirstLine: first + 1, Content: sb.String()}, nil
 }

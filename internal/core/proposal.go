@@ -240,7 +240,7 @@ func (e *Editor) hunk(p *Proposal) Hunk {
 func diffLines(p *Proposal, first, last int, s string) []string {
 	b := p.Buf
 	t := b.Text
-	lastEnd := b.LineEnd(last)
+	lastEnd := b.Text.LineEnd(last)
 	res := string(t.Slice(t.LineStart(first), p.Start)) + s
 	trim := p.End > lastEnd || p.End == t.Len() // the region ends a line, so a final "\n" isn't a new line
 	if p.End <= lastEnd {

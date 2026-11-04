@@ -59,6 +59,14 @@ func TestLines(t *testing.T) {
 	if got := x.LineOf(3); got != 0 {
 		t.Errorf("LineOf(newline) = %d, want 0", got)
 	}
+	for line, want := range []string{"one", "1.5", "two", ""} {
+		if got := string(x.Line(line)); got != want {
+			t.Errorf("Line(%d) = %q, want %q", line, got, want)
+		}
+	}
+	if got := x.LineEnd(3); got != x.Len() {
+		t.Errorf("LineEnd(last) = %d, want Len() %d", got, x.Len())
+	}
 }
 
 func TestZeroValue(t *testing.T) {

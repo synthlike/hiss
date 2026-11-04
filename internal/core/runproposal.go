@@ -51,7 +51,7 @@ func (e *Editor) runAccepted(p *Proposal) string {
 	}
 	at := min(p.Start+p.runAt, end)
 	for l := b.Text.LineOf(at); l+1 < b.Lines() && b.Text.LineStart(l+1) < end &&
-		strings.TrimSpace(string(b.Text.Slice(b.Text.LineStart(l), b.LineEnd(l)))) == ""; l++ {
+		strings.TrimSpace(string(b.Text.Line(l))) == ""; l++ {
 		at = b.Text.LineStart(l + 1) // the change starts with blank lines: run what follows
 	}
 

@@ -29,7 +29,7 @@ func (e *Editor) forgeTestAt() (contract, test string) {
 	cur := e.line()
 	closed := map[int]bool{} // the indents of the closing braces above the cursor
 	for l := cur; l >= 0; l-- {
-		s := string(t.Slice(t.LineStart(l), e.Buf.LineEnd(l)))
+		s := string(t.Line(l))
 		if m := solContract.FindStringSubmatch(s); m != nil {
 			switch {
 			case test == "" || closed[len(m[1])]: // above the cursor's function, or closed before it

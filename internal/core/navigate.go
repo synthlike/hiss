@@ -232,12 +232,7 @@ func (e *Editor) where(l lsp.Location, sent map[string]sentText, utf8 bool, file
 }
 
 func lineText(t text.Text, off int) string {
-	line := t.LineOf(off)
-	end := t.Len()
-	if line+1 < t.LineCount() {
-		end = t.LineStart(line+1) - 1
-	}
-	return strings.TrimSpace(string(t.Slice(t.LineStart(line), end)))
+	return strings.TrimSpace(string(t.Line(t.LineOf(off))))
 }
 
 // showLocations jumps to a lone definition and lists anything else in a picker.

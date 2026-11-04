@@ -68,7 +68,7 @@ func (e *Editor) comment(text string) {
 	default:
 		c := Comment{Author: You.Author, Text: text}
 		line := e.line()
-		lineText := string(e.Buf.Text.Slice(e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)))
+		lineText := string(e.Buf.Text.Line(line))
 		switch r := e.DiffRow(); {
 		case r < 0: // a tweaked hunk's old line i, which was buffer line First+i
 			i := len(h.Removed) + r

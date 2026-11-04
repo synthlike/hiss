@@ -182,7 +182,7 @@ var normalKeys = map[string]func(*Editor){
 	"P": func(e *Editor) { e.paste(false) },
 	"i": func(e *Editor) { from, _ := e.selRange(); e.startInsert(from) },
 	"a": func(e *Editor) { _, to := e.selRange(); e.startInsert(to) },
-	"A": func(e *Editor) { e.startInsert(e.Buf.LineEnd(e.line())) },
+	"A": func(e *Editor) { e.startInsert(e.Buf.Text.LineEnd(e.line())) },
 	"I": func(e *Editor) { first, _ := e.selLines(); e.startInsert(e.firstNonBlank(first)) },
 	"o": (*Editor).openBelow,
 	"O": (*Editor).openAbove,
@@ -212,7 +212,7 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 	{"g", "file start", (*Editor).fileStart},
 	{"e", "file end", (*Editor).fileEnd},
 	{"h", "line start", func(e *Editor) { e.setHead(e.Buf.Text.LineStart(e.line())) }},
-	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.LineEnd(e.line())) }},
+	{"l", "line end", func(e *Editor) { e.setHead(e.Buf.Text.LineEnd(e.line())) }},
 	{"s", "first non-blank", func(e *Editor) { e.setHead(e.firstNonBlank(e.line())) }},
 	{"d", "definition", (*Editor).gotoDefinition},
 	{"r", "references", (*Editor).findReferences},
@@ -428,7 +428,7 @@ func (e *Editor) paste(after bool) {
 
 func (e *Editor) openBelow() {
 	line := e.line()
-	e.startInsert(e.Buf.LineEnd(line))
+	e.startInsert(e.Buf.Text.LineEnd(line))
 	e.insert("\n" + e.indent(line))
 }
 
@@ -442,7 +442,7 @@ func (e *Editor) openAbove() {
 
 // indent returns the leading spaces and tabs of line.
 func (e *Editor) indent(line int) string {
-	b := e.Buf.Text.Slice(e.Buf.Text.LineStart(line), e.Buf.LineEnd(line))
+	b := e.Buf.Text.Line(line)
 	return string(b[:len(b)-len(strings.TrimLeft(string(b), " \t"))])
 }
 

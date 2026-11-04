@@ -241,11 +241,3 @@ func (b *Buffer) Lines() int {
 	}
 	return n
 }
-
-// LineEnd returns the offset of line's newline, or Len() on the last line.
-func (b *Buffer) LineEnd(line int) int {
-	if line+1 < b.Text.LineCount() {
-		return b.Text.LineStart(line+1) - 1
-	}
-	return b.Text.Len()
-}

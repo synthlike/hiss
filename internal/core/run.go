@@ -134,7 +134,7 @@ func (e *Editor) enclosingTest() string {
 	t := e.Buf.Text
 	cur := e.line()
 	for l := cur; l >= 0; l-- {
-		s := string(t.Slice(t.LineStart(l), e.Buf.LineEnd(l)))
+		s := string(t.Line(l))
 		switch {
 		case strings.HasPrefix(s, "func "):
 			if m := testFunc.FindStringSubmatch(s); m != nil {
@@ -525,7 +525,7 @@ var location = regexp.MustCompile(`([^\s:()"'\x60]+\.\w+):(\d+)(?::(\d+))?`)
 func (e *Editor) openOutputLocation() {
 	t, line := e.Buf.Text, e.line()
 	start := t.LineStart(line)
-	s := string(t.Slice(start, e.Buf.LineEnd(line)))
+	s := string(t.Slice(start, e.Buf.Text.LineEnd(line)))
 	col := e.Sel.Head - start
 	var dirs []string
 	if r := e.shownRun(); r != nil {
@@ -618,7 +618,7 @@ func (e *Editor) openAt(path string, line, col int) {
 	l := min(max(line-1, 0), max(e.Buf.Lines()-1, 0))
 	off := e.Buf.Text.LineStart(l)
 	if col > 0 {
-		off = min(off+col-1, e.Buf.LineEnd(l))
+		off = min(off+col-1, e.Buf.Text.LineEnd(l))
 	}
 	e.setHead(off)
 	e.revealLine(l)

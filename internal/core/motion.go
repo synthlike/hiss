@@ -117,9 +117,9 @@ func (e *Editor) selectLine() {
 	t := e.Buf.Text
 	from, _ := e.selRange()
 	start := t.LineStart(t.LineOf(from))
-	end := e.Buf.LineEnd(e.line())
+	end := t.LineEnd(e.line())
 	if e.Sel.Anchor == start && e.Sel.Head == end && e.line()+1 < t.LineCount() {
-		end = e.Buf.LineEnd(e.line() + 1)
+		end = t.LineEnd(e.line() + 1)
 	}
 	e.Sel = Selection{start, end}
 }
@@ -221,7 +221,7 @@ func (e *Editor) column(off int) int {
 
 // offsetAt returns the offset of rune column col on line, clamped to the line end.
 func (e *Editor) offsetAt(line, col int) int {
-	start, end := e.Buf.Text.LineStart(line), e.Buf.LineEnd(line)
+	start, end := e.Buf.Text.LineStart(line), e.Buf.Text.LineEnd(line)
 	b := e.Buf.Text.Slice(start, end)
 	off := 0
 	for i := 0; i < col && off < len(b); i++ {
