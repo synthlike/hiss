@@ -118,6 +118,7 @@ func envEditor(t *testing.T, name string) (*Editor, chan func(*Editor)) {
 }
 
 func TestRunInEnv(t *testing.T) {
+	t.Setenv("GREETING", "") // the run inherits our environment; ${GREETING:-nothing} treats empty as unset
 	e, ch := envEditor(t, "a.txt")
 	if got := active(e); got != "dev" {
 		t.Errorf("active at start: %q", got)
