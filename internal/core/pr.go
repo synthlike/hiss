@@ -263,8 +263,7 @@ func runToolInput(dir string, input []byte, name string, args ...string) (string
 	}
 	out, err := cmd.Output()
 	if err != nil {
-		var x *exec.ExitError
-		if errors.As(err, &x) {
+		if x, ok := errors.AsType[*exec.ExitError](err); ok {
 			if msg, _, _ := strings.Cut(strings.TrimSpace(string(x.Stderr)), "\n"); msg != "" {
 				msg = strings.TrimPrefix(msg, name+": ")
 				return "", fmt.Errorf("%s: %s%s", name, msg, apiError(out))

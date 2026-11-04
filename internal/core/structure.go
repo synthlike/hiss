@@ -150,7 +150,7 @@ func (e *Editor) jumpEntry(dir int) {
 			return
 		}
 	}
-	e.Msg = map[bool]string{true: "no next entry", false: "no previous entry"}[dir > 0]
+	e.Msg = "no " + direction(dir) + " entry"
 }
 
 // funcLine matches a line that starts a function: after the indent and
@@ -167,5 +167,12 @@ func (e *Editor) jumpFunc(dir int) {
 			return
 		}
 	}
-	e.Msg = map[bool]string{true: "no next function", false: "no previous function"}[dir > 0]
+	e.Msg = "no " + direction(dir) + " function"
+}
+
+func direction(dir int) string {
+	if dir > 0 {
+		return "next"
+	}
+	return "previous"
 }

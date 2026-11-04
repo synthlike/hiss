@@ -218,11 +218,11 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 	{"r", "references", (*Editor).findReferences},
 }}
 
-var nextMenu, prevMenu = jumpMenu("next", 1), jumpMenu("previous", -1)
+var nextMenu, prevMenu = jumpMenu(1), jumpMenu(-1)
 
 // jumpMenu is the menu of ] (dir 1) or [ (dir -1).
-func jumpMenu(title string, dir int) Menu {
-	m := Menu{Title: title}
+func jumpMenu(dir int) Menu {
+	m := Menu{Title: direction(dir)}
 	for _, j := range []struct {
 		key, desc string
 		jump      func(*Editor, int)
