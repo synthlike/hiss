@@ -447,11 +447,7 @@ func (e *Editor) indent(line int) string {
 }
 
 // checkpoint records the state before a change for undo.
-func (e *Editor) checkpoint() {
-	b := e.Buf
-	b.undo = append(b.undo, snapshot{b.Text, e.Sel})
-	b.redo = nil
-}
+func (e *Editor) checkpoint() { e.checkpointBuf(e.Buf) }
 
 func (e *Editor) undoOnce() {
 	b := e.Buf
