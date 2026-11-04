@@ -227,3 +227,16 @@ func TestAcceptShrinkingBelowTop(t *testing.T) {
 		t.Errorf("top %d, cursor line %d, %d lines", e.Top, e.line(), n)
 	}
 }
+
+func TestNextAround(t *testing.T) {
+	items := []int{2, 5, 5, 9} // lines, sorted
+	for _, c := range []struct{ here, dir, want int }{
+		{0, 1, 0}, {2, 1, 1}, {5, 1, 3}, {9, 1, 0}, // past the last wraps to the first
+		{9, -1, 2}, {5, -1, 0}, {2, -1, 3}, {0, -1, 3}, // before the first wraps to the last
+	} {
+		got := nextAround(len(items), c.dir, func(i int) int { return items[i] - c.here })
+		if got != c.want {
+			t.Errorf("from line %d, dir %d: item %d, want %d", c.here, c.dir, got, c.want)
+		}
+	}
+}

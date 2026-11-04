@@ -368,6 +368,25 @@ func (e *Editor) reviewAll(accept bool, reason string) {
 	}
 }
 
+// nextAround returns the index of the first of n sorted items after the
+// cursor (dir 1), or of the last before it (dir -1), wrapping around. cmp(i)
+// is negative, zero or positive as item i is before, at or after the cursor.
+func nextAround(n, dir int, cmp func(i int) int) int {
+	for k := range n {
+		i := k
+		if dir < 0 {
+			i = n - 1 - k
+		}
+		if c := cmp(i); dir > 0 && c > 0 || dir < 0 && c < 0 {
+			return i
+		}
+	}
+	if dir > 0 {
+		return 0
+	}
+	return n - 1
+}
+
 // jumpHunk moves to the next (dir 1) or previous (dir -1) pending hunk,
 // continuing into other buffers and wrapping around.
 func (e *Editor) jumpHunk(dir int) {
@@ -390,22 +409,13 @@ func (e *Editor) jumpHunk(dir int) {
 		e.Msg = "no pending hunks"
 		return
 	}
-	here := pos{cur, e.line(), nil}
-	less := func(a, b pos) bool { return a.b < b.b || a.b == b.b && a.line < b.line }
-	target := all[0]
-	if dir < 0 {
-		target = all[len(all)-1]
-	}
-	for i := range all {
-		p := all[i]
-		if dir < 0 {
-			p = all[len(all)-1-i]
+	line := e.line()
+	target := all[nextAround(len(all), dir, func(i int) int {
+		if all[i].b != cur {
+			return all[i].b - cur
 		}
-		if dir > 0 && less(here, p) || dir < 0 && less(p, here) {
-			target = p
-			break
-		}
-	}
+		return all[i].line - line
+	})]
 	e.pushJump()
 	e.SwitchTo(target.p.Buf)
 	e.showHunk(target.p)

@@ -394,19 +394,10 @@ func (e *Editor) jumpDiag(dir int) {
 		return
 	}
 	slices.Sort(offs)
-	if dir < 0 {
-		slices.Reverse(offs)
-	}
-	line, target := e.line(), offs[0]
-	for _, off := range offs {
-		l := e.Buf.Text.LineOf(off)
-		if dir > 0 && l > line || dir < 0 && l < line {
-			target = off
-			break
-		}
-	}
+	line := e.line()
+	i := nextAround(len(offs), dir, func(i int) int { return e.Buf.Text.LineOf(offs[i]) - line })
 	e.pushJump()
-	e.setHead(target)
+	e.setHead(offs[i])
 }
 
 // StopLSP shuts the language servers down, together taking at most about a second.
