@@ -218,23 +218,26 @@ var gotoMenu = Menu{Title: "goto", Items: []MenuItem{
 	{"r", "references", (*Editor).findReferences},
 }}
 
-var nextMenu = Menu{Title: "next", Items: []MenuItem{
-	{"h", "hunk", func(e *Editor) { e.jumpHunk(1) }},
-	{"s", "step", func(e *Editor) { e.stepTrail(1) }},
-	{"d", "diagnostic", func(e *Editor) { e.jumpDiag(1) }},
-	{"r", "run", func(e *Editor) { e.stepRun(1) }},
-	{"f", "function", func(e *Editor) { e.jumpFunc(1) }},
-	{"e", "entry", func(e *Editor) { e.jumpEntry(1) }},
-}}
+var nextMenu, prevMenu = jumpMenu("next", 1), jumpMenu("previous", -1)
 
-var prevMenu = Menu{Title: "previous", Items: []MenuItem{
-	{"h", "hunk", func(e *Editor) { e.jumpHunk(-1) }},
-	{"s", "step", func(e *Editor) { e.stepTrail(-1) }},
-	{"d", "diagnostic", func(e *Editor) { e.jumpDiag(-1) }},
-	{"r", "run", func(e *Editor) { e.stepRun(-1) }},
-	{"f", "function", func(e *Editor) { e.jumpFunc(-1) }},
-	{"e", "entry", func(e *Editor) { e.jumpEntry(-1) }},
-}}
+// jumpMenu is the menu of ] (dir 1) or [ (dir -1).
+func jumpMenu(title string, dir int) Menu {
+	m := Menu{Title: title}
+	for _, j := range []struct {
+		key, desc string
+		jump      func(*Editor, int)
+	}{
+		{"h", "hunk", (*Editor).jumpHunk},
+		{"s", "step", (*Editor).stepTrail},
+		{"d", "diagnostic", (*Editor).jumpDiag},
+		{"r", "run", (*Editor).stepRun},
+		{"f", "function", (*Editor).jumpFunc},
+		{"e", "entry", (*Editor).jumpEntry},
+	} {
+		m.Items = append(m.Items, MenuItem{j.key, j.desc, func(e *Editor) { j.jump(e, dir) }})
+	}
+	return m
+}
 
 var matchMenu = Menu{Title: "match", Items: []MenuItem{
 	{"m", "matching bracket", (*Editor).matchBracket},
