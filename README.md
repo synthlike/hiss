@@ -115,7 +115,7 @@ v0.6: early and small. Claude's edits now land as it works, and it asks for
 review where it matters; you can also review what already landed, hunk by
 hunk. Language servers come from a built-in table, the first on your PATH, with
 no config; Solidity and Foundry tests join Go. Since v0.5, runs get
-environments, and Claude can propose a query that runs when you accept it.
+environments, and Claude can propose a query that runs when you accept it (e2e test).
 
 ## License
 

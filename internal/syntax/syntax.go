@@ -3,6 +3,10 @@
 // not to understand it.
 package syntax
 
+// e2e test PR: these lines exist only to exercise :pr in hiss.
+// A second line, for a multi-line comment.
+// A third line.
+
 import (
 	"bytes"
 	"path/filepath"
