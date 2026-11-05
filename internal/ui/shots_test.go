@@ -347,6 +347,13 @@ var scenes = []scene{
 			[]string{"Yes, under GET /hello.txt", "Yes, when Accept is text/plain", "No, JSON only"})
 		s.keys("down")
 	}},
+	{"run-test", func(t *testing.T, s *studio) {
+		s.open(t, "server/hello_test.go")
+		s.keys(":")
+		s.typeText("8")
+		s.keys("enter")
+		s.runKeys(t, "enter")
+	}},
 	{"run-http", func(t *testing.T, s *studio) {
 		// A stand-in for the staging server: the JSON greeting, without a
 		// Date header so the shot stays the same.
