@@ -116,11 +116,11 @@ output and `.hissrun` with environments.
 
 ## Status
 
-v0.6: early and small. Claude's edits now land as it works, and it asks for
-review where it matters; you can also review what already landed, hunk by
-hunk. Language servers come from a built-in table, the first on your PATH, with
-no config; Solidity and Foundry tests join Go. Since v0.5, runs get
-environments, and Claude can propose a query that runs when you accept it.
+v0.7: early and small. You can now review GitHub PRs in hiss: `:pr` checks one
+out and walks its hunks, you and Claude draft comments on its lines, and
+`:prs` sends them as one review. Since v0.6, Claude's edits land as it works
+and it asks for review where it matters; language servers come from a
+built-in table, with no config.
 
 ## License
 
