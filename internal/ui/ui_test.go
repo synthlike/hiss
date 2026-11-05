@@ -404,3 +404,20 @@ func TestAgentSpinner(t *testing.T) {
 		t.Error("the spinner doesn't turn once per tick")
 	}
 }
+
+func TestDrawWrappedMessage(t *testing.T) {
+	ed := core.New(&core.Buffer{Path: "/p/a.go", Name: "a.go", Text: text.New([]byte("a\nb\nc\n"), text.Origin{})})
+	ed.Resize(20, 8)
+	ed.Msg = "sending failed: Can not approve your own pull request"
+	g := newGrid(20, 8)
+	Draw(g, ed)
+	want := []string{"sending failed: Can", "not approve your", "own pull request"}
+	for i, w := range want {
+		if got := g.row(5 + i); got != w {
+			t.Errorf("message row %d = %q, want %q", i, got, w)
+		}
+	}
+	if got := g.row(4); !strings.HasPrefix(got, " NOR  a.go") {
+		t.Errorf("status = %q, want it above the message", got)
+	}
+}

@@ -7,8 +7,8 @@ import (
 )
 
 // On a hunk, the message line says what it is: its id, agent, change set and
-// rationale, and the keys that review it. It wraps to up to infoRows rows,
-// and the text area gives up the rows past the first.
+// rationale, and the keys that review it. That and a message wrap to up to
+// infoRows rows, and the text area gives up the rows past the first.
 
 const infoRows = 3
 
@@ -44,6 +44,20 @@ func (e *Editor) HunkInfo() []string {
 	default:
 		info += "  (+ " + accept + " · - reject · # comment)"
 	}
+	return e.infoRows(info)
+}
+
+// MsgLines returns the message's rows, or nil when there is none or the
+// command line shows instead.
+func (e *Editor) MsgLines() []string {
+	if e.Msg == "" || e.Mode == Command || e.Mode == Search {
+		return nil
+	}
+	return e.infoRows(e.Msg)
+}
+
+// infoRows wraps info to the screen's width, in at most infoRows rows.
+func (e *Editor) infoRows(info string) []string {
 	if e.Width <= 0 {
 		return []string{info}
 	}
@@ -69,5 +83,5 @@ func (e *Editor) HunkInfo() []string {
 }
 
 // MessageRows returns the rows under the status line: one, or more while
-// the hunk info wraps.
-func (e *Editor) MessageRows() int { return max(len(e.HunkInfo()), 1) }
+// the message or the hunk info wraps.
+func (e *Editor) MessageRows() int { return max(len(e.MsgLines()), len(e.HunkInfo()), 1) }

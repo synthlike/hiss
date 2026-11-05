@@ -384,7 +384,9 @@ func drawMessage(s Screen, ed *core.Editor, w, msg int) {
 	case ed.Mode == core.Search:
 		putString(s, 0, msg, "/"+ed.Cmd, styleText)
 	case ed.Msg != "":
-		putString(s, 0, msg, ed.Msg, styleText)
+		for i, l := range ed.MsgLines() {
+			putString(s, 0, msg+i, l, styleText)
+		}
 	default:
 		if ss := ed.Sessions(); len(ss) > 0 && ss[0].State == core.Waiting && ss[0].Note != "" {
 			putString(s, 0, msg, core.HookAgent+": "+ss[0].Note, styleDim)

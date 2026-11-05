@@ -41,6 +41,9 @@ func TestPRSubmit(t *testing.T) {
 	if e.Menu == nil || e.Menu.Title != "send the review to #7: approve, 1 comment, with a note?" {
 		t.Fatalf("menu %+v", e.Menu)
 	}
+	if e.Msg != "" {
+		t.Errorf("msg %q under the menu, want the check's cleared", e.Msg)
+	}
 	keys(e, "y")
 	(<-posted)(e)
 	if want := "approved on #7 with 1 comment: https://github.com/o/r/pull/7#pullrequestreview-1"; e.Msg != want {

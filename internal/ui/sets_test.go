@@ -36,7 +36,7 @@ func TestDrawChangeSet(t *testing.T) {
 	ed.HandleKey("+") // on to #2
 	g = newGrid(100, 10)
 	Draw(g, ed)
-	if got := g.row(8); !strings.Contains(got, "1 pending, set 1/2") {
+	if got := g.row(9 - ed.MessageRows()); !strings.Contains(got, "1 pending, set 1/2") { // above the message, which may wrap
 		t.Errorf("status = %q", got)
 	}
 }

@@ -97,6 +97,7 @@ func (e *Editor) confirmSubmit(p *pullRequest, ev reviewEvent, r *ghReview, head
 	if n := len(p.Drafts) - len(r.Comments); n > 0 {
 		what += " (not " + plural(n, "pending draft") + ")"
 	}
+	e.Msg = "" // the check is done; the menu asks
 	title := fmt.Sprintf("send the review to #%d: %s?", p.N, what)
 	if head != p.Head {
 		title = fmt.Sprintf("#%d has new pushes since %s, which you reviewed; send anyway: %s?",
