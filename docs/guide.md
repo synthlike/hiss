@@ -37,6 +37,27 @@ and running tests, queries and requests.
   Claude gets a report. `:rs <path>` and `:rl <path>` save and load a
   review as JSON, with its diff, verdicts and discussion, so it can be picked up
   later. Untracked and deleted files aren't shown.
+- **Review a GitHub PR.** `:pr <n>` finds the PR with `gh`, fetches it from the
+  remote that points at its repository and checks its head out detached; the
+  tree must be clean. It walks the PR's hunks like `:review`, but the code is
+  the author's: `+` marks a hunk viewed and `-` flags it, with an optional
+  reason, and neither touches the files. `#` still talks to Claude. `:prd`
+  (`:pr-done`) checks out the branch you started from.
+- **Comment on GitHub.** `:gc <text>` drafts an official comment on the line
+  under the cursor, or on the selected lines within one hunk. GitHub only takes
+  comments on lines its diff shows, the changed lines and three around each
+  hunk, so others are refused right away. Drafts show in purple under their
+  line and are kept in `.hiss/pr/<n>.json` as you write them; `:pr <n>` picks
+  them up again, and warns if the PR has moved on since. `:gcd` drops the drafts
+  on a line. Asked for comments, Claude drafts them too, but they publish in your
+  name, so each waits until `:gca` accepts it. Comments go on the new side only
+  for now, and a draft can't be edited: drop it and write it again.
+- **Send the review.** `:prs [approve|changes] [text]` (`:pr-submit`) sends
+  your accepted drafts as one review of the commit you reviewed, with `text` as
+  its summary; `changes` needs one. It asks first, and says so if the author has
+  pushed since. Sent drafts are dropped; if GitHub refuses, they stay and its
+  reason is shown. GitHub doesn't let you approve or request changes on your own
+  PR.
 - **Discuss it.** `#` comments on the hunk or the line under the cursor; Claude
   replies inline or sends a revision, even after its turn has ended.
 - **Get a tour.** Ask "walk me through the auth flow": Claude shares a trail of
@@ -55,6 +76,9 @@ and running tests, queries and requests.
 | `space f` `b` `h` `t` | pick a file, buffer, hunk or trail step |
 | `:sa` / `:sr` | accept / reject the hunk's change set: what Claude proposed in that turn |
 | `:haa` / `:hra` | accept / reject all hunks |
+| `:pr <n>` / `:prd` | review GitHub PR n / go back |
+| `:gc <text>` / `:gca` / `:gcd` | draft a GitHub comment / accept Claude's / drop the line's |
+| `:prs [approve\|changes] [text]` | send the drafts as one review |
 
 ## Editing
 
