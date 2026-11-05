@@ -12,7 +12,10 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -159,6 +162,101 @@ func (s *studio) propose(t *testing.T, rel, old, new, why string) *core.Proposal
 	return ps[0]
 }
 
+// write writes files into the fixture project.
+func (s *studio) write(t *testing.T, files map[string]string) {
+	t.Helper()
+	for rel, content := range files {
+		if err := os.MkdirAll(filepath.Dir(s.path(rel)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(s.path(rel), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// runKeys presses keys that start a run, and any after it (such as y at a
+// confirm prompt), then waits for the run to finish.
+func (s *studio) runKeys(t *testing.T, keys ...string) {
+	t.Helper()
+	ch := make(chan func(*core.Editor), 64)
+	s.ed.Post = func(f func(*core.Editor)) { ch <- f }
+	s.keys(keys...)
+	timeout := time.After(60 * time.Second)
+	for s.ed.Running() != "" {
+		select {
+		case f := <-ch:
+			f(s.ed)
+		case <-timeout:
+			t.Fatal("run timed out")
+		}
+	}
+}
+
+// runRules is the fixture's .hissrun: two environments, staging asking first,
+// and rules for SQL and HTTP.
+const runRules = `[env]
+name   = dev
+source = .hiss/env/dev.sh
+
+[env]
+name    = staging
+source  = .hiss/env/staging.sh
+confirm = true
+
+[sql]
+match = *.sql
+cmd   = sqlite3 -init /dev/null -header -column "$DB"
+share = true
+
+[http]
+match = *.http
+cmd   = sh
+`
+
+const helloHTTP = `# Requests against the greet service. $BASE_URL and $TOKEN come from the
+# active env: :env staging, or :env dev for localhost.
+
+# Is it up?
+curl -sS "$BASE_URL/healthz"
+
+# Greet Ada, with the response headers.
+curl -sS -i "$BASE_URL/hello?name=Ada" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/json"
+
+# Without a name, the default greeting.
+curl -sS "$BASE_URL/hello" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Record a visit.
+curl -sS -X POST "$BASE_URL/visits" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Ada"}'
+`
+
+const visitorsSQL = `-- Queries against the greet database, $DB in the active env.
+
+-- Visitors in the last week.
+SELECT count(*) AS recent
+FROM visitors
+WHERE last_seen >= '2026-10-29';
+
+-- Who comes back most, and when we last saw them.
+SELECT name, visits, last_seen
+FROM visitors
+WHERE visits > 1
+ORDER BY visits DESC
+LIMIT 5;
+
+-- Names greeted only once: typos, or bots?
+SELECT name, last_seen
+FROM visitors
+WHERE visits = 1
+ORDER BY last_seen;
+`
+
 // turn starts an agent turn whose tool calls follow.
 func (s *studio) turn() {
 	s.ed.Hook(core.HookEvent{SessionID: "s1", Event: "UserPromptSubmit"})
@@ -200,6 +298,7 @@ var scenes = []scene{
 		s.open(t, "server/hello.go")
 		s.turn()
 		err := s.ed.ShowTrail(core.HookAgent, "How a request becomes a response", []core.StepInput{
+			{Path: s.path("cmd/greet/main.go"), Line: 11, Note: "main serves the routes on :8080."},
 			{Path: s.path("server/hello.go"), Line: 19, Note: "The router matches GET /hello and calls greet."},
 			{Path: s.path("server/hello.go"), Line: 9, Note: "Read the visitor's name; fall back to a friendly default."},
 			{Path: s.path("server/hello.go"), Line: 13, Note: "Write the greeting as plain text."},
@@ -208,12 +307,24 @@ var scenes = []scene{
 			t.Fatal(err)
 		}
 		s.ed.Hook(core.HookEvent{SessionID: "s1", Event: "Stop"})
-		s.keys("]", "s", "]", "s", "]", "s", "#")
-		s.typeText("Could this be JSON?")
-		s.keys("enter")
-		if err := s.ed.ReplyStep(core.HookAgent, 3, "Yes, with json.NewEncoder(w). Want me to propose it?"); err != nil {
-			t.Fatal(err)
+		comment := func(text string) {
+			s.keys("#")
+			s.typeText(text)
+			s.keys("enter")
 		}
+		reply := func(n int, text string) {
+			if err := s.ed.ReplyStep(core.HookAgent, n, text); err != nil {
+				t.Fatal(err)
+			}
+		}
+		s.keys("]", "s", "]", "s", "]", "s")
+		comment("What if the name has HTML in it?")
+		reply(3, "It's sent as text/plain, so browsers show it as text. Worth escaping once we answer in JSON or HTML.")
+		s.keys("]", "s")
+		comment("Could this be JSON?")
+		reply(4, "Yes, two lines:\nw.Header().Set(\"Content-Type\", \"application/json\")\njson.NewEncoder(w).Encode(map[string]string{\"message\": ...})\nWant me to propose it, with the test?")
+		comment("Yes, but keep plain text for curl users")
+		reply(4, "Will do: JSON by default, text/plain when Accept asks for it.")
 		s.keys("[", "s", "]", "s")
 	}},
 	{"fuzzy-finder", func(t *testing.T, s *studio) {
@@ -236,29 +347,54 @@ var scenes = []scene{
 			[]string{"Yes, under GET /hello.txt", "Yes, when Accept is text/plain", "No, JSON only"})
 		s.keys("down")
 	}},
-	{"run", func(t *testing.T, s *studio) {
-		s.open(t, "server/hello_test.go")
-		_, _, test := s.jsonChange(t)
-		s.ed.Hook(core.HookEvent{SessionID: "s1", Event: "Stop"})
-		s.ed.SwitchTo(test.Buf)
-		s.keys("g", "g", "]", "h", "+", "esc") // accept the test; the handler is still pending
-		s.open(t, "server/hello_test.go")
-		s.keys("g", "g", "j", "j", "j", "j", "j", "j", "j", "j", "j")
-		if err := os.WriteFile(s.path(".hissrun"), []byte("[env]\nname = dev\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		ch := make(chan func(*core.Editor), 64)
-		s.ed.Post = func(f func(*core.Editor)) { ch <- f }
-		s.keys("enter")
-		timeout := time.After(60 * time.Second)
-		for s.ed.Running() != "" {
-			select {
-			case f := <-ch:
-				f(s.ed)
-			case <-timeout:
-				t.Fatal("run timed out")
+	{"run-http", func(t *testing.T, s *studio) {
+		// A stand-in for the staging server: the JSON greeting, without a
+		// Date header so the shot stays the same.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			name := r.URL.Query().Get("name")
+			if name == "" {
+				name = "world"
 			}
+			w.Header()["Date"] = nil
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, "{\"message\":\"Hello, %s!\"}\n", name)
+		}))
+		t.Cleanup(srv.Close)
+		s.write(t, map[string]string{
+			".hissrun":              runRules,
+			".hiss/env/dev.sh":      "BASE_URL=http://localhost:8080\nTOKEN=dev\n",
+			".hiss/env/staging.sh":  "BASE_URL=" + srv.URL + "\nTOKEN=$(cat ~/.config/greet/staging-token 2>/dev/null)\n",
+			".hiss/runs/hello.http": helloHTTP,
+		})
+		t.Setenv("HOME", t.TempDir()) // no ~/.curlrc
+		s.open(t, ".hiss/runs/hello.http")
+		s.ed.HandleKey(":")
+		s.typeText("env staging")
+		s.keys("enter")
+		s.ed.HandleKey(":")
+		s.typeText("8")
+		s.keys("enter")
+		s.runKeys(t, "enter", "y") // staging asks first
+	}},
+	{"run-sql", func(t *testing.T, s *studio) {
+		db := filepath.Join(t.TempDir(), "greet.db")
+		seed := `CREATE TABLE visitors (name TEXT, visits INT, last_seen TEXT);
+INSERT INTO visitors VALUES ('Ada', 42, '2026-11-04'), ('Grace', 17, '2026-11-02'),
+  ('Linus', 9, '2026-10-30'), ('Barbara', 6, '2026-10-21'), ('Ken', 3, '2026-11-01'), ('Dennis', 1, '2026-09-12');`
+		if out, err := exec.Command("sqlite3", db, seed).CombinedOutput(); err != nil {
+			t.Fatalf("seeding: %v: %s", err, out)
 		}
+		s.write(t, map[string]string{
+			".hissrun":                runRules,
+			".hiss/env/dev.sh":        "DB=" + db + "\n",
+			".hiss/env/staging.sh":    "DB=staging.db\n",
+			".hiss/runs/visitors.sql": visitorsSQL,
+		})
+		s.open(t, ".hiss/runs/visitors.sql")
+		s.ed.HandleKey(":")
+		s.typeText("10")
+		s.keys("enter")
+		s.runKeys(t, "enter")
 	}},
 }
 

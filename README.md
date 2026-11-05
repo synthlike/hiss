@@ -24,12 +24,31 @@ Review a change set hunk by hunk, and discuss it inline.
   <img alt="An inline review in hiss: Claude proposes a JSON response as a set of three hunks; one is accepted, and a comment thread under the next asks about errors." src="docs/screenshots/review-light.png" width="600">
 </picture></a>
 
-Follow a guided code tour, with notes anchored to the relevant lines.
+Ask Claude to walk you through code: it shares a trail of steps anchored to the
+lines, and you discuss each step with it in place.
 
 <a href="docs/screenshots/code-tour-light.png"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/code-tour-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/code-tour-light.png">
-  <img alt="A guided code tour in hiss: Claude explains how a request becomes a response in three inline steps, and answers a comment on the last one." src="docs/screenshots/code-tour-light.png" width="600">
+  <img alt="A trail in hiss: Claude explains how a request becomes a response in four steps across two files. Under step 3 the user asks about HTML in names and Claude answers; under step 4 they agree on a JSON response that keeps plain text for curl users." src="docs/screenshots/code-tour-light.png" width="600">
+</picture></a>
+
+Send the HTTP request under the cursor with `enter`, in the environment you
+pick; staging asks first.
+
+<a href="docs/screenshots/run-http-light.png"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/run-http-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/run-http-light.png">
+  <img alt="An HTTP run in hiss: a file of saved curl requests, with the staging environment active; enter on the greeting request shows its response headers and JSON body in a panel below." src="docs/screenshots/run-http-light.png" width="600">
+</picture></a>
+
+Run a SQL query the same way, against the active env's database; tests and
+scripts too. Claude sees the result when the rule shares it.
+
+<a href="docs/screenshots/run-sql-light.png"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/run-sql-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/run-sql-light.png">
+  <img alt="A SQL run in hiss: a file of saved queries on the dev environment; enter on the second query shows the five most frequent visitors as a table in the panel." src="docs/screenshots/run-sql-light.png" width="600">
 </picture></a>
 
 Answer Claude's questions without leaving the editor.
@@ -38,14 +57,6 @@ Answer Claude's questions without leaving the editor.
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ask-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/ask-light.png">
   <img alt="A question popup in hiss: Claude asks whether to keep the plain-text greeting, offering three answers over the pending hunks." src="docs/screenshots/ask-light.png" width="600">
-</picture></a>
-
-Run the test under the cursor with `enter`; Claude sees the result too.
-
-<a href="docs/screenshots/run-light.png"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/run-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/run-light.png">
-  <img alt="A test run in hiss: enter on TestGreet streams go test output into a panel, which notes the run didn't include two pending hunks." src="docs/screenshots/run-light.png" width="600">
 </picture></a>
 
 Find the change you want to review with the fuzzy hunk picker (`space h`).
