@@ -207,19 +207,30 @@ func threadLines(thread []Comment, width int) []NoteLine {
 }
 
 // labeledLines wraps text at spaces to width columns after lead, indenting
-// the rows after the first to line up with the text.
+// the rows after the first to line up with the text. Each of text's lines
+// starts a row, so lists and suggestion blocks keep their shape; blank lines
+// are dropped.
 func labeledLines(lead, text string, width int) []string {
 	width = max(width, 20)
 	indent := strings.Repeat(" ", utf8.RuneCountInString(lead))
 	var out []string
 	line, empty := lead, true
-	for w := range strings.FieldsSeq(text) {
-		if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
-			out = append(out, line)
-			line = indent
+	for l := range strings.Lines(text) {
+		if strings.TrimSpace(l) == "" {
+			continue
 		}
-		line += " " + w
-		empty = false
+		if !empty {
+			out = append(out, line)
+			line, empty = indent, true
+		}
+		for w := range strings.FieldsSeq(l) {
+			if !empty && utf8.RuneCountInString(line)+1+utf8.RuneCountInString(w) > width {
+				out = append(out, line)
+				line = indent
+			}
+			line += " " + w
+			empty = false
+		}
 	}
 	return append(out, line)
 }

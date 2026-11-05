@@ -129,3 +129,21 @@ func TestThreadLinesWrap(t *testing.T) {
 		t.Errorf("got %q", strings.Join(got, "|"))
 	}
 }
+
+func TestLabeledLinesKeepLineBreaks(t *testing.T) {
+	got := labeledLines("draft:", "Try this:\n\n```suggestion\n\tx := 2\n```\na long line that has to wrap here", 30)
+	want := []string{
+		"draft: Try this:",
+		"       ```suggestion",
+		"       x := 2",
+		"       ```",
+		"       a long line that has to",
+		"       wrap here",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if got := labeledLines("x:", "", 30); len(got) != 1 || got[0] != "x:" {
+		t.Errorf("empty text: %q", got)
+	}
+}
